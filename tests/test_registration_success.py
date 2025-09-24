@@ -1,42 +1,54 @@
-# "name": "Test Student",
-#     "email": "test.student@example.com",
-#     "password": "a-secure-password123"
-
 import pytest
+import pytest_asyncio
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from app.main import app
 from sqlalchemy.orm import sessionmaker
 
 from app.models import Base
+from app.database import get_db
 
 
-SQLALCHEMY_DATABASE_URL = "sqlite:///./test.db" # Use the momory database for testing
+SQLALCHEMY_DATABASE_URL = "sqlite+aiosqlite:///./test.db" # Use the momory database for testing
 
-engine = create_engine(
-    SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False}
-)
-
-TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+engine = create_async_engine(SQLALCHEMY_DATABASE_URL)
 
 
-@pytest.fixture()
-def test_db():
-    Base. metadata.create_all(bind=engine)  # Create the tables
+TestingSessionLocal = sessionmaker(
+    autocommit=False,
+    autoflush=False,
+    bind=engine,
+    class_=AsyncSession)
+
+
+async def override_get_db():
+    async with TestingSessionLocal() as session:
+        yield session
+
+app.dependency_overrides[get_db] = override_get_db
+
+
+
+@pytest_asyncio.fixture(scope="function")
+async def test_db():
+    # Create the database tables
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    
     yield
-    Base.metadata.drop_all(bind=engine)  # Drop the tables after the test
+    # Drop the database tables
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
+    
 
-def override_get_db():
-    try:
-        db = TestingSessionLocal()
-        yield db
-    finally:
-        db.close()
 
-app.dependency_overrides[app.get_db] = override_get_db
+
+
 client = TestClient(app)
 
-def test_registration_success():
+@pytest.mark.asyncio
+
+async def test_registration_success(test_db):
     # a successful registration student data
     new_student = {
         "name": "Test Student",
