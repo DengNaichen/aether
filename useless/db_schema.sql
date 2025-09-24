@@ -30,12 +30,7 @@ CREATE TABLE KnowledgeEdges (
 CREATE INDEX idx_topic_name ON KnowledgeNodes (topic_name);
 
 
-CREATE TABlE Students (
-    student_id SERIAL PRIMARY KEY,
-    student_name VARCHAR(255) NOT NULL,
-    student_email VARCHAR(255) UNIQUE NOT NULL,
-    enrollment_date TIMESTAMP DEFAULT NOW()
-);
+
 
 CREATE TYPE Proficiency_level AS ENUM ('unseen', 'learning', 'good', 'mastered');
 

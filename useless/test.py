@@ -1,6 +1,6 @@
 # test_app.py
 
-from app_logic import get_student_progress, update_node_mastery # 假设 add_student 也在里面
+from useless.app_logic import get_student_progress, update_node_mastery # 假设 add_student 也在里面
 
 # 模拟流程
 student_name = "Alice"
