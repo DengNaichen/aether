@@ -24,6 +24,7 @@ app = FastAPI(lifespan=lifespan)
 
 
 @app.post("/register", response_model=StudentOut, status_code=status.HTTP_201_CREATED)
+# @app.post("/register", status_code=status.HTTP_201_CREATED)
 async def register_student(student: StudentCreate, db: AsyncSession = Depends(get_db)):
     # Check if the email already exists
     result = await db.execute(select(Student).where(Student.email == student.email))

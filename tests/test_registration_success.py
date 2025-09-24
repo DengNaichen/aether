@@ -44,7 +44,6 @@ async def test_db():
 client = TestClient(app)
 
 @pytest.mark.asyncio
-
 async def test_registration_success(test_db):
     # a successful registration student data
     new_student = {
@@ -55,7 +54,6 @@ async def test_registration_success(test_db):
 
     # send post request 
     response = client.post("/register", json=new_student)
-
     # assert status code
     assert response.status_code == 201
     # assert return data
@@ -74,3 +72,59 @@ async def test_registration_success(test_db):
     assert response_data["email"] == new_student["email"]
     
     assert "password" not in response_data  # Ensure password is not returned
+
+
+@pytest.mark.parametrize(
+    "syntactically_invalid_email",
+    [
+        "plainaddress",
+        "#@%^%#$@#$@#.com",
+        "@example.com",
+        "email.example.com",
+        "email@example@example.com",
+        "email@example..com",
+        "email@.example.com",
+    ],
+)
+@pytest.mark.asyncio
+async def test_registration_fails_for_syntactically_invalid_email(
+    syntactically_invalid_email: str, test_db
+):
+    """
+    确认对于语法无效的邮件，API会返回422错误。
+    """
+    new_student_data = {
+        "name": "Test Student",
+        "email": syntactically_invalid_email,
+        "password": "a-secure-password123",
+    }
+
+    response = client.post("/register", json=new_student_data)
+
+    assert response.status_code == 422
+    response_data = response.json()
+    assert response_data["detail"][0]["loc"] == ["body", "email"]
+
+
+# 测试二：验证可以被成功解析的邮件地址
+@pytest.mark.parametrize(
+    "parseable_email",
+    [
+        "Joe Smith <email@example.com>",
+        "test.email@example.com", # 这是一个简单有效的邮件
+    ]
+)
+@pytest.mark.asyncio
+async def test_registration_succeeds_for_parseable_email(parseable_email: str, test_db):
+    """
+    确认对于可以被解析的、有效的邮件，API会返回201成功。
+    """
+    new_student_data = {
+        "name": "Another Student",
+        "email": parseable_email,
+        "password": "a-secure-password123",
+    }
+
+    response = client.post("/register", json=new_student_data)
+
+    assert response.status_code == 201
