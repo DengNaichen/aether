@@ -1,0 +1,68 @@
+{
+  "nodes": [
+    {
+        "id": "vector", 
+        "name": "Vector", 
+        "labels": ["Vector"]
+    },
+    {
+        "id": "vector_operation", 
+        "name": "Operation of Vector", 
+        "labels": ["Operation", "Vector"]
+    },
+    {
+        "id": "vector_definition", 
+        "name": "Definition of Vector", 
+        "labels": ["Definition", "Vector"] 
+    },
+    {
+        "id": "vector_representation", 
+        "name": "Representation of Vector", 
+        "labels": ["Representation", "Vector"]
+    },
+    {
+        "id": "vector_representation_symbolic", 
+        "name": "Symbolic Representation of Vector", 
+        "labels": ["Representation", "Vector", "Symbolic"]
+    },
+    {
+        "id": "vector_representation_graphic", 
+        "name": "Graphic Representation of Vector", 
+        "labels": ["Representation", "Vector", "Graphic"]
+    },
+    {
+        "id": "vector_addition", 
+        "name": "Vector Addition", 
+        "labels": ["Operation", "Vector", "Addition"]
+    },
+    {
+        "id": "vector_subtraction", 
+        "name": "Vector Subtraction", 
+        "labels": ["Operation", "Vector", "Subtraction"]
+    },
+    {
+        "id": "vector_scalar_multiplication", 
+        "name": "Vector Multiplication", 
+        "labels": ["Operation", "Vector", "Scalar", "Multiplication"]
+    },
+    {
+        "id": "vector_decomposition", 
+        "name": "Vector Decomposition", 
+        "labels": ["Operation", "Vector", "Decomposition"]
+    }
+  ],
+  "relationships": [
+    {"source": "vector", "target": "vector_operation", "type": "HAS_COMPONENT"},
+    {"source": "vector", "target": "vector_definition", "type": "HAS_COMPONENT"},
+    {"source": "vector", "target": "vector_representation", "type": "HAS_COMPONENT"},
+    
+    {"source": "vector_representation", "target": "vector_representation_symbolic", "type": "HAS_COMPONENT"},
+    {"source": "vector_representation", "target": "vector_representation_graphic", "type": "HAS_COMPONENT"},
+    
+
+    {"source": "vector_operation", "target": "vector_addition", "type": "HAS_COMPONENT"},
+    {"source": "vector_operation", "target": "vector_subtraction", "type": "HAS_COMPONENT"},
+    {"source": "vector_operation", "target": "vector_scalar_multiplication", "type": "HAS_COMPONENT"},
+    {"source": "vector_operation", "target": "vector_decomposition", "type": "HAS_COMPONENT"}
+  ]
+}
