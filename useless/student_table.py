@@ -1,5 +1,5 @@
 import psycopg2
-from useless.config import DB_SETTINGS
+from app.config import DB_SETTINGS
 
 
 def create_student_tables(cursor):

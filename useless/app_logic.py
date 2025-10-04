@@ -1,7 +1,7 @@
 # 在一个新的文件 app_logic.py 中
 
 import psycopg2
-from useless.config import DB_SETTINGS
+from app.config import DB_SETTINGS
 
 def get_student_progress(student_id):
     """查询并返回一个学生所有知识点的学习状态"""

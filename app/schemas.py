@@ -14,3 +14,15 @@ class StudentOut(BaseModel):
     created_at: datetime.datetime 
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class Token(BaseModel):
+    """Token Response"""
+    access_token: str
+    token_type: str
+
+
+class UserLogin(BaseModel):
+    """User Login Response"""
+    email: EmailStr
+    password: str
