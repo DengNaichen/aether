@@ -167,5 +167,3 @@ fabric.properties
 # Ignore all local history of files
 .history
 .ionide
-
-# End of https://www.toptal.com/developers/gitignore/api/macos,visualstudiocode,pycharm
