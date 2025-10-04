@@ -1,0 +1,34 @@
+{ 
+    "nodes": [
+        {
+            "id": "displacement",
+            "name": "Displacement",
+            "labels": ["Displacement"]
+        },
+        {
+            "id": "displacement_definition",
+            "name": "Definition",
+            "labels": ["Definition", "Displacement"]
+        },
+        {
+            "id": "displacement_notation",
+            "name": "Notation",
+            "labels": ["Notation", "Displacement"]
+        },
+        {
+            "id": "displacement_calculation",
+            "name": "Calculation",
+            "labels": ["Calculation", "Displacement"]
+        }
+    ],
+    "relationships": [
+        { "source": "displacement", "target": "displacement_definition", "type": "HAS_COMPONENT" },
+        { "source": "displacement", "target": "displacement_notation", "type": "HAS_COMPONENT" },
+        { "source": "displacement", "target": "displacement_calculation", "type": "HAS_COMPONENT" },
+
+        { "source": "displacement_definition", "target": "vector_definition", "type": "DEPENDS_ON" },
+        { "source": "displacement_definition", "target": "position_definition", "type": "DEPENDS_ON" },
+
+        { "source": "displacement_calculation", "target": "vector_subtraction", "type": "DEPENDS_ON" }
+    ]
+}

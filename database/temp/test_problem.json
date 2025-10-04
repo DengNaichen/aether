@@ -1,0 +1,60 @@
+[
+  {
+    "problemId": "conda activate tutor-env",
+    "problemType": "multiple_choice",
+    "problemContent": "test content 1",
+    "tags": [
+      "t",
+      "e",
+      "s",
+      "t"
+    ],
+    "options": [
+      {
+        "key": "A",
+        "value": "a test"
+      },
+      {
+        "key": "B",
+        "value": "b test"
+      },
+      {
+        "key": "C",
+        "value": "c test"
+      },
+      {
+        "key": "D",
+        "value": "d test"
+      }
+    ],
+    "answer": {
+      "key": "A"
+    }
+  },
+  {
+    "problemId": "test_problem",
+    "problemType": "multiple_choice",
+    "problemContent": "test",
+    "options": [
+      {
+        "key": "A",
+        "value": "a"
+      },
+      {
+        "key": "B",
+        "value": "b"
+      },
+      {
+        "key": "C",
+        "value": "c"
+      },
+      {
+        "key": "D",
+        "value": "d"
+      }
+    ],
+    "answer": {
+      "key": "A"
+    }
+  }
+]

@@ -1,0 +1,9 @@
+{
+  "students": [
+    {
+      "name": "testStudent",
+      "grade": "g11",
+      "course_enrolled": "g11_chem"
+    }
+  ]
+}

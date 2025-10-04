@@ -1,0 +1,180 @@
+{
+  "problems": [
+    {
+      "problemType": "multiple_choice",
+      "problemContent": "Which of the following correctly lists the four fundamental forces of nature?",
+      "explanation": "",
+      "options": [
+        {
+          "key": "A",
+          "value": "Gravity, Electromagnetism, Friction, and the Normal Force"
+        },
+        {
+          "key": "B",
+          "value": "Strong Nuclear, Weak Nuclear, Electromagnetism, and Gravity"
+        },
+        {
+          "key": "C",
+          "value": "Pushing Force, Pulling Force, Gravity, and Weak Nuclear Force"
+        },
+        {
+          "key": "D",
+          "value": "Strong Nuclear, Centripetal Force, Electromagnetism, and Gravity"
+        }
+      ],
+      "answer": {
+        "key": "B"
+      },
+      "problemId": "MULTIPLE_E698E2AE",
+      "createdAt": "2025-09-26T20:35:00.282746"
+    },
+    {
+      "problemType": "multiple_choice",
+      "problemContent": "Identify the primary type of force responsible: a nickel is attracted to a special steel bar.",
+      "explanation": "",
+      "options": [
+        {
+          "key": "A",
+          "value": "Gravitational Force"
+        },
+        {
+          "key": "B",
+          "value": "Weak Nuclear Force"
+        },
+        {
+          "key": "C",
+          "value": "Electromagnetic Force"
+        },
+        {
+          "key": "D",
+          "value": "Frictional Force"
+        }
+      ],
+      "answer": {
+        "key": "C"
+      },
+      "problemId": "MULTIPLE_5B6BDBBE",
+      "createdAt": "2025-09-26T20:39:34.376154"
+    },
+    {
+      "problemType": "multiple_choice",
+      "problemContent": "Identify the primary type of force responsible: A coasting cyclist gradually comes to a stop.",
+      "explanation": "",
+      "options": [
+        {
+          "key": "A",
+          "value": "Gravitational Force"
+        },
+        {
+          "key": "B",
+          "value": "Frictional/Air Resistance Force"
+        },
+        {
+          "key": "C",
+          "value": "Strong Nuclear Force"
+        },
+        {
+          "key": "D",
+          "value": "Normal Force"
+        }
+      ],
+      "answer": {
+        "key": "B"
+      },
+      "problemId": "MULTIPLE_EC8452C2",
+      "createdAt": "2025-09-26T20:41:47.405878"
+    },
+    {
+      "problemType": "multiple_choice",
+      "problemContent": "Identify the primary type of force responsible: An electron in a hydrogen atom travels in an orbit around a proton.",
+      "explanation": "",
+      "options": [
+        {
+          "key": "A",
+          "value": "Gravitational Force"
+        },
+        {
+          "key": "B",
+          "value": "Weak Nuclear Force"
+        },
+        {
+          "key": "C",
+          "value": "Strong Nuclear Force"
+        },
+        {
+          "key": "D",
+          "value": "Electromagnetic Force"
+        }
+      ],
+      "answer": {
+        "key": "D"
+      },
+      "problemId": "MULTIPLE_1ED1BE2A",
+      "createdAt": "2025-09-26T20:43:01.338601"
+    },
+    {
+      "problemType": "multiple_choice",
+      "problemContent": "Identify the primary type of force responsible: A meteor accelerates toward Earth.",
+      "explanation": "",
+      "options": [
+        {
+          "key": "A",
+          "value": "Gravitational Force"
+        },
+        {
+          "key": "B",
+          "value": "Electromagnetic Force"
+        },
+        {
+          "key": "C",
+          "value": "Frictional Force"
+        },
+        {
+          "key": "D",
+          "value": "Weak Nuclear Force"
+        }
+      ],
+      "answer": {
+        "key": "A"
+      },
+      "problemId": "MULTIPLE_0136FBFD",
+      "createdAt": "2025-09-26T20:44:16.143844"
+    },
+    {
+      "problemType": "multiple_choice",
+      "problemContent": "Identify the primary type of force responsible: The meteor in (d) begins to burn and give off light.",
+      "explanation": "",
+      "options": [
+        {
+          "key": "A",
+          "value": "Gravitational Force"
+        },
+        {
+          "key": "B",
+          "value": "Frictional/Air Resistance Force"
+        },
+        {
+          "key": "C",
+          "value": "Strong Nuclear Force"
+        },
+        {
+          "key": "D",
+          "value": "Electromagnetic Force"
+        }
+      ],
+      "answer": {
+        "key": "D"
+      },
+      "problemId": "MULTIPLE_89A0E1F2",
+      "createdAt": "2025-09-26T20:45:21.860123"
+    }
+  ],
+  "relationships": [
+    { "source": "MULTIPLE_E698E2AE", "target": "fundamental_forces", "type": "IS_ABOUT" },
+    { "source": "MULTIPLE_5B6BDBBE", "target": "fundamental_forces", "type": "IS_ABOUT" },
+    { "source": "MULTIPLE_EC8452C2", "target": "fundamental_forces", "type": "IS_ABOUT" },
+    { "source": "MULTIPLE_1ED1BE2A", "target": "fundamental_forces", "type": "IS_ABOUT" },
+    { "source": "MULTIPLE_0136FBFD", "target": "fundamental_forces", "type": "IS_ABOUT" },
+    { "source": "MULTIPLE_89A0E1F2", "target": "fundamental_forces", "type": "IS_ABOUT" }
+  ]
+}

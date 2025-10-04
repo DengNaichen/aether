@@ -1,0 +1,67 @@
+{
+    "nodes": [
+        {
+            "id": "force",
+            "name": "Force",
+            "labels": ["Force"]
+        },
+        {
+            "id": "fundamental_forces",
+            "name": "Fundamental Forces",
+            "labels": ["FundamentalForce", "Force"]
+        },
+        {
+            "id": "week_nuclear_force",
+            "name": "Weak Nuclear Force",
+            "labels": ["WeakNuclearForce", "FundamentalForce", "Force"]
+        },
+        {
+            "id": "strong_nuclear_force",
+            "name": "Strong Nuclear Force",
+            "labels": ["StrongNuclearForce", "FundamentalForce", "Force"]
+        },
+        {
+            "id": "electromagnetic_force",
+            "name": "Electromagnetic Force",
+            "labels": ["ElectromagneticForce", "FundamentalForce", "Force"]
+        },
+        {
+            "id": "gravitational_force",
+            "name": "Gravitational Force",
+            "labels": ["GravitationalForce", "FundamentalForce", "Force"]
+        },
+        {
+            "id": "daily_forces",
+            "name": "Daily Forces",
+            "labels": ["DailyForce", "Force"]
+        },
+        {
+            "id": "frictional_force",
+            "name": "Frictional Force",
+            "labels": ["FrictionalForce", "DailyForce", "Force"]
+        },
+        {
+            "id": "tension_force",
+            "name": "Tension Force",
+            "labels": ["TensionForce", "DailyForce", "Force"]
+        },
+        {
+            "id": "normal_force",
+            "name": "Normal Force",
+            "labels": ["NormalForce", "DailyForce", "Force"]
+        }
+    ],
+    "relationships": [
+        { "source": "force", "target": "fundamental_forces", "type": "HAS_COMPONENT" },
+        { "source": "force", "target": "daily_forces", "type": "HAS_COMPONENT" },
+
+        { "source": "daily_forces", "target": "frictional_force", "type": "HAS_COMPONENT" },
+        { "source": "daily_forces", "target": "tension_force", "type": "HAS_COMPONENT" },
+        { "source": "daily_forces", "target": "normal_force", "type": "HAS_COMPONENT" },
+        
+        { "source": "fundamental_forces", "target": "week_nuclear_force", "type": "HAS_COMPONENT" },
+        { "source": "fundamental_forces", "target": "strong_nuclear_force", "type": "HAS_COMPONENT" },
+        { "source": "fundamental_forces", "target": "electromagnetic_force", "type": "HAS_COMPONENT" },
+        { "source": "fundamental_forces", "target": "gravitational_force", "type": "HAS_COMPONENT" }
+    ]
+}

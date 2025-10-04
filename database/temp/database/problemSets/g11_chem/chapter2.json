@@ -1,0 +1,1156 @@
+{
+    "problems": [
+  {
+    "question": "According to Dalton's Atomic Theory, which statement is a key principle?",
+    "options": [
+      "Atoms can be divided into smaller particles.",
+      "Atoms of one element can be converted into atoms of another element.",
+      "All matter is made up of tiny particles called atoms.",
+      "Atoms of the same element can have different masses."
+    ],
+    "correct": 2,
+    "knowledge_label": "daltons_atomic_theory",
+    "difficulty": "easy"
+  },
+  {
+    "question": "Which subatomic particle has a positive charge and is found in the nucleus?",
+    "options": [
+      "Electron",
+      "Neutron",
+      "Proton",
+      "Photon"
+    ],
+    "correct": 2,
+    "knowledge_label": "proton",
+    "difficulty": "easy"
+  },
+  {
+    "question": "The central core of an atom, containing protons and neutrons, is called the:",
+    "options": [
+      "Electron cloud",
+      "Nucleus",
+      "Energy level",
+      "Valence shell"
+    ],
+    "correct": 1,
+    "knowledge_label": "nucleus",
+    "difficulty": "easy"
+  },
+  {
+    "question": "An atom of potassium (K) has an atomic number of 19 and a mass number of 39. How many neutrons does it have?",
+    "options": [
+      "19",
+      "20",
+      "39",
+      "58"
+    ],
+    "correct": 1,
+    "knowledge_label": "mass_number",
+    "difficulty": "medium"
+  },
+  {
+    "question": "What defines an element and is represented by the symbol Z?",
+    "options": [
+      "The number of neutrons",
+      "The mass number",
+      "The number of protons",
+      "The number of electrons in a neutral atom"
+    ],
+    "correct": 2,
+    "knowledge_label": "atomic_number",
+    "difficulty": "easy"
+  },
+  {
+    "question": "Carbon-12 and Carbon-14 are examples of:",
+    "options": [
+      "Ions",
+      "Isotopes",
+      "Isomers",
+      "Cations"
+    ],
+    "correct": 1,
+    "knowledge_label": "isotope",
+    "difficulty": "easy"
+  },
+  {
+    "question": "The modern atomic theory differs from Dalton's theory because it acknowledges that:",
+    "options": [
+      "Atoms are solid, indestructible particles.",
+      "All atoms of an element have the same mass.",
+      "Atoms are composed of smaller subatomic particles.",
+      "Atoms cannot combine to form compounds."
+    ],
+    "correct": 2,
+    "knowledge_label": "modern_atomic_theory",
+    "difficulty": "medium"
+  },
+  {
+    "question": "Which particle is the smallest and has a negative charge?",
+    "options": [
+      "Proton",
+      "Neutron",
+      "Nucleus",
+      "Electron"
+    ],
+    "correct": 3,
+    "knowledge_label": "electron",
+    "difficulty": "easy"
+  },
+  {
+    "question": "An isotope that has an unstable nucleus and spontaneously decays is known as a:",
+    "options": [
+      "Stable isotope",
+      "Radioisotope",
+      "Cation",
+      "Anion"
+    ],
+    "correct": 1,
+    "knowledge_label": "radioisotope",
+    "difficulty": "easy"
+  },
+  {
+    "question": "A particle with no electrical charge found within the atomic nucleus is a(n):",
+    "options": [
+      "Electron",
+      "Proton",
+      "Neutron",
+      "Ion"
+    ],
+    "correct": 2,
+    "knowledge_label": "neutron",
+    "difficulty": "easy"
+  },
+  {
+    "question": "The modern periodic table arranges elements in order of increasing:",
+    "options": [
+      "Atomic mass",
+      "Number of neutrons",
+      "Atomic number",
+      "Atomic radius"
+    ],
+    "correct": 2,
+    "knowledge_label": "periodic_table",
+    "difficulty": "easy"
+  },
+  {
+    "question": "The principle that the properties of elements repeat in a regular pattern when arranged by atomic number is called the:",
+    "options": [
+      "Law of Conservation of Mass",
+      "Atomic Theory",
+      "Periodic Law",
+      "Law of Definite Proportions"
+    ],
+    "correct": 2,
+    "knowledge_label": "periodic_law",
+    "difficulty": "easy"
+  },
+  {
+    "question": "In the periodic table, a horizontal row is called a:",
+    "options": [
+      "Group",
+      "Family",
+      "Period",
+      "Series"
+    ],
+    "correct": 2,
+    "knowledge_label": "periodic_table",
+    "difficulty": "easy"
+  },
+  {
+    "question": "The electrons in the outermost energy level of an atom are called:",
+    "options": [
+      "Core electrons",
+      "Valence electrons",
+      "Inner electrons",
+      "Nuclear electrons"
+    ],
+    "correct": 1,
+    "knowledge_label": "valence_electron",
+    "difficulty": "easy"
+  },
+  {
+    "question": "A Lewis structure uses dots to represent which type of electrons?",
+    "options": [
+      "All electrons in an atom",
+      "Only the electrons in the first energy level",
+      "Only the valence electrons",
+      "Only the core electrons"
+    ],
+    "correct": 2,
+    "knowledge_label": "lewis_structure",
+    "difficulty": "easy"
+  },
+  {
+    "question": "How many valence electrons does an atom of oxygen (Group 16) have?",
+    "options": [
+      "2",
+      "6",
+      "8",
+      "16"
+    ],
+    "correct": 1,
+    "knowledge_label": "valence_electron",
+    "difficulty": "medium"
+  },
+  {
+    "question": "The region of space where an electron is most likely to be found is called an:",
+    "options": [
+      "Energy level",
+      "Nucleus",
+      "Proton path",
+      "Isotope zone"
+    ],
+    "correct": 0,
+    "knowledge_label": "energy_level",
+    "difficulty": "easy"
+  },
+  {
+    "question": "A stable octet refers to an atom having:",
+    "options": [
+      "8 protons",
+      "8 neutrons",
+      "8 total electrons",
+      "8 valence electrons"
+    ],
+    "correct": 3,
+    "knowledge_label": "stable_octet",
+    "difficulty": "easy"
+  },
+  {
+    "question": "Which of the following elements has a full outer energy level, making it very stable?",
+    "options": [
+      "Sodium (Na)",
+      "Chlorine (Cl)",
+      "Neon (Ne)",
+      "Carbon (C)"
+    ],
+    "correct": 2,
+    "knowledge_label": "stable_octet",
+    "difficulty": "medium"
+  },
+  {
+    "question": "What is the general trend for atomic radius as you move from left to right across a period?",
+    "options": [
+      "It increases.",
+      "It decreases.",
+      "It remains the same.",
+      "It increases, then decreases."
+    ],
+    "correct": 1,
+    "knowledge_label": "atomic_radius",
+    "difficulty": "medium"
+  },
+  {
+    "question": "What is the general trend for atomic radius as you move down a group?",
+    "options": [
+      "It increases.",
+      "It decreases.",
+      "It remains the same.",
+      "It decreases, then increases."
+    ],
+    "correct": 0,
+    "knowledge_label": "atomic_radius",
+    "difficulty": "medium"
+  },
+  {
+    "question": "A charged particle formed when an atom gains or loses electrons is called a(n):",
+    "options": [
+      "Isotope",
+      "Molecule",
+      "Ion",
+      "Compound"
+    ],
+    "correct": 2,
+    "knowledge_label": "ion",
+    "difficulty": "easy"
+  },
+  {
+    "question": "When a neutral sodium atom (Na) loses one electron, it becomes a(n):",
+    "options": [
+      "Anion with a 1- charge",
+      "Cation with a 1+ charge",
+      "Anion with a 1+ charge",
+      "Cation with a 1- charge"
+    ],
+    "correct": 1,
+    "knowledge_label": "cation",
+    "difficulty": "medium"
+  },
+  {
+    "question": "A negatively charged ion is called a(n):",
+    "options": [
+      "Cation",
+      "Anion",
+      "Isotope",
+      "Radioisotope"
+    ],
+    "correct": 1,
+    "knowledge_label": "anion",
+    "difficulty": "easy"
+  },
+  {
+    "question": "The energy required to remove an electron from a neutral atom is known as:",
+    "options": [
+      "Electron affinity",
+      "Electronegativity",
+      "Nuclear energy",
+      "Ionization energy"
+    ],
+    "correct": 3,
+    "knowledge_label": "ionization_energy",
+    "difficulty": "easy"
+  },
+  {
+    "question": "Which of the following elements would have the highest first ionization energy?",
+    "options": [
+      "Lithium (Li)",
+      "Potassium (K)",
+      "Fluorine (F)",
+      "Helium (He)"
+    ],
+    "correct": 3,
+    "knowledge_label": "ionization_energy",
+    "difficulty": "hard"
+  },
+  {
+    "question": "The measure of the energy change when an electron is added to a neutral atom is:",
+    "options": [
+      "Ionization energy",
+      "Atomic radius",
+      "Electron affinity",
+      "Mass number"
+    ],
+    "correct": 2,
+    "knowledge_label": "electron_affinity",
+    "difficulty": "easy"
+  },
+  {
+    "question": "Which group of elements has the highest electron affinities (most negative values)?",
+    "options": [
+      "Alkali metals (Group 1)",
+      "Alkaline earth metals (Group 2)",
+      "Halogens (Group 17)",
+      "Noble gases (Group 18)"
+    ],
+    "correct": 2,
+    "knowledge_label": "electron_affinity",
+    "difficulty": "medium"
+  },
+  {
+    "question": "Predictable changes in the properties of elements across the periodic table are known as:",
+    "options": [
+      "Periodic trends",
+      "Atomic theories",
+      "Nuclear reactions",
+      "Chemical bonds"
+    ],
+    "correct": 0,
+    "knowledge_label": "periodic_trend",
+    "difficulty": "easy"
+  },
+  {
+    "question": "An atom is defined as the smallest particle of an element that:",
+    "options": [
+      "Can be seen with a microscope.",
+      "Retains the properties of that element.",
+      "Is electrically charged.",
+      "Cannot be broken down further."
+    ],
+    "correct": 1,
+    "knowledge_label": "atom",
+    "difficulty": "easy"
+  },
+  {
+    "question": "How many protons are in an atom of Fluorine ($^{19}_9$F)?",
+    "options": [
+      "9",
+      "10",
+      "19",
+      "28"
+    ],
+    "correct": 0,
+    "knowledge_label": "atomic_number",
+    "difficulty": "easy"
+  },
+  {
+    "question": "The mass number (A) represents the total number of:",
+    "options": [
+      "Protons and electrons",
+      "Neutrons and electrons",
+      "Protons and neutrons",
+      "Only protons"
+    ],
+    "correct": 2,
+    "knowledge_label": "mass_number",
+    "difficulty": "easy"
+  },
+  {
+    "question": "What do isotopes of an element have in common?",
+    "options": [
+      "Mass number",
+      "Number of neutrons",
+      "Atomic number",
+      "Atomic mass"
+    ],
+    "correct": 2,
+    "knowledge_label": "isotope",
+    "difficulty": "medium"
+  },
+  {
+    "question": "Which of these is NOT a subatomic particle?",
+    "options": [
+      "Proton",
+      "Neutron",
+      "Electron",
+      "Molecule"
+    ],
+    "correct": 3,
+    "knowledge_label": "subatomic_particle",
+    "difficulty": "easy"
+  },
+  {
+    "question": "What is the maximum number of electrons that can occupy the first energy level?",
+    "options": [
+      "1",
+      "2",
+      "8",
+      "18"
+    ],
+    "correct": 1,
+    "knowledge_label": "energy_level",
+    "difficulty": "easy"
+  },
+  {
+    "question": "Which of the following is the correct Lewis structure for a neutral carbon atom?",
+    "options": [
+      "A 'C' with 2 dots",
+      "A 'C' with 4 dots",
+      "A 'C' with 6 dots",
+      "A 'C' with 8 dots"
+    ],
+    "correct": 1,
+    "knowledge_label": "lewis_structure",
+    "difficulty": "medium"
+  },
+  {
+    "question": "Why does ionization energy generally increase from left to right across a period?",
+    "options": [
+      "The number of energy levels increases.",
+      "The nuclear charge increases, pulling electrons closer.",
+      "The atomic radius increases.",
+      "The number of valence electrons decreases."
+    ],
+    "correct": 1,
+    "knowledge_label": "ionization_energy",
+    "difficulty": "hard"
+  },
+  {
+    "question": "When a chlorine atom (Cl) gains an electron, what does it become?",
+    "options": [
+      "A Cl$^{+}$ cation",
+      "A Cl$^{-}$ anion",
+      "A neutral Ar atom",
+      "An isotope of chlorine"
+    ],
+    "correct": 1,
+    "knowledge_label": "anion",
+    "difficulty": "medium"
+  },
+  {
+    "question": "Which element has the largest atomic radius?",
+    "options": [
+      "Li",
+      "Na",
+      "K",
+      "Rb"
+    ],
+    "correct": 3,
+    "knowledge_label": "atomic_radius",
+    "difficulty": "medium"
+  },
+  {
+    "question": "The elements in Group 1 are known as the:",
+    "options": [
+      "Halogens",
+      "Noble gases",
+      "Alkaline earth metals",
+      "Alkali metals"
+    ],
+    "correct": 3,
+    "knowledge_label": "periodic_table",
+    "difficulty": "easy"
+  },
+  {
+    "question": "The period number of an element in the periodic table corresponds to the number of:",
+    "options": [
+      "Valence electrons",
+      "Protons",
+      "Occupied energy levels",
+      "Neutrons"
+    ],
+    "correct": 2,
+    "knowledge_label": "energy_level",
+    "difficulty": "medium"
+  },
+  {
+    "question": "How many valence electrons do the elements in Group 17 (the halogens) have?",
+    "options": [
+      "1",
+      "2",
+      "7",
+      "17"
+    ],
+    "correct": 2,
+    "knowledge_label": "valence_electron",
+    "difficulty": "easy"
+  },
+  {
+    "question": "Which element is a metalloid?",
+    "options": [
+      "Sulfur (S)",
+      "Silicon (Si)",
+      "Aluminum (Al)",
+      "Phosphorus (P)"
+    ],
+    "correct": 1,
+    "knowledge_label": "periodic_table",
+    "difficulty": "medium"
+  },
+  {
+    "question": "Why do noble gases (Group 18) have very low electron affinities (positive or small negative values)?",
+    "options": [
+      "They have a strong attraction for electrons.",
+      "Their outer energy level is already full and stable.",
+      "They have a very small atomic radius.",
+      "They readily form positive ions."
+    ],
+    "correct": 1,
+    "knowledge_label": "electron_affinity",
+    "difficulty": "hard"
+  },
+  {
+    "question": "An ion of magnesium, Mg$^{2+}$, has the same number of electrons as which neutral atom?",
+    "options": [
+      "Na",
+      "Ne",
+      "Ar",
+      "Ca"
+    ],
+    "correct": 1,
+    "knowledge_label": "ion",
+    "difficulty": "hard"
+  },
+  {
+    "question": "What is the expected charge of an ion formed from a sulfur (S) atom?",
+    "options": [
+      "1+",
+      "2+",
+      "1-",
+      "2-"
+    ],
+    "correct": 3,
+    "knowledge_label": "anion",
+    "difficulty": "medium"
+  },
+  {
+    "question": "The total number of protons in the nucleus of an atom is called the:",
+    "options": [
+      "Mass number",
+      "Isotope number",
+      "Atomic number",
+      "Valence number"
+    ],
+    "correct": 2,
+    "knowledge_label": "atomic_number",
+    "difficulty": "easy"
+  },
+  {
+    "question": "Which statement correctly describes a neutron?",
+    "options": [
+      "Positive charge, in the nucleus",
+      "Negative charge, outside the nucleus",
+      "No charge, in the nucleus",
+      "No charge, outside the nucleus"
+    ],
+    "correct": 2,
+    "knowledge_label": "neutron",
+    "difficulty": "easy"
+  },
+  {
+    "question": "An atom has an atomic number of 26 and a mass number of 56. How many electrons does a neutral atom of this element have?",
+    "options": [
+      "26",
+      "30",
+      "56",
+      "82"
+    ],
+    "correct": 0,
+    "knowledge_label": "atom",
+    "difficulty": "medium"
+  },
+  {
+    "question": "Which of these pairs represents isotopes of the same element?",
+    "options": [
+      "${}^{14}_6$C and ${}^{14}_7$N",
+      "${}^{39}_{19}$K and ${}^{40}_{20}$Ca",
+      "${}^{235}_{92}$U and ${}^{238}_{92}$U",
+      "${}^{16}_8$O and ${}^{18}_9$F"
+    ],
+    "correct": 2,
+    "knowledge_label": "isotope",
+    "difficulty": "medium"
+  },
+  {
+    "question": "A key modification of the modern atomic theory compared to Dalton's is the idea that:",
+    "options": [
+      "Atoms combine in whole-number ratios.",
+      "Elements are made of atoms.",
+      "An atom is the smallest particle of an element.",
+      "Atoms are divisible into smaller particles."
+    ],
+    "correct": 3,
+    "knowledge_label": "modern_atomic_theory",
+    "difficulty": "medium"
+  },
+  {
+    "question": "What is the correct Lewis dot structure for Neon (Ne)?",
+    "options": [
+      "Ne with 2 dots",
+      "Ne with 4 dots",
+      "Ne with 6 dots",
+      "Ne with 8 dots"
+    ],
+    "correct": 3,
+    "knowledge_label": "lewis_structure",
+    "difficulty": "easy"
+  },
+  {
+    "question": "Which of the following will form a cation with a 2+ charge?",
+    "options": [
+      "Sodium (Na)",
+      "Magnesium (Mg)",
+      "Aluminum (Al)",
+      "Chlorine (Cl)"
+    ],
+    "correct": 1,
+    "knowledge_label": "cation",
+    "difficulty": "medium"
+  },
+  {
+    "question": "Which of the following elements has the lowest first ionization energy?",
+    "options": [
+      "Be",
+      "Mg",
+      "Ca",
+      "Sr"
+    ],
+    "correct": 3,
+    "knowledge_label": "ionization_energy",
+    "difficulty": "medium"
+  },
+  {
+    "question": "As you move down Group 17 (the halogens), the atomic radius:",
+    "options": [
+      "Increases",
+      "Decreases",
+      "Stays the same",
+      "Cannot be determined"
+    ],
+    "correct": 0,
+    "knowledge_label": "atomic_radius",
+    "difficulty": "medium"
+  },
+  {
+    "question": "Which periodic trend is illustrated by the fact that fluorine atoms strongly attract an additional electron?",
+    "options": [
+      "Low ionization energy",
+      "High electron affinity",
+      "Large atomic radius",
+      "Metallic character"
+    ],
+    "correct": 1,
+    "knowledge_label": "electron_affinity",
+    "difficulty": "medium"
+  },
+  {
+    "question": "An atom's identity is determined by its:",
+    "options": [
+      "Number of neutrons",
+      "Number of protons",
+      "Mass number",
+      "Number of valence electrons"
+    ],
+    "correct": 1,
+    "knowledge_label": "proton",
+    "difficulty": "easy"
+  },
+  {
+    "question": "An element is in Period 3 and Group 2 of the periodic table. What is the element?",
+    "options": [
+      "Be",
+      "Mg",
+      "Ca",
+      "B"
+    ],
+    "correct": 1,
+    "knowledge_label": "periodic_table",
+    "difficulty": "medium"
+  },
+  {
+    "question": "The maximum number of electrons that can be held in the second energy level is:",
+    "options": [
+      "2",
+      "6",
+      "8",
+      "10"
+    ],
+    "correct": 2,
+    "knowledge_label": "energy_level",
+    "difficulty": "easy"
+  },
+  {
+    "question": "Which of the following represents a stable octet electron arrangement?",
+    "options": [
+      "A filled s orbital",
+      "A filled p orbital",
+      "A filled s and p subshell in the outer level",
+      "A half-filled d orbital"
+    ],
+    "correct": 2,
+    "knowledge_label": "stable_octet",
+    "difficulty": "medium"
+  },
+  {
+    "question": "The nucleus accounts for:",
+    "options": [
+      "Most of the atom's volume and very little of its mass",
+      "Most of the atom's volume and most of its mass",
+      "Very little of the atom's volume and most of its mass",
+      "Very little of the atom's volume and very little of its mass"
+    ],
+    "correct": 2,
+    "knowledge_label": "nucleus",
+    "difficulty": "medium"
+  },
+  {
+    "question": "If an atom has 33 protons and a mass number of 75, it is an atom of:",
+    "options": [
+      "Selenium (Se)",
+      "Arsenic (As)",
+      "Germanium (Ge)",
+      "Bromine (Br)"
+    ],
+    "correct": 1,
+    "knowledge_label": "atomic_number",
+    "difficulty": "medium"
+  },
+  {
+    "question": "A cation is a type of ion that has a:",
+    "options": [
+      "Positive charge",
+      "Negative charge",
+      "Neutral charge",
+      "Variable charge"
+    ],
+    "correct": 0,
+    "knowledge_label": "cation",
+    "difficulty": "easy"
+  },
+  {
+    "question": "Why is the second ionization energy of sodium (Na) significantly higher than its first ionization energy?",
+    "options": [
+      "The second electron is removed from a different atom.",
+      "The second electron is removed from a stable, full inner energy level.",
+      "The nuclear charge decreases after the first electron is removed.",
+      "The atom becomes larger after losing one electron."
+    ],
+    "correct": 1,
+    "knowledge_label": "ionization_energy",
+    "difficulty": "hard"
+  },
+  {
+    "question": "In a neutral atom, the number of electrons is equal to the number of:",
+    "options": [
+      "Neutrons",
+      "Protons",
+      "Protons + Neutrons",
+      "Valence electrons"
+    ],
+    "correct": 1,
+    "knowledge_label": "atom",
+    "difficulty": "easy"
+  },
+  {
+    "question": "Which of these elements would you expect to have chemical properties most similar to Chlorine (Cl)?",
+    "options": [
+      "Sulfur (S)",
+      "Argon (Ar)",
+      "Sodium (Na)",
+      "Bromine (Br)"
+    ],
+    "correct": 3,
+    "knowledge_label": "periodic_law",
+    "difficulty": "medium"
+  },
+  {
+    "question": "Rank the following atoms in order of increasing atomic radius: F, O, N.",
+    "options": [
+      "F, O, N",
+      "N, O, F",
+      "O, F, N",
+      "F, N, O"
+    ],
+    "correct": 0,
+    "knowledge_label": "atomic_radius",
+    "difficulty": "hard"
+  },
+  {
+    "question": "The particle that results when a neutral atom gains an electron is a(n):",
+    "options": [
+      "Anion",
+      "Cation",
+      "Isotope",
+      "Proton"
+    ],
+    "correct": 0,
+    "knowledge_label": "anion",
+    "difficulty": "easy"
+  },
+  {
+    "question": "The discovery of which particle led to the modification of Dalton's idea that atoms are indivisible?",
+    "options": [
+      "The electron",
+      "The neutron",
+      "The proton",
+      "The nucleus"
+    ],
+    "correct": 0,
+    "knowledge_label": "modern_atomic_theory",
+    "difficulty": "medium"
+  },
+  {
+    "question": "How many dots would be drawn in the Lewis structure for an aluminum (Al) atom?",
+    "options": [
+      "1",
+      "2",
+      "3",
+      "13"
+    ],
+    "correct": 2,
+    "knowledge_label": "lewis_structure",
+    "difficulty": "medium"
+  },
+  {
+    "question": "Which element in Period 2 has the highest first ionization energy?",
+    "options": [
+      "Li",
+      "Be",
+      "F",
+      "Ne"
+    ],
+    "correct": 3,
+    "knowledge_label": "ionization_energy",
+    "difficulty": "medium"
+  },
+  {
+    "question": "What is the primary reason for the decrease in atomic size across a period?",
+    "options": [
+      "Addition of a new energy level",
+      "Increased shielding by inner electrons",
+      "Increased nuclear charge pulling on the same energy level",
+      "Repulsion between valence electrons"
+    ],
+    "correct": 2,
+    "knowledge_label": "periodic_trend",
+    "difficulty": "hard"
+  },
+  {
+    "question": "A phosphorus atom has 15 protons and 16 neutrons. What is its mass number?",
+    "options": [
+      "15",
+      "16",
+      "30",
+      "31"
+    ],
+    "correct": 3,
+    "knowledge_label": "mass_number",
+    "difficulty": "easy"
+  },
+  {
+    "question": "Tritium (${}^3_1$H) is a radioisotope of hydrogen. How many neutrons does it have?",
+    "options": [
+      "0",
+      "1",
+      "2",
+      "3"
+    ],
+    "correct": 2,
+    "knowledge_label": "radioisotope",
+    "difficulty": "medium"
+  },
+  {
+    "question": "Elements in the same group of the periodic table have the same number of:",
+    "options": [
+      "Protons",
+      "Energy levels",
+      "Valence electrons",
+      "Neutrons"
+    ],
+    "correct": 2,
+    "knowledge_label": "valence_electron",
+    "difficulty": "medium"
+  },
+  {
+    "question": "A sulfide ion, S$^{2-}$, has how many electrons?",
+    "options": [
+      "14",
+      "16",
+      "18",
+      "32"
+    ],
+    "correct": 2,
+    "knowledge_label": "anion",
+    "difficulty": "medium"
+  },
+  {
+    "question": "An aluminum ion, Al$^{3+}$, is formed by:",
+    "options": [
+      "Gaining 3 protons",
+      "Losing 3 protons",
+      "Gaining 3 electrons",
+      "Losing 3 electrons"
+    ],
+    "correct": 3,
+    "knowledge_label": "cation",
+    "difficulty": "medium"
+  },
+  {
+    "question": "Which statement about atomic structure is correct?",
+    "options": [
+      "Protons and neutrons are in the nucleus, electrons orbit the nucleus.",
+      "Electrons and neutrons are in the nucleus, protons orbit the nucleus.",
+      "Protons and electrons are in the nucleus, neutrons orbit the nucleus.",
+      "Neutrons are in the nucleus, protons and electrons orbit the nucleus."
+    ],
+    "correct": 0,
+    "knowledge_label": "atom",
+    "difficulty": "easy"
+  },
+  {
+    "question": "If the atomic number of an element is 6, what is the element?",
+    "options": [
+      "Helium",
+      "Boron",
+      "Carbon",
+      "Nitrogen"
+    ],
+    "correct": 2,
+    "knowledge_label": "atomic_number",
+    "difficulty": "easy"
+  },
+  {
+    "question": "What is the mass number of an isotope with 20 protons and 22 neutrons?",
+    "options": [
+      "20",
+      "22",
+      "40",
+      "42"
+    ],
+    "correct": 3,
+    "knowledge_label": "isotope",
+    "difficulty": "easy"
+  },
+  {
+    "question": "Which of these is the most important factor in determining the chemical properties of an element?",
+    "options": [
+      "The number of neutrons",
+      "The number of protons",
+      "The number of valence electrons",
+      "The atomic mass"
+    ],
+    "correct": 2,
+    "knowledge_label": "valence_electron",
+    "difficulty": "medium"
+  },
+  {
+    "question": "The 'staircase' line on the periodic table separates:",
+    "options": [
+      "Solids from liquids",
+      "Metals from non-metals",
+      "Reactive elements from non-reactive elements",
+      "Main-group elements from transition elements"
+    ],
+    "correct": 1,
+    "knowledge_label": "periodic_table",
+    "difficulty": "easy"
+  },
+  {
+    "question": "Which of these elements would have the most negative electron affinity?",
+    "options": [
+      "Na",
+      "Mg",
+      "S",
+      "Cl"
+    ],
+    "correct": 3,
+    "knowledge_label": "electron_affinity",
+    "difficulty": "medium"
+  },
+  {
+    "question": "A lithium ion (Li$^+$) has the electron configuration of which noble gas?",
+    "options": [
+      "Helium (He)",
+      "Neon (Ne)",
+      "Argon (Ar)",
+      "Krypton (Kr)"
+    ],
+    "correct": 0,
+    "knowledge_label": "ion",
+    "difficulty": "medium"
+  },
+  {
+    "question": "As you move from Potassium (K) to Bromine (Br) across Period 4, the general trend is for ionization energy to:",
+    "options": [
+      "Increase",
+      "Decrease",
+      "Remain constant",
+      "Decrease then increase"
+    ],
+    "correct": 0,
+    "knowledge_label": "periodic_trend",
+    "difficulty": "medium"
+  },
+  {
+    "question": "Dalton's concept of the atom as a solid, indestructible particle is often called the:",
+    "options": [
+      "Plum pudding model",
+      "Nuclear model",
+      "Billiard ball model",
+      "Quantum mechanical model"
+    ],
+    "correct": 2,
+    "knowledge_label": "daltons_atomic_theory",
+    "difficulty": "easy"
+  },
+  {
+    "question": "A neutral atom of Beryllium (Be) has 4 protons. How many electrons does it have?",
+    "options": [
+      "2",
+      "4",
+      "5",
+      "9"
+    ],
+    "correct": 1,
+    "knowledge_label": "electron",
+    "difficulty": "easy"
+  },
+  {
+    "question": "Which of these is NOT a property of protons?",
+    "options": [
+      "Positive charge",
+      "Mass of approximately 1 amu",
+      "Located in the nucleus",
+      "Repels neutrons"
+    ],
+    "correct": 3,
+    "knowledge_label": "proton",
+    "difficulty": "medium"
+  },
+  {
+    "question": "The elements Lithium, Sodium, and Potassium all belong to which group?",
+    "options": [
+      "Group 1 (Alkali Metals)",
+      "Group 2 (Alkaline Earth Metals)",
+      "Group 17 (Halogens)",
+      "Group 18 (Noble Gases)"
+    ],
+    "correct": 0,
+    "knowledge_label": "periodic_table",
+    "difficulty": "easy"
+  },
+  {
+    "question": "What is the maximum number of electrons that can occupy the third energy level?",
+    "options": [
+      "2",
+      "8",
+      "18",
+      "32"
+    ],
+    "correct": 2,
+    "knowledge_label": "energy_level",
+    "difficulty": "medium"
+  },
+  {
+    "question": "An element has electrons that occupy four energy levels. Which period is it in?",
+    "options": [
+      "Period 2",
+      "Period 3",
+      "Period 4",
+      "Period 5"
+    ],
+    "correct": 2,
+    "knowledge_label": "energy_level",
+    "difficulty": "medium"
+  },
+  {
+    "question": "The tendency of atoms to prefer to have eight electrons in the valence shell is known as the:",
+    "options": [
+      "Valence Rule",
+      "Octet Rule",
+      "Energy Rule",
+      "Periodic Rule"
+    ],
+    "correct": 1,
+    "knowledge_label": "stable_octet",
+    "difficulty": "easy"
+  },
+  {
+    "question": "Of the following elements, which one has the largest atomic radius?",
+    "options": [
+      "C",
+      "Si",
+      "Ge",
+      "Sn"
+    ],
+    "correct": 3,
+    "knowledge_label": "atomic_radius",
+    "difficulty": "medium"
+  },
+  {
+    "question": "Rank the following elements by increasing first ionization energy: K, Ca, Br.",
+    "options": [
+      "K, Ca, Br",
+      "Br, Ca, K",
+      "Ca, K, Br",
+      "K, Br, Ca"
+    ],
+    "correct": 0,
+    "knowledge_label": "ionization_energy",
+    "difficulty": "hard"
+  },
+  {
+    "question": "Which of the following atoms is most likely to form a negative ion?",
+    "options": [
+      "Sodium (Na)",
+      "Magnesium (Mg)",
+      "Aluminum (Al)",
+      "Fluorine (F)"
+    ],
+    "correct": 3,
+    "knowledge_label": "anion",
+    "difficulty": "medium"
+  },
+  {
+    "question": "Which statement correctly describes the relationship between atomic size and ionization energy?",
+    "options": [
+      "As atomic size increases, ionization energy increases.",
+      "As atomic size decreases, ionization energy decreases.",
+      "As atomic size increases, ionization energy decreases.",
+      "There is no relationship between the two properties."
+    ],
+    "correct": 2,
+    "knowledge_label": "periodic_trend",
+    "difficulty": "hard"
+  }
+    ]
+}
