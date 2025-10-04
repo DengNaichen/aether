@@ -2,11 +2,11 @@ import pytest
 import pytest_asyncio
 from fastapi.testclient import TestClient
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-from app.main import app
+from backend.app import app
 from sqlalchemy.orm import sessionmaker
 
-from app.models import Base
-from app.database import get_db
+from backend.app import Base
+from backend.app import get_db
 
 
 SQLALCHEMY_DATABASE_URL = "sqlite+aiosqlite:///./test.db" # Use the momory database for testing
