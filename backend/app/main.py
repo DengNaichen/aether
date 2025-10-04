@@ -4,10 +4,10 @@ from sqlalchemy.future import select
 from contextlib import asynccontextmanager
 from datetime import timedelta
 
-from backend.app.database import get_db, engine
-from backend.app.models import Base, Student
-from backend.app.schemas import StudentCreate, StudentOut, Token, UserLogin
-from backend.app.security import get_password_hash, verify_password, \
+from app.database import get_db, engine
+from app.models import Base, Student
+from app.schemas import StudentCreate, StudentOut, Token, UserLogin
+from app.security import get_password_hash, verify_password, \
     ACCESS_TOKEN_EXPIRE_MINUTES, create_access_token
 
 

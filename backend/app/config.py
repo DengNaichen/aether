@@ -9,7 +9,7 @@ class Settings(BaseSettings):
     NEO4J_URI: str
     NEO4J_USER: str
     NEO4J_PASSWORD: str
-    NEO4J_DATABASE: str
+    NEO4J_initial_dbms_default__database: str
 
 
 settings = Settings()
