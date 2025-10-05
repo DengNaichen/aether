@@ -80,6 +80,11 @@ Temporary Items
 # *.iml
 # *.ipr
 
+
+# Jupter Notebook
+.ipynb_checkpoints/
+*.nbconvert.ipynb
+
 # CMake
 cmake-build-*/
 
