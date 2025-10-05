@@ -1,0 +1,40 @@
+{
+    "problems": [
+        {
+            "question": "According to Dalton's Atomic Theory, which statement is a key principle?",
+            "options": [
+                "Atoms can be divided into smaller particles.",
+                "Atoms of one element can be converted into atoms of another element.",
+                "All matter is made up of tiny particles called atoms.",
+                "Atoms of the same element can have different masses."
+            ],
+            "correct": 2,
+            "knowledge_label": "daltons_atomic_theory",
+            "difficulty": "easy"
+        },
+        {
+            "question": "Which subatomic particle has a positive charge and is found in the nucleus?",
+            "options": [
+                "Electron",
+                "Neutron",
+                "Proton",
+                "Photon"
+            ],
+            "correct": 2,
+            "knowledge_label": "proton",
+            "difficulty": "easy"
+        },
+        {
+            "question": "The central core of an atom, containing protons and neutrons, is called the:",
+            "options": [
+                "Electron cloud",
+                "Nucleus",
+                "Energy level",
+                "Valence shell"
+            ],
+            "correct": 1,
+            "knowledge_label": "nucleus",
+            "difficulty": "easy"
+        }
+    ]
+}
