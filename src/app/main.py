@@ -26,10 +26,13 @@ async def lifespan(app: FastAPI):
 app = FastAPI(lifespan=lifespan)
 
 
-@app.post("/register", response_model=StudentOut, status_code=status.HTTP_201_CREATED)
-async def register_student(student_data: StudentCreate, db: AsyncSession = Depends(get_db)):
+@app.post("/register", response_model=StudentOut,
+          status_code=status.HTTP_201_CREATED)
+async def register_student(student_data: StudentCreate,
+                           db: AsyncSession = Depends(get_db)):
     # check if the email exists
-    existing_student = await get_student_by_email(db=db, email=student_data.email)
+    existing_student = await get_student_by_email(db=db,
+                                                  email=student_data.email)
 
     # error handling in api layer
     if existing_student:
@@ -53,6 +56,7 @@ async def list_students(db: AsyncSession = Depends(get_db)):
 async def login_for_access_token(user_credentials: UserLogin,
                                  db: AsyncSession = Depends(get_db)):
     # search user based on email
+    # TODO: add more status code here
     result = await db.execute(
         select(Student).where(Student.email == user_credentials.email)
     )
@@ -60,7 +64,7 @@ async def login_for_access_token(user_credentials: UserLogin,
 
     # check if a user exists and if the password corrects
     if not db_student or not verify_password(user_credentials.password,
-                                             db_student.password_hash):
+                                             db_student.password_hashed):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect email or password",
@@ -97,7 +101,8 @@ async def enroll_in_course_endpoint(
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         print(f"Error enrolling student: {e}")
-        raise HTTPException(status_code=500, detail="Failed to enroll in course")
+        raise HTTPException(status_code=500,
+                            detail="Failed to enroll in course")
 
 
 @app.get("/")
