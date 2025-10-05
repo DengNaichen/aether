@@ -1,0 +1,17 @@
+fastapi~=0.117.1
+uvicorn
+sqlalchemy[psycopg2-binary]~=2.0.43
+pydantic~=2.11.9
+pydantic-settings~=2.11.0
+neo4j~=5.28.2
+asyncpg
+pydantic[email]
+passlib~=1.7.4
+python-jose~=3.5.0
+python-jose[cryptography]
+pytest-dotenv
+
+pytest~=8.4.2
+pytest-asyncio~=1.2.0
+numpy~=1.26.4
+matplotlib~=3.10.0

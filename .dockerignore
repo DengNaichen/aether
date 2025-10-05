@@ -59,6 +59,6 @@ yarn-error.log*
 
 # --- Docker Specific ---
 # 忽略 Docker 相关文件，它们不需要被复制到镜像里
-backend/Dockerfile
+Dockerfile
 docker-compose.yml
 .dockerignore

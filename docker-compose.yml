@@ -2,14 +2,16 @@ services:
   # service 1: Python Backend API
   web:
     build:
-      context: ./backend
+#      context: ./backend
+      context: .
     # use .env file to set the environment parameter
     env_file:
       - .env
     ports:
       - "8000:8000"
     volumes:
-      - ./backend:/app
+#      - ./backend:/app
+      - ./src/app:/app
     # ensure the database start before the backend
     depends_on:
       db:
