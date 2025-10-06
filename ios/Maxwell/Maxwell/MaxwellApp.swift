@@ -1,10 +1,3 @@
-//
-//  MaxwellApp.swift
-//  Maxwell
-//
-//  Created by Naicheng Deng on 2025-09-28.
-//
-
 import SwiftUI
 import SwiftData
 

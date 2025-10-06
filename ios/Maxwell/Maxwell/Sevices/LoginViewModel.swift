@@ -1,42 +1,51 @@
 import Foundation
 import Combine
 
+
+@MainActor
 class LoginViewModel: ObservableObject {
-    @Published var email: String = ""
-    @Published var password: String = ""
     
+    private let network: NetworkServicing
+    
+    @Published var isAuthenticated: Bool = false
     @Published var isLoading: Bool = false
     @Published var errorMessage: String?
     
-    @Published var isAuthenticated: Bool = false
+    init(network: NetworkServicing) {
+        self.network = network
+    }
+
     
-    private let authService = AuthService()
-    
-    func login() {
-        Task {
-            isLoading = true
-            errorMessage = nil
+    func login(email: String, password: String) async {
+        isLoading = true
+        errorMessage = nil
+        
+        let credentials = LoginRequest(email: email, password: password)
+        
+        do {
+            let tokenResponse: TokenResponse = try await network.request(
+                endpoint: "/login",
+                method: .POST,
+                body: credentials,
+                responseType: TokenResponse.self
+            )
+            print("Successfully login, Token: \(tokenResponse.accessToken)")
+            isAuthenticated = true
+            //                authService.login(credentials: request)
             
-            let request = LoginRequest(email: email, password: password)
             
-            do {
-                let tokenResponse = try await authService.login(credentials: request)
-                
-                print("Successfully login, Token: \(tokenResponse.accessToken)")
-                
+            await MainActor.run {
                 self.isAuthenticated = true
-            } catch {
-                if let authError = error as? AuthError {
-                    switch authError {
-                    case .invalidCredentials(let detail): self.errorMessage = detail
-                    case .serverError(let detail): self.errorMessage = detail
-                    default: self.errorMessage = "Unknown Error"
-                    }
-                } else {
-                    self.errorMessage = error.localizedDescription
-                }
             }
-            isLoading = false
+            
+        } catch {
+            if let networkError = error as? NetworkError {
+                self.errorMessage = networkError.message
+            } else {
+                self.errorMessage = "unknown error happen: \(error.localizedDescription)"
+            }
+            self.isAuthenticated = false
         }
+        isLoading = false
     }
 }
