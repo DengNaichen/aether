@@ -18,22 +18,22 @@ struct WelcomeView: View {
                         .foregroundColor(.white)
                         .cornerRadius(10)
                 }
-                NavigationLink(destination: RegistrationView()) {
-                    Text("注册账户")
-                        .padding()
-                        .frame(maxWidth: .infinity) // 让按钮宽度撑满
-                        .background(Color.green) // 可以用不同的颜色区分
-                        .foregroundColor(.white)
-                        .cornerRadius(10)
-                }
-                NavigationLink(destination: LoginView()) {
-                    Text("Login")
-                        .padding()
-                        .frame(maxWidth: .infinity) // 让按钮宽度撑满
-                        .background(Color.yellow) // 可以用不同的颜色区分
-                        .foregroundColor(.white)
-                        .cornerRadius(10)
-                }
+//                NavigationLink(destination: RegistrationView()) {
+//                    Text("注册账户")
+//                        .padding()
+//                        .frame(maxWidth: .infinity) // 让按钮宽度撑满
+//                        .background(Color.green) // 可以用不同的颜色区分
+//                        .foregroundColor(.white)
+//                        .cornerRadius(10)
+//                }
+//                NavigationLink(destination: LoginView()) {
+//                    Text("Login")
+//                        .padding()
+//                        .frame(maxWidth: .infinity) // 让按钮宽度撑满
+//                        .background(Color.yellow) // 可以用不同的颜色区分
+//                        .foregroundColor(.white)
+//                        .cornerRadius(10)
+//                }
             }
             .padding()
             .navigationTitle("Welcome") // 设置首页的导航栏标题

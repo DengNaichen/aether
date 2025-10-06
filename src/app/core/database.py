@@ -1,6 +1,6 @@
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
-from .config import settings
+from app.core.config import settings
 from neo4j import AsyncGraphDatabase
 
 # create the async engine
