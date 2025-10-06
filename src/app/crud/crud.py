@@ -1,32 +1,33 @@
 from sqlalchemy.future import select
-from src.app.models import Student
-from src.app.schemas import StudentCreate
+
+from app.models.models import Student
+from app.schemas.schemas import StudentCreate
 from sqlalchemy.ext.asyncio import AsyncSession
-from src.app.security import get_password_hash
-from .config import settings
-from app.database import neo4j_driver
+from app.core.security import get_password_hash
+from app.core.config import settings
+from app.core.database import neo4j_driver
 
 
-async def get_student_by_email(db: AsyncSession, email: str) -> Student | None: 
-    """check student based on email address"""
-    result = await db.execute(select(Student).where(Student.email == email))
-    return result.scalars().first()
-
-
-async def create_student(student_data: StudentCreate, db: AsyncSession) -> Student:    
-    # hash the password
-    hashed_password = get_password_hash(student_data.password)
-
-    new_student = Student(
-        name=student_data.name,
-        email=student_data.email,
-        password_hashed=hashed_password
-    )
-
-    db.add(new_student)
-    await db.commit()
-    await db.refresh(new_student)
-    return new_student
+# async def get_student_by_email(db: AsyncSession, email: str) -> Student | None:
+#     """check student based on email address"""
+#     result = await db.execute(select(Student).where(Student.email == email))
+#     return result.scalars().first()
+#
+#
+# async def create_student(student_data: StudentCreate, db: AsyncSession) -> Student:
+#     # hash the password
+#     hashed_password = get_password_hash(student_data.password)
+#
+#     new_student = Student(
+#         name=student_data.name,
+#         email=student_data.email,
+#         password_hashed=hashed_password
+#     )
+#
+#     db.add(new_student)
+#     await db.commit()
+#     await db.refresh(new_student)
+#     return new_student
 
 
 async def enroll_student_in_course(

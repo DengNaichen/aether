@@ -1,22 +1,21 @@
-import datetime
 from pydantic import BaseModel, EmailStr, ConfigDict
 import uuid
 
 
-class StudentCreate(BaseModel):
-    """Student Registration Response"""
-    name: str
-    email: EmailStr
-    password: str
-
-
-class StudentOut(BaseModel):
-    id: uuid.UUID
-    name: str
-    email: EmailStr
-    created_at: datetime.datetime 
-
-    model_config = ConfigDict(from_attributes=True)
+# class StudentCreate(BaseModel):
+#     """Student Registration Response"""
+#     name: str
+#     email: EmailStr
+#     password: str
+#
+#
+# class StudentOut(BaseModel):
+#     id: uuid.UUID
+#     name: str
+#     email: EmailStr
+#     created_at: datetime.datetime
+#
+#     model_config = ConfigDict(from_attributes=True)
 
 
 # class StudentNeo4j(BaseModel):

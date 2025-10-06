@@ -1,0 +1,45 @@
+import uuid
+from sqlalchemy import (
+    Column,
+    String,
+    TIMESTAMP,
+    func,
+    Boolean
+)
+from sqlalchemy.dialects.postgresql import UUID
+from src.app.models.base import Base
+
+
+class Student(Base):
+    """ Represents a student user in the databases
+
+    This model stores essential information for a student, including personal
+    details, authentication credentials, and account status.
+    It also supports both traditional password-based authentication
+    and OAuth for third-party logins.
+
+    Attributes:
+        id(UUID): The primary key for the student, a unique UUID
+        name(str): Username
+        email(str): The student's unique email
+        hashed_password(str): The hashed and salted password
+        is_active(bool): A flag to indicate if the account is active.
+        oauth_provider(str, optional): The name of the OAuth provider.
+        oauth_id(str, optional): The unique user ID from the OAuth provider
+        created_at(datetime): The timestamp when the student account was created
+        update_at(datetime): The timestamp when the student account was updated
+    """
+    __tablename__ = "students"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    name = Column(String(255), nullable=False)
+    email = Column(String(255), unique=True, nullable=False)
+    hashed_password = Column(String(255), nullable=False)
+    is_active = Column(Boolean, default=True)
+    oauth_provider = Column(String, nullable=True)
+    oauth_id = Column(String, nullable=True)
+
+    created_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
+    updated_at = Column(TIMESTAMP(timezone=True),
+                        server_default=func.now(),
+                        onupdate=func.now())

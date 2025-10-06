@@ -1,109 +1,121 @@
-// LoginView.swift
-
 import SwiftUI
 
 struct LoginView: View {
-    // 1. 使用 @StateObject 创建并持有 ViewModel 的实例
-    // SwiftUI 会负责管理它的生命周期
-    @StateObject private var viewModel = LoginViewModel()
+    // 视图持有并管理 ViewModel 的生命周期
+    @StateObject private var viewModel: LoginViewModel
+    
+    // 用于UI输入的本地状态
+    @State private var email = ""
+    @State private var password = ""
+
+    // 自定义构造函数，用于从外部注入ViewModel
+    // 这是实现依赖注入和可测试性的关键
+    init(viewModel: LoginViewModel) {
+        _viewModel = StateObject(wrappedValue: viewModel)
+    }
 
     var body: some View {
-        NavigationStack {
-            // 2. 根据 ViewModel 的 isAuthenticated 状态来决定显示哪个视图
-            if viewModel.isAuthenticated {
-                // 登录成功后，显示欢迎信息
-                // 在真实应用中，这里会导航到应用的主内容视图
-                VStack(spacing: 20) {
-                    Text("登录成功!")
-                        .font(.largeTitle).bold()
-                    Text("欢迎回来, \(viewModel.email)")
-                        .font(.headline)
-                        .foregroundStyle(.secondary)
+        // ZStack 用于将加载指示器覆盖在表单之上
+        ZStack {
+            NavigationView {
+                Form {
+                    Section(header: Text("邮箱")) {
+                        TextField("输入邮箱", text: $email)
+                            .keyboardType(.emailAddress)
+                            .autocapitalization(.none)
+                            .textContentType(.emailAddress) // 帮助iOS自动填充
+                    }
+                    
+                    Section(header: Text("密码")) {
+                        SecureField("输入密码", text: $password)
+                            .textContentType(.password) // 帮助iOS自动填充
+                    }
+                    
+                    Section {
+                        Button(action: loginButtonTapped) {
+                            HStack {
+                                Spacer()
+                                Text("登录")
+                                Spacer()
+                            }
+                        }
+                        // 当输入为空或正在加载时，禁用按钮
+                        .disabled(email.isEmpty || password.isEmpty || viewModel.isLoading)
+                    }
                 }
-            } else {
-                // 未登录时，显示登录表单
-                loginForm
+                .navigationTitle("登录")
+            }
+            // 当正在加载时，禁用整个NavigationView的交互
+            .disabled(viewModel.isLoading)
+            
+            // 根据 isLoading 状态显示加载动画
+            if viewModel.isLoading {
+                ProgressView("登录中...")
+                    .progressViewStyle(CircularProgressViewStyle())
+                    .padding()
+                    .background(Color.secondary.colorInvert())
+                    .cornerRadius(10)
+                    .shadow(radius: 10)
             }
         }
+        // 根据 errorMessage 显示错误弹窗
+        // isPresented 绑定到一个计算属性：当errorMessage不为nil时，值为true
+        .alert("登录失败", isPresented: .constant(viewModel.errorMessage != nil), actions: {
+            // "好的"按钮，点击后清除错误信息，弹窗自动消失
+            Button("好的") { viewModel.errorMessage = nil }
+        }, message: {
+            Text(viewModel.errorMessage ?? "未知错误")
+        })
     }
     
-    // 将登录表单提取为一个计算属性，使 body 更整洁
-    private var loginForm: some View {
-        // 3. 使用 ZStack 来方便地在所有内容之上覆盖一个加载指示器
-        ZStack {
-            VStack(spacing: 25) {
-                
-                // --- 标题 ---
-                VStack(spacing: 10) {
-                    Image(systemName: "lock.shield.fill")
-                        .font(.system(size: 60))
-                        .foregroundColor(.blue)
-                    Text("欢迎登录")
-                        .font(.largeTitle)
-                        .fontWeight(.bold)
-                }
-                .padding(.bottom, 20)
-
-                // --- 输入框 ---
-                VStack(spacing: 15) {
-                    // 4. 将 TextField 的 text 与 ViewModel 的属性进行双向绑定
-                    TextField("邮箱地址", text: $viewModel.email)
-                        .padding()
-                        .background(Color(.secondarySystemBackground))
-                        .cornerRadius(12)
-                        .textContentType(.emailAddress)
-                        .keyboardType(.emailAddress)
-                        .autocapitalization(.none)
-
-                    SecureField("密码", text: $viewModel.password)
-                        .padding()
-                        .background(Color(.secondarySystemBackground))
-                        .cornerRadius(12)
-                        .textContentType(.password)
-                }
-
-                // --- 登录按钮 ---
-                Button(action: viewModel.login) { // 5. 按钮的 action 直接调用 ViewModel 的方法
-                    Text("登录")
-                        .font(.headline)
-                        .foregroundColor(.white)
-                        .frame(height: 55)
-                        .frame(maxWidth: .infinity)
-                        .background(Color.blue)
-                        .cornerRadius(12)
-                }
-                // 6. 根据加载状态禁用按钮，防止用户重复点击
-                .disabled(viewModel.isLoading)
-
-                // --- 错误信息 ---
-                // 7. 如果 errorMessage 不为空，就显示错误信息
-                if let errorMessage = viewModel.errorMessage {
-                    Text(errorMessage)
-                        .foregroundColor(.red)
-                        .font(.caption)
-                        .padding(.top, 10)
-                }
-                
-                Spacer() // 将所有内容推向顶部
-            }
-            .padding(.horizontal, 30)
-            .padding(.top, 40)
-            
-            // --- 加载遮罩 ---
-            // 8. 如果正在加载，显示一个半透明的遮罩和加载动画
-            if viewModel.isLoading {
-                Color.black.opacity(0.4)
-                    .edgesIgnoringSafeArea(.all)
-                
-                ProgressView("登录中...")
-                    .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                    .scaleEffect(1.5)
-                    .foregroundColor(.white)
-            }
+    /// 按钮点击时调用的方法
+    private func loginButtonTapped() {
+        // 使用 Task 创建一个异步上下文来调用 async 函数
+        Task {
+            await viewModel.login(email: email, password: password)
         }
     }
 }
 
-#Preview {
-    LoginView()
-}
+
+// MARK: - Xcode 预览 (Preview)
+// ===================================
+// 这个预览完美地展示了我们架构的优势：
+// 我们可以创建一个“假”的网络服务来模拟各种情况，
+// 从而在不联网的情况下独立开发和测试UI。
+// ===================================
+
+//#Preview {
+//    
+//    // 1. 创建一个用于预览的 Mock Network Service
+//    struct MockLoginNetworkService: NetworkServicing {
+//        func request<T, U>(endpoint: String, method: HTTPMethod, body: U?, responseType: T.Type) async throws -> T where T : Decodable, U : Encodable {
+//            
+//            // 模拟我们更新后的两步登录流程
+//            switch endpoint {
+//            case "/auth/login":
+//                // 如果是登录请求，返回一个假的Token
+//                print("Mock: 正在返回假的Token...")
+//                let fakeTokenResponse = TokenResponse(accessToken: "fake_preview_token_123", tokenType: "Bearer")
+//                return fakeTokenResponse as! T
+//                
+//            case "/users/me":
+//                // 如果是获取用户信息的请求，返回一个假的用户
+//                print("Mock: 正在返回假的用户信息...")
+//                let fakeUser = User(id: UUID(), name: "测试用户", email: "preview@example.com")
+//                return fakeUser as! T
+//                
+//            default:
+//                // 如果遇到未知的端点，抛出一个错误
+//                throw NetworkError.invalidURL
+//            }
+//        }
+//    }
+//    
+//    // 2. 实例化 Mock 服务和 ViewModel
+//    let mockNetwork = MockLoginNetworkService()
+//    let viewModel = LoginViewModel(network: mockNetwork)
+//    
+//    // 3. 创建并返回 LoginView
+//    return LoginView(viewModel: viewModel)
+//}
