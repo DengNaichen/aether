@@ -21,11 +21,10 @@ struct MaxwellApp: App {
         
         var body: some Scene {
             WindowGroup {
-                // 用 networkService 实例创建 ViewModel
-                let registrationViewModel = RegistrationViewModel(network: networkService)
-                
-                // 将 ViewModel 注入到视图中
-                RegistrationView(viewModel: registrationViewModel)
+//                let registrationViewModel = RegistrationViewModel(network: networkService)
+//                RegistrationView(viewModel: registrationViewModel)
+                  let loginViewModel = LoginViewModel(network: networkService)
+                  LoginView(viewModel: loginViewModel)
             }
         }
     

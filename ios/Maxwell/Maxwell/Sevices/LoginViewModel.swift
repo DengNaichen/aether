@@ -9,7 +9,7 @@ class LoginViewModel: ObservableObject {
     
     @Published var isAuthenticated: Bool = false
     @Published var isLoading: Bool = false
-    @Published var errorMessage: String?
+    @Published var alartItem: AlertItem?
     
     init(network: NetworkServicing) {
         self.network = network
@@ -18,34 +18,37 @@ class LoginViewModel: ObservableObject {
     
     func login(email: String, password: String) async {
         isLoading = true
-        errorMessage = nil
+        defer { isLoading = false}
+//        errorMessage = nil
+        alartItem = nil
         
-        let credentials = LoginRequest(email: email, password: password)
+        let form_data = [
+            "username": email,
+            "password": password
+        ]
+//        LoginRequest(email: email, password: password)
         
         do {
             let tokenResponse: TokenResponse = try await network.request(
-                endpoint: "/login",
+                endpoint: "/auth/login",
                 method: .POST,
-                body: credentials,
+                body: .formUrlEncoded(form_data),
                 responseType: TokenResponse.self
             )
             print("Successfully login, Token: \(tokenResponse.accessToken)")
             isAuthenticated = true
-            //                authService.login(credentials: request)
             
-            
-            await MainActor.run {
-                self.isAuthenticated = true
-            }
+            self.isAuthenticated = true
             
         } catch {
+            let errorMessage: String
             if let networkError = error as? NetworkError {
-                self.errorMessage = networkError.message
+                errorMessage = networkError.message
             } else {
-                self.errorMessage = "unknown error happen: \(error.localizedDescription)"
+                errorMessage = "unknown error happen: \(error.localizedDescription)"
             }
+            self.alartItem = AlertItem(title: "Login Failed", message: errorMessage)
             self.isAuthenticated = false
         }
-        isLoading = false
     }
 }

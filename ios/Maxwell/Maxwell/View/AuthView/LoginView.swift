@@ -7,9 +7,7 @@ struct LoginView: View {
     // 用于UI输入的本地状态
     @State private var email = ""
     @State private var password = ""
-
-    // 自定义构造函数，用于从外部注入ViewModel
-    // 这是实现依赖注入和可测试性的关键
+    
     init(viewModel: LoginViewModel) {
         _viewModel = StateObject(wrappedValue: viewModel)
     }
@@ -39,7 +37,6 @@ struct LoginView: View {
                                 Spacer()
                             }
                         }
-                        // 当输入为空或正在加载时，禁用按钮
                         .disabled(email.isEmpty || password.isEmpty || viewModel.isLoading)
                     }
                 }
@@ -58,14 +55,14 @@ struct LoginView: View {
                     .shadow(radius: 10)
             }
         }
-        // 根据 errorMessage 显示错误弹窗
-        // isPresented 绑定到一个计算属性：当errorMessage不为nil时，值为true
-        .alert("登录失败", isPresented: .constant(viewModel.errorMessage != nil), actions: {
-            // "好的"按钮，点击后清除错误信息，弹窗自动消失
-            Button("好的") { viewModel.errorMessage = nil }
-        }, message: {
-            Text(viewModel.errorMessage ?? "未知错误")
-        })
+        .alert(item: $viewModel.alartItem) { alertItem in
+            Alert(
+                title: Text(alertItem.title),
+                message: Text(alertItem.message),
+                dismissButton: .default(Text("Ok"))
+            )
+        }
+
     }
     
     /// 按钮点击时调用的方法
@@ -85,37 +82,37 @@ struct LoginView: View {
 // 从而在不联网的情况下独立开发和测试UI。
 // ===================================
 
-//#Preview {
-//    
-//    // 1. 创建一个用于预览的 Mock Network Service
-//    struct MockLoginNetworkService: NetworkServicing {
-//        func request<T, U>(endpoint: String, method: HTTPMethod, body: U?, responseType: T.Type) async throws -> T where T : Decodable, U : Encodable {
-//            
-//            // 模拟我们更新后的两步登录流程
-//            switch endpoint {
-//            case "/auth/login":
-//                // 如果是登录请求，返回一个假的Token
-//                print("Mock: 正在返回假的Token...")
-//                let fakeTokenResponse = TokenResponse(accessToken: "fake_preview_token_123", tokenType: "Bearer")
-//                return fakeTokenResponse as! T
-//                
-//            case "/users/me":
-//                // 如果是获取用户信息的请求，返回一个假的用户
-//                print("Mock: 正在返回假的用户信息...")
-//                let fakeUser = User(id: UUID(), name: "测试用户", email: "preview@example.com")
-//                return fakeUser as! T
-//                
-//            default:
-//                // 如果遇到未知的端点，抛出一个错误
-//                throw NetworkError.invalidURL
-//            }
-//        }
-//    }
-//    
-//    // 2. 实例化 Mock 服务和 ViewModel
-//    let mockNetwork = MockLoginNetworkService()
-//    let viewModel = LoginViewModel(network: mockNetwork)
-//    
-//    // 3. 创建并返回 LoginView
-//    return LoginView(viewModel: viewModel)
-//}
+#Preview {
+    
+    // 1. 创建一个用于预览的 Mock Network Service
+    struct MockLoginNetworkService: NetworkServicing {
+        func request<T>(endpoint: String, method: HTTPMethod, body: RequestBody?, responseType: T.Type) async throws -> T {
+            
+            // 模拟我们更新后的两步登录流程
+            switch endpoint {
+            case "/auth/login":
+                // 如果是登录请求，返回一个假的Token
+                print("Mock: 正在返回假的Token...")
+                let fakeTokenResponse = TokenResponse(accessToken: "fake_preview_token_123", tokenType: "Bearer")
+                return fakeTokenResponse as! T
+                
+            case "/users/me":
+                // 如果是获取用户信息的请求，返回一个假的用户
+                print("Mock: 正在返回假的用户信息...")
+                let fakeUser = User(id: UUID(), name: "测试用户", email: "preview@example.com")
+                return fakeUser as! T
+                
+            default:
+                // 如果遇到未知的端点，抛出一个错误
+                throw NetworkError.invalidURL
+            }
+        }
+    }
+    
+    // 2. 实例化 Mock 服务和 ViewModel
+    let mockNetwork = MockLoginNetworkService()
+    let viewModel = LoginViewModel(network: mockNetwork)
+    
+    // 3. 创建并返回 LoginView
+    return LoginView(viewModel: viewModel)
+}
