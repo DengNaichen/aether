@@ -3,6 +3,12 @@ import Foundation
 import Combine
 
 
+struct AlertItem: Identifiable {
+    let id = UUID()
+    let title: String
+    let message: String
+}
+
 @MainActor
 class RegistrationViewModel: ObservableObject {
     
@@ -10,7 +16,7 @@ class RegistrationViewModel: ObservableObject {
 
     @Published var isLoading: Bool = false
     @Published var registrationSuccessful: Bool = false
-    @Published var errorMessage: String?
+    @Published var alertItem: AlertItem?
     
     init(network: NetworkServicing) {
         self.network = network
@@ -18,7 +24,9 @@ class RegistrationViewModel: ObservableObject {
  
     func register(username: String, email: String, password: String) async {
         isLoading = true
-        errorMessage = nil
+        
+        defer { isLoading = false }
+//        errorMessage = nil
         registrationSuccessful = false
         
         let user = RegistrationRequest(name: username,
@@ -26,19 +34,21 @@ class RegistrationViewModel: ObservableObject {
                                        password: password)
         do {
             let registrationResponse: RegistrationResponse = try await network.request(
-                endpoint: "/registration",
+                endpoint: "/auth/register",
                 method: .POST,
                 body: user,
                 responseType: RegistrationResponse.self)
             print("Successfully Create User With Email \(user.email)")
             registrationSuccessful = true
         } catch {
+            let errorMessage: String
             if let networkError = error as? NetworkError {
-                self.errorMessage = networkError.message
+                errorMessage = networkError.message
             } else {
-                self.errorMessage = "unknown error happen: \(error.localizedDescription)"
+                errorMessage = "An unknown error happen: \(error.localizedDescription)"
             }
+            alertItem = AlertItem(title: "Registration Failed",
+                                  message: errorMessage)
         }
-        isLoading = false
     }
 }

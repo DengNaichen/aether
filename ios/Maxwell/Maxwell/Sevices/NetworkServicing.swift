@@ -52,8 +52,18 @@ class NetworkService: NetworkServicing {
         switch httpResponse.statusCode {
         case 200...299:
             do {
-                return try JSONDecoder().decode(T.self, from: data)
+                let decoder = JSONDecoder()
+                decoder.dateDecodingStrategy = .iso8601
+                return try decoder.decode(T.self, from: data)
             } catch {
+                print("==================== 🐛DECODING ERROR ====================")
+                print("Failed to decode JSON. Server returned the following data:")
+                if let jsonString = String(data: data, encoding: .utf8) {
+                    print(jsonString)
+                } else {
+                    print("Could not convert data to a readable string.")
+                }
+                print("==========================================================")
                 throw NetworkError.decodingFailed
             }
 
