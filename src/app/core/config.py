@@ -1,5 +1,5 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
-
+from typing import ClassVar
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file_encoding='utf-8')
@@ -17,6 +17,8 @@ class Settings(BaseSettings):
         "g11phys": "g11phys",
         "g11chem": "g11chem",
     }
+    ALGORITHM: ClassVar[str] = "HS256"
+    REFRESH_TOKEN_EXPIRE_DAYS: int = 7
 
 
 settings = Settings()

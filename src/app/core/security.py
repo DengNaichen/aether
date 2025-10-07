@@ -1,3 +1,5 @@
+import uuid
+
 from passlib.context import CryptContext
 from typing import Any, Union
 from datetime import datetime, timedelta, timezone
@@ -13,7 +15,8 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 # jwt configuration
 SECERT_KEY = settings.SECRET_KEY
-ALGORITHM = "HS256"
+ALGORITHM = settings.ALGORITHM
+REFRESH_TOKEN_EXPIRE_DAY = settings.REFRESH_TOKEN_EXPIRE_DAYS
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
 
@@ -35,14 +38,33 @@ def create_access_token(subject: Union[str, Any],
         expire = datetime.now(timezone.utc) + timedelta(
             minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
 
-    to_encode = {"exp": expire, "sub": str(subject)}
+    to_encode = {"exp": expire,
+                 "sub": str(subject),
+                 "iat": datetime.now(timezone.utc),
+                 "jti": str(uuid.uuid4())
+                 }
     encoded_jwt = jwt.encode(to_encode, SECERT_KEY, algorithm=ALGORITHM)
 
     return encoded_jwt
 
 
+def create_refresh_token(subject: str) -> str:
+    expires = datetime.now(timezone.utc) + timedelta(days=REFRESH_TOKEN_EXPIRE_DAY)
+    to_encode = {"exp": expires,
+                 "sub": str(subject),
+                 "iat": datetime.now(timezone.utc),
+                 "jti": str(uuid.uuid4())
+                 }
+    encode_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=ALGORITHM)
+    return encode_jwt
+
+
 # TODO: should I use EmailStr here ?
-async def authenticate_user(db: AsyncSession, email: str, password: str) -> User | None:
+async def authenticate_user(
+        db: AsyncSession,
+        email: str,
+        password: str
+) -> User | None:
     """
     User verification function
     """

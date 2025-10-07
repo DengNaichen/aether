@@ -8,11 +8,12 @@ from src.app.core.database import get_db, engine
 # from app.models.models import Base, Student
 # from app.schemas.schemas import StudentCreate, StudentOut, Token, UserLogin, EnrollmentCreate
 from app.core.security import verify_password, ACCESS_TOKEN_EXPIRE_MINUTES, create_access_token
-from src.app.routes import user, auth
+# from src.app.routes import user, auth
 from src.app.models.base import Base
 
 # from app.crud.crud import get_student_by_email, create_student, enroll_student_in_course
 
+from src.app.routes import auth_router, user
 
 # 定义 lifespan
 @asynccontextmanager
@@ -26,8 +27,10 @@ async def lifespan(app: FastAPI):
 # pass lifespan tp FastAPI
 app = FastAPI(lifespan=lifespan)
 
+app.include_router(auth_router.router)
 app.include_router(user.router)
-app.include_router(auth.router)
+# app.include_router(auth.router)
+# app.include_router(user.router)
 
 
 # @app.get("/students")

@@ -4,24 +4,22 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.app.crud.user import get_user_by_email, create_user
 from src.app.core.database import get_db
 
+from src.app import core
+
+from src.app import models, schemas
+from src.app.core.deps import get_current_active_user
+
 router = APIRouter(
     prefix="/user",
     tags=["User"],
 )
 
 
-@router.post("/register",
-             response_model=UserRead,
-             status_code=status.HTTP_201_CREATED)
-async def register_student(
-        user_data: UserCreate,
-        db: AsyncSession = Depends(get_db)
+@router.get("/me", response_model=schemas.user.UserRead)
+async def read_users_me(
+    current_user: models.user.User = Depends(get_current_active_user)
 ):
-    existing_user = await get_user_by_email(db=db, email=user_data.email)
-    if existing_user:
-        raise HTTPException(
-            status_code=400,
-            detail="Email already registered"
-        )
-    new_user = await create_user(db=db, user_data=user_data)
-    return new_user
+    return current_user
+
+
+

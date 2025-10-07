@@ -2,6 +2,7 @@ from sqlalchemy.future import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from src.app.models.user import User
 from src.app.core.security import get_password_hash
+import uuid
 
 from src.app.schemas.user import UserCreate
 
@@ -24,3 +25,18 @@ async def create_user(user_data: UserCreate, db: AsyncSession) -> User:
     await db.commit()
     await db.refresh(new_user)
     return new_user
+
+
+async def update_refresh_token(
+        db: AsyncSession,
+        *,
+        user_id: uuid.UUID,
+        token: str | None
+) -> User | None:
+    user = await db.get(User, user_id)
+    if not user:
+        return None
+    user.refresh_token = token
+    await db.commit()
+    await db.refresh(user)
+    return user

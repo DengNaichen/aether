@@ -11,7 +11,7 @@ async def test_registration_success(client):
     }
 
     # send post-request
-    response = await client.post("/user/register",
+    response = await client.post("/auth/register",
                                  json=new_student)
     # assert status code
     assert response.status_code == 201
@@ -58,7 +58,7 @@ async def test_registration_fails_for_syntactically_invalid_email(
         "password": "a-secure-password123",
     }
 
-    response = await client.post("/user/register", json=new_user_data)
+    response = await client.post("/auth/register", json=new_user_data)
 
     assert response.status_code == 422
     response_data = response.json()
@@ -84,6 +84,6 @@ async def test_registration_succeeds_for_parseable_email(parseable_email: str,
         "password": "a-secure-password123",
     }
 
-    response = await client.post("/user/register", json=new_user_data)
+    response = await client.post("/auth/register", json=new_user_data)
 
     assert response.status_code == 201
