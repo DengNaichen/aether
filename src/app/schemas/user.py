@@ -3,22 +3,22 @@ import datetime
 from pydantic import BaseModel, EmailStr, ConfigDict
 
 
-class StudentBase(BaseModel):
+class UserBase(BaseModel):
     """ All share field Student schema"""
     email: EmailStr  # Pydantic will validate email
     name: str
 
 
-class StudentCreate(StudentBase):
+class UserCreate(UserBase):
     """Update Student info, clients can provide all data"""
     password: str
 
 
-class StudentUpdate(BaseModel):
+class UserUpdate(BaseModel):
     pass
 
 
-class StudentRead(StudentBase):
+class UserRead(UserBase):
     id: uuid.UUID
     is_active: bool
     created_at: datetime.datetime

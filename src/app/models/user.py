@@ -10,7 +10,7 @@ from sqlalchemy.dialects.postgresql import UUID
 from src.app.models.base import Base
 
 
-class Student(Base):
+class User(Base):
     """ Represents a student user in the databases
 
     This model stores essential information for a student, including personal
@@ -29,7 +29,7 @@ class Student(Base):
         created_at(datetime): The timestamp when the student account was created
         update_at(datetime): The timestamp when the student account was updated
     """
-    __tablename__ = "students"
+    __tablename__ = "user"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     name = Column(String(255), nullable=False)
