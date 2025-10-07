@@ -19,14 +19,12 @@ class LoginViewModel: ObservableObject {
     func login(email: String, password: String) async {
         isLoading = true
         defer { isLoading = false}
-//        errorMessage = nil
         alartItem = nil
         
         let form_data = [
             "username": email,
             "password": password
         ]
-//        LoginRequest(email: email, password: password)
         
         do {
             let tokenResponse: TokenResponse = try await network.request(
@@ -36,8 +34,13 @@ class LoginViewModel: ObservableObject {
                 responseType: TokenResponse.self
             )
             print("Successfully login, Token: \(tokenResponse.accessToken)")
-            isAuthenticated = true
             
+            TokenManager.shared.saveTokens(
+                accessToken: tokenResponse.accessToken,
+                refreshToken: tokenResponse.refreshToken
+            )
+
+            print("✅ [LoginViewModel] Tokens saved to Keychain.")
             self.isAuthenticated = true
             
         } catch {

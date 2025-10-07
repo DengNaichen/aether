@@ -3,6 +3,7 @@ import SwiftUI
 struct LoginView: View {
     // 视图持有并管理 ViewModel 的生命周期
     @StateObject private var viewModel: LoginViewModel
+    @EnvironmentObject var authService: AuthService
     
     // 用于UI输入的本地状态
     @State private var email = ""
@@ -62,7 +63,14 @@ struct LoginView: View {
                 dismissButton: .default(Text("Ok"))
             )
         }
-
+        .onChange(of: viewModel.isAuthenticated) {isAuthenticated in
+            print("➡️ [LoginView.onChange] Detected viewModel.isAuthenticated is now \(isAuthenticated)")
+            if isAuthenticated {
+                            // 更新全局的 authService
+                            self.authService.isAuthenticated = true
+                            print("✅ [LoginView.onChange] Successfully updated global authService.isAuthenticated!")
+                        }
+        }
     }
     
     /// 按钮点击时调用的方法
@@ -93,7 +101,10 @@ struct LoginView: View {
             case "/auth/login":
                 // 如果是登录请求，返回一个假的Token
                 print("Mock: 正在返回假的Token...")
-                let fakeTokenResponse = TokenResponse(accessToken: "fake_preview_token_123", tokenType: "Bearer")
+                let fakeTokenResponse = TokenResponse(
+                    accessToken: "fake_preview_token_123",
+                    refreshToken: "fake_preview_token_123",
+                    tokenType: "Bearer")
                 return fakeTokenResponse as! T
                 
             case "/users/me":
