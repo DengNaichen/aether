@@ -1,17 +1,25 @@
 import Foundation
 
+enum RequestBody {
+    case json(Encodable)
+    case formUrlEncoded([String: String])
+}
 
 enum HTTPMethod: String {
     case GET, POST, PUT, DELETE
 }
 
 protocol NetworkServicing {
-    func request<T: Decodable, U: Encodable> (
+    func request<T: Decodable> (
         endpoint: String,
         method: HTTPMethod,
-        body: U?,
+        body: RequestBody?,
         responseType: T.Type
     ) async throws -> T
+
+//    func requestToken(endpoint: String,
+//                      fromData: [String: String]
+//    ) async throws -> TokenResponse
 }
 
 
@@ -24,10 +32,10 @@ class NetworkService: NetworkServicing {
         self.session = session
     }
     
-    func request<T: Decodable, U: Encodable>(
+    func request<T: Decodable>(
         endpoint: String,
         method: HTTPMethod,
-        body: U?,
+        body: RequestBody?,
         responseType: T.Type
     ) async throws -> T {
         
@@ -40,8 +48,21 @@ class NetworkService: NetworkServicing {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         
         if let body = body {
-            request.httpBody = try JSONEncoder().encode(body)
+            switch body {
+            case .json(let encodableData):
+                request.httpBody = try JSONEncoder().encode(encodableData)
+                request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            
+            case .formUrlEncoded(let formData):
+                let bodyString = formData.map { key, value in
+                    "\(key.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "")=\(value.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "")"
+                }.joined(separator: "&")
+                request.httpBody = bodyString.data(using: .utf8)
+                request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+            }
+            
         }
+
         
         let (data, response) = try await session.data(for: request)
         

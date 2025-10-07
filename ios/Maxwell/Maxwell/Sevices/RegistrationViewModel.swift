@@ -33,10 +33,10 @@ class RegistrationViewModel: ObservableObject {
                                        email: email,
                                        password: password)
         do {
-            let registrationResponse: RegistrationResponse = try await network.request(
+            let _: RegistrationResponse = try await network.request(
                 endpoint: "/auth/register",
                 method: .POST,
-                body: user,
+                body: .json(user),
                 responseType: RegistrationResponse.self)
             print("Successfully Create User With Email \(user.email)")
             registrationSuccessful = true

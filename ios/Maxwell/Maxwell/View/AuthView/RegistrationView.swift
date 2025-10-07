@@ -95,11 +95,11 @@ struct RegistrationView: View {
 
 // MARK: - Xcode 预览
 struct MockNetworkService: NetworkServicing {
-    func request<T, U>(endpoint: String,
+    func request<T: Decodable>(endpoint: String,
                        method: HTTPMethod,
-                       body: U?,
+                       body: RequestBody?,
                        responseType: T.Type)
-    async throws -> T where T : Decodable, U : Encodable {
+    async throws -> T {
         
         try await Task.sleep(nanoseconds: 2_000_000_000)
         if T.self == RegistrationResponse.self{
