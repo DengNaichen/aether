@@ -15,9 +15,3 @@ class AccessToken(BaseModel):
 
 class RefreshTokenRequest(BaseModel):
     refresh_token: str
-
-
-# class UserLogin(BaseModel):
-#     """User Login Response"""
-#     email: EmailStr
-#     password: str
