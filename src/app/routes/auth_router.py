@@ -2,7 +2,7 @@ from dns.dnssecalgs import algorithms
 from fastapi import APIRouter, HTTPException, status, Body
 # from psutil import users
 
-from app.core.config import settings
+from src.app.core.config import settings
 from src.app.schemas.token import Token, AccessToken
 from fastapi.security import OAuth2PasswordRequestForm
 from fastapi import Depends

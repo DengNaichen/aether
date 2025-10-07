@@ -4,7 +4,7 @@ from passlib.context import CryptContext
 from typing import Any, Union
 from datetime import datetime, timedelta, timezone
 from jose import jwt
-from app.core.config import settings
+from src.app.core.config import settings
 from sqlalchemy.ext.asyncio import AsyncSession
 from src.app.models.user import User
 from src.app import crud

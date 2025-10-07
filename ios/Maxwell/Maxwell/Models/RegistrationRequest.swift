@@ -10,7 +10,7 @@ struct RegistrationRequest: Encodable {
 
 // struct of recieving from serverr
 struct RegistrationResponse: Decodable {
-    let id: Int
+    let id: UUID
     let name: String
     let email: String
     let createdAt: Date
