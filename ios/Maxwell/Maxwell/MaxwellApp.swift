@@ -21,7 +21,7 @@ struct MaxwellApp: App {
         WindowGroup {
             Group {
                 if authService.isAuthenticated {
-                    Text("登录成功！这里是主页面。")
+                    WelcomeView()
                 } else {
                     let loginViewModel = LoginViewModel(network: networkService)
                     LoginView(viewModel: loginViewModel)
