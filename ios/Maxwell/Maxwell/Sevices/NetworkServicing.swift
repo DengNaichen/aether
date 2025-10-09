@@ -1,4 +1,5 @@
 import Foundation
+import Combine
 
 enum RequestBody {
     case json(Encodable)
@@ -9,45 +10,57 @@ enum HTTPMethod: String {
     case GET, POST, PUT, DELETE
 }
 
-protocol NetworkServicing {
-    func request<T: Decodable> (
-        endpoint: String,
-        method: HTTPMethod,
-        body: RequestBody?,
-        responseType: T.Type
-    ) async throws -> T
-
-//    func requestToken(endpoint: String,
-//                      fromData: [String: String]
-//    ) async throws -> TokenResponse
+protocol Endpoint {
+    var path: String { get }
+    var method: HTTPMethod { get }
+    var body: RequestBody? { get }
+    
+    var requiredAuth: Bool { get }
 }
 
+protocol NetworkServicing {
+    func request<T: Decodable> (
+        endpoint: Endpoint,
+        responseType: T.Type
+    ) async throws -> T
+}
 
-class NetworkService: NetworkServicing {
+class NetworkService: NetworkServicing, ObservableObject {
     private let baseURL: URL
     private let session: URLSession
+    private let authService: AuthService
     
-    init(baseURL: URL, session: URLSession = .shared) {
+    init(baseURL: URL, session: URLSession = .shared, authService: AuthService) {
         self.baseURL = baseURL
         self.session = session
+        self.authService = authService
     }
     
     func request<T: Decodable>(
-        endpoint: String,
-        method: HTTPMethod,
-        body: RequestBody?,
+        endpoint: Endpoint,
         responseType: T.Type
     ) async throws -> T {
         
-        guard let url = URL(string: endpoint, relativeTo: baseURL) else {
+        guard let url = URL(string: endpoint.path, relativeTo: baseURL) else {
             throw NetworkError.invalidURL
         }
         
         var request = URLRequest(url: url)
-        request.httpMethod = method.rawValue
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpMethod = endpoint.method.rawValue
         
-        if let body = body {
+        if endpoint.requiredAuth {
+            print("➡️ [NetworkService] Endpoint '\(endpoint.path)' requires auth. Asking AuthService for token...")
+            guard let token = authService.accessToken else {
+                print("🛑 [NetworkService] CRITICAL: Token not found from AuthService!")
+                throw NetworkError.tokenNotFound
+            }
+            print("✅ [NetworkService] Got token from AuthService. Adding to header.")
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        } else {
+            print("➡️ [NetworkService] Endpoint '\(endpoint.path)' does not require auth.")
+        }
+        
+        if let body = endpoint.body {
             switch body {
             case .json(let encodableData):
                 request.httpBody = try JSONEncoder().encode(encodableData)
@@ -60,7 +73,6 @@ class NetworkService: NetworkServicing {
                 request.httpBody = bodyString.data(using: .utf8)
                 request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
             }
-            
         }
 
         
@@ -87,8 +99,16 @@ class NetworkService: NetworkServicing {
                 print("==========================================================")
                 throw NetworkError.decodingFailed
             }
+            // TODO: delete this later, and do the refresh token.
+        case 401:
+            // 如果是 401 Unauthorized 错误
+            // 立即通知 AuthService 用户需要重新登录
+            await MainActor.run {
+                authService.logout()
+            }
+            throw NetworkError.tokenNotFound
 
-        case 400...499:
+        case 402...499:
             if let errorDetail = try? JSONDecoder().decode(ErrorDetail.self, from: data) {
                 throw NetworkError.clientError(errorDetail.detail)
             } else {

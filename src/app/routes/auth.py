@@ -1,8 +1,6 @@
-from dns.dnssecalgs import algorithms
 from fastapi import APIRouter, HTTPException, status, Body
-# from psutil import users
 
-from src.app.core.config import settings
+from src.app.core.settings import settings
 from src.app.schemas.token import Token, AccessToken
 from fastapi.security import OAuth2PasswordRequestForm
 from fastapi import Depends
@@ -10,7 +8,7 @@ from src.app.core.database import get_db
 from sqlalchemy.ext.asyncio import AsyncSession
 from src.app.core.security import create_access_token, authenticate_user, create_refresh_token
 from src.app.schemas.user import UserRead, UserCreate
-from src.app.crud.user import get_user_by_email, create_user, update_refresh_token
+from src.app.crud.user import get_user_by_email, create_user, update_refresh_token, get_user_by_id
 from jose import jwt, JWTError
 
 router = APIRouter(
@@ -52,8 +50,8 @@ async def login_for_access_token(
             detail="Incorrect email or password",
             headers={"WWW-Authenticate": "Bearer"},
             )
-    access_token = create_access_token(subject=user.email)
-    refresh_token = create_refresh_token(subject=user.email)
+    access_token = create_access_token(subject=str(user.id))
+    refresh_token = create_refresh_token(subject=str(user.id))
 
     await update_refresh_token(db=db, user_id=user.id, token=refresh_token)
 
@@ -68,14 +66,17 @@ async def refresh_access_token(
     refresh_token: str = Body(..., embed=True)
 ):
     try:
-        payload = jwt.decode(refresh_token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
-        email: str = payload.get("sub")
-        if not email:
+        payload = jwt.decode(refresh_token,
+                             settings.SECRET_KEY,
+                             algorithms=[settings.ALGORITHM])
+        user_id: str = payload.get("sub")
+        if not user_id:
             raise HTTPException(status_code=401, detail="Invalid refresh token")
     except JWTError:
         raise HTTPException(status_code=401, detail="Invalid refresh token")
 
-    user = await get_user_by_email(db, email=email)
+
+    user = await get_user_by_id(db, user_id=int(user_id))
 
     if not user:
         raise HTTPException(status_code=401, detail="User not found")
