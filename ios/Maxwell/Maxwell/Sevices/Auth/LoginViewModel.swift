@@ -14,11 +14,10 @@ class LoginViewModel: ObservableObject {
     init(network: NetworkServicing) {
         self.network = network
     }
-
     
     func login(email: String, password: String) async {
         isLoading = true
-        defer { isLoading = false}
+        defer { isLoading = false }
         alartItem = nil
         
         let form_data = [
@@ -27,12 +26,8 @@ class LoginViewModel: ObservableObject {
         ]
         
         do {
-            let tokenResponse: TokenResponse = try await network.request(
-                endpoint: "/auth/login",
-                method: .POST,
-                body: .formUrlEncoded(form_data),
-                responseType: TokenResponse.self
-            )
+            let tokenResponseEndpoint = LoginEndpoint(loginData: form_data)
+            let tokenResponse: TokenResponse = try await network.request(endpoint: tokenResponseEndpoint, responseType: TokenResponse.self)
             print("Successfully login, Token: \(tokenResponse.accessToken)")
             
             TokenManager.shared.saveTokens(

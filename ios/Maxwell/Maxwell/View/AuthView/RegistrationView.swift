@@ -94,32 +94,32 @@ struct RegistrationView: View {
 
 
 // MARK: - Xcode 预览
-struct MockNetworkService: NetworkServicing {
-    func request<T: Decodable>(endpoint: String,
-                       method: HTTPMethod,
-                       body: RequestBody?,
-                       responseType: T.Type)
-    async throws -> T {
-        
-        try await Task.sleep(nanoseconds: 2_000_000_000)
-        if T.self == RegistrationResponse.self{
-            let mockResponse = RegistrationResponse(
-                id: UUID(),
-                name: "Mock user",
-                email: "mock@example.com",
-                createdAt: Date()
-            )
-            return mockResponse as! T
-        }
-        let errorDescription = "Mock for the type \(T.self) in not implemented in MockNetworkService."
-        throw NSError(domain: "MockNetworkServiceError", code: 404, userInfo: [NSLocalizedDescriptionKey: errorDescription])
-    }
-}
-
-#Preview {
-    // 在预览中，我们注入一个 Mock 的网络服务
-    // 这样预览就不依赖于真实的网络，速度快且稳定
-    let mockNetwork = MockNetworkService()
-    let viewModel = RegistrationViewModel(network: mockNetwork)
-    return RegistrationView(viewModel: viewModel)
-}
+//struct MockNetworkService: NetworkServicing {
+//    func request<T: Decodable>(endpoint: String,
+//                       method: HTTPMethod,
+//                       body: RequestBody?,
+//                       responseType: T.Type)
+//    async throws -> T {
+//        
+//        try await Task.sleep(nanoseconds: 2_000_000_000)
+//        if T.self == RegistrationResponse.self{
+//            let mockResponse = RegistrationResponse(
+//                id: UUID(),
+//                name: "Mock user",
+//                email: "mock@example.com",
+//                createdAt: Date()
+//            )
+//            return mockResponse as! T
+//        }
+//        let errorDescription = "Mock for the type \(T.self) in not implemented in MockNetworkService."
+//        throw NSError(domain: "MockNetworkServiceError", code: 404, userInfo: [NSLocalizedDescriptionKey: errorDescription])
+//    }
+//}
+//
+//#Preview {
+//    // 在预览中，我们注入一个 Mock 的网络服务
+//    // 这样预览就不依赖于真实的网络，速度快且稳定
+//    let mockNetwork = MockNetworkService()
+//    let viewModel = RegistrationViewModel(network: mockNetwork)
+//    return RegistrationView(viewModel: viewModel)
+//}

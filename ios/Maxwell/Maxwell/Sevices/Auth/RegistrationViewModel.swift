@@ -26,19 +26,21 @@ class RegistrationViewModel: ObservableObject {
         isLoading = true
         
         defer { isLoading = false }
-//        errorMessage = nil
         registrationSuccessful = false
         
-        let user = RegistrationRequest(name: username,
-                                       email: email,
-                                       password: password)
         do {
+            let userRequest = RegistrationRequest(name: username,
+                                                   email: email,
+                                                   password: password)
+            // create the endpoint
+            let registerEndpoint = RegisterEndpoint(registrationRequest: userRequest)
+            // get the response based on the endpoint
+            // TODO: for the response, we can design more for further feature
             let _: RegistrationResponse = try await network.request(
-                endpoint: "/auth/register",
-                method: .POST,
-                body: .json(user),
-                responseType: RegistrationResponse.self)
-            print("Successfully Create User With Email \(user.email)")
+                endpoint: registerEndpoint,
+                responseType: RegistrationResponse.self
+            )
+            print("Successfully Create User With Email \(userRequest.email)")
             registrationSuccessful = true
         } catch {
             let errorMessage: String

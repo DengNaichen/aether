@@ -14,9 +14,13 @@ class AuthService: ObservableObject {
     
     private let tokenManager = TokenManager.shared
     
+    var accessToken: String? {
+        let token = tokenManager.getAccessToken()
+        print("➡️ [AuthService] 'accessToken' property was accessed. Token is: \(token != nil ? "FOUND" : "NIL")")
+        return token
+    }
+    
     init() {
-        print("➡️ [AuthService] Initializing...")
-        
         if let _ = tokenManager.getRefreshToken() {
             print("✅ [AuthService] Found refresh token in Keychain.")
             isAuthenticated = true

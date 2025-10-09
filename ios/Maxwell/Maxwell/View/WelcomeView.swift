@@ -1,8 +1,15 @@
 import SwiftUI
 
 struct WelcomeView: View {
+    @EnvironmentObject private var networkService: NetworkService
+    
+    @StateObject private var viewModel: EnrollmentViewModel
+    
+    init(viewModel: EnrollmentViewModel) {
+        _viewModel = StateObject(wrappedValue: viewModel)
+    }
+
     var body: some View {
-        // 1. 使用 NavigationStack 作为导航容器
         NavigationStack {
             VStack(spacing: 30) {
                 Text("😅😒🤯")
@@ -14,6 +21,34 @@ struct WelcomeView: View {
                         .foregroundColor(.white)
                         .cornerRadius(10)
                 }
+                
+                Button("Enroll in Default Course(G11 Physics)") {
+                    Task{
+                        await viewModel.enrollInCourse(courseId: "g11_phys")
+                    }
+                }
+                .padding()
+                .background(Color.green)
+                .foregroundColor(.white)
+                .cornerRadius(10)
+                .disabled(viewModel.isLoading)
+                
+                VStack {
+                    if viewModel.isLoading {
+                        ProgressView("Enrolling ...")
+                    }
+                    if let response = viewModel.enrollmentResponse {
+                        Text("✅ Success! Enrolled with ID: \(response.id.uuidString)")
+                            .foregroundColor(.green)
+                            .padding()
+                    }
+                    if let errorMessage = viewModel.alartItem?.message {
+                        Text("❌ Error: \(errorMessage)")
+                            .foregroundColor(.red)
+                            .padding()
+                    }
+                }
+                .frame(height: 100)
             }
             .padding()
             .navigationTitle("Welcome")
@@ -22,8 +57,6 @@ struct WelcomeView: View {
 }
 
 
-#Preview {
-    WelcomeView()
-}
-
-
+//#Preview {
+//    WelcomeView()
+//}

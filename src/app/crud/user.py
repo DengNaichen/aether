@@ -3,6 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.app.models.user import User
 from src.app.core.security import get_password_hash
 import uuid
+from uuid import UUID
 
 from src.app.schemas.user import UserCreate
 
@@ -11,6 +12,20 @@ async def get_user_by_email(db: AsyncSession, email: str) -> User | None:
     statement = select(User).where(User.email == email)
     result = await db.execute(statement)
     return result.scalars().first()
+
+
+async def get_user_by_id(db: AsyncSession, user_id: UUID) -> User | None:
+    """
+    Args:
+        db:
+        user_id:
+
+    Returns:
+    """
+    result = await db.execute(
+        select(User).where(User.id == user_id)
+    )
+    return result.scalar_one_or_none()
 
 
 async def create_user(user_data: UserCreate, db: AsyncSession) -> User:
