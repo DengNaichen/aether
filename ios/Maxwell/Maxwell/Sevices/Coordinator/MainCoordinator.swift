@@ -22,7 +22,6 @@ class MainCoordinator: ObservableObject {
         // TODO: Do I need the onLogout here ??
         self.dashboardViewModel = DashboardViewModel(network: networkService)
     }
-
 }
     
 //    func enrollInDefaultCourse() async {

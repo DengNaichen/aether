@@ -8,8 +8,10 @@ class SessionStartViewModel: ObservableObject {
     private let network: NetworkServicing
     
     @Published var isLoading: Bool = false
-    @Published var sessionResponse: SessionStartResponse? = nil // 对应 SessionStartResponse 模型
-    @Published var alartItem: AlertItem?
+//    @Published var sessionResponse: SessionStartResponse? = nil // 对应 SessionStartResponse 模型
+    @Published var alertItem: AlertItem?
+    
+    @Published var quizProblems: [QuizProblem] = []
     
     
     init(network: NetworkServicing) {
@@ -21,8 +23,8 @@ class SessionStartViewModel: ObservableObject {
         // 1. 设置初始状态
         isLoading = true
         defer { isLoading = false } // 确保函数退出时，加载状态恢复为 false
-        alartItem = nil
-        sessionResponse = nil
+        alertItem = nil
+        self.quizProblems = []
         
         do {
             // 2. 准备并发送网络请求
@@ -34,14 +36,12 @@ class SessionStartViewModel: ObservableObject {
                 responseType: SessionStartResponse.self
             )
             
-            // 3. 处理成功响应
-            // 在主线程上更新 @Published 属性
+            let mappedProblems = self.mapToModels(from: response.questions)
             await MainActor.run {
-                self.sessionResponse = response
+                self.quizProblems = mappedProblems
             }
             
         } catch {
-            // 4. 处理各种错误
             let errorMessage: String
             if let networkError = error as? NetworkError {
                 errorMessage = networkError.message
@@ -49,11 +49,33 @@ class SessionStartViewModel: ObservableObject {
                 errorMessage = "An unknown error happen: \(error.localizedDescription)"
             }
             
-            // 在主线程上更新 @Published 属性
             await MainActor.run {
-                alartItem = AlertItem(title: "Session Start Failed",
+                alertItem = AlertItem(title: "Session Start Failed",
                                       message: errorMessage)
             }
         }
+        
+        
+    }
+    
+    private func mapToModels(from apiQuestions: [AnyQuestion]) -> [QuizProblem] {
+        var uiProblems: [QuizProblem] = []
+        
+        for apiQuestion in apiQuestions {
+            switch apiQuestion {
+            case .multipleChoice(let apiMCQ):
+                let problem = QuizProblem(
+                    id: apiMCQ.id,
+                    text: apiMCQ.text,
+                    options: apiMCQ.details.options,
+                    correctAnswerIndex: apiMCQ.details.correctAnswer
+                )
+                uiProblems.append(problem)
+            case .fillInTheBlank(let apiFITB):
+                print("Ingoring question type: fillInTheBlank, ID: \(apiFITB.id)")
+                continue
+            }
+        }
+        return uiProblems
     }
 }
