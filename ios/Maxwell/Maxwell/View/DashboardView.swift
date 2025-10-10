@@ -22,20 +22,20 @@ struct DashboardView: View {
               
                 // ... (Enroll Button 保持不变)
                 Button("Enroll in Default Course(G11 Physics)") {
-                                Task{
-                                    await viewModel.enrollInCourse(courseId: "g11_phys")
-                                }
-                            }
-                            .padding()
-                            .background(Color.green)
-                            .foregroundColor(.white)
-                            .cornerRadius(10)
+                    Task{
+                        await viewModel.enrollInCourse(courseId: "g11_phys")
+                    }
+                }
+                .padding()
+                .background(Color.green)
+                .foregroundColor(.white)
+                .cornerRadius(10)
               
                 // ✨ 简化后的 Button
                 Button("Start Test Session (G11 Physics)") {
                     Task {
-                        // 只需要调用方法，不需要返回值，也不需要 try-catch
-                        await viewModel.startSession(courseId: "g11_phys", questionCount: 2)
+                    // 只需要调用方法，不需要返回值，也不需要 try-catch
+                    await viewModel.startSession(courseId: "g11_phys", questionCount: 2)
                     }
                 }
                 .padding()
