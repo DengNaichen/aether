@@ -4,26 +4,20 @@ struct RegisterView: View {
     @ObservedObject var viewModel: RegisterViewModel
     @EnvironmentObject var coordinator: OnboardingCoordinator
     
-    // 2. 使用 @State 管理只与此视图相关的输入状态
     @State private var name = ""
     @State private var email = ""
     @State private var password = ""
     
-    // 用于在注册成功后关闭视图
-//    @Environment(\.dismiss) private var dismiss
     
     private var isFormedValid: Bool {
         !name.isEmpty && email.contains("@") && password.count >= 6
     }
 
-    // 自定义 init 以接受注入的 ViewModel
-    // 这使得视图的创建和依赖注入分离
     init(viewModel: RegisterViewModel) {
         self.viewModel = viewModel
     }
 
     var body: some View {
-        // 使用 ZStack 将加载动画覆盖在表单之上
         ZStack {
             NavigationStack {
                 Form {
@@ -33,12 +27,12 @@ struct RegisterView: View {
                         TextField("邮箱", text: $email)
                             .keyboardType(.emailAddress)
                             .autocapitalization(.none)
-                            .textContentType(.emailAddress) // 增强自动填充功能
+                            .textContentType(.emailAddress)
                     }
                     
                     Section(header: Text("密码")) {
                         SecureField("输入密码", text: $password)
-                            .textContentType(.newPassword) // 增强密码管理功能
+                            .textContentType(.newPassword)
                     }
                     
                     Section {
@@ -49,7 +43,6 @@ struct RegisterView: View {
                                 Spacer()
                             }
                         }
-                        // 根据 @State 属性判断按钮是否可用
                         .disabled(!isFormedValid || viewModel.isLoading)
                     }
                     
@@ -74,22 +67,13 @@ struct RegisterView: View {
                     .transition(.opacity.animation(.easeInOut))
             }
         }
-        // 5. 根据 errorMessage 显示错误弹窗
         .alert(item: $viewModel.alertItem) { alertItem in
             Alert(title: Text(alertItem.title),
                   message: Text(alertItem.message),
                   dismissButton: .default(Text("OK"))
             )
         }
-//        .onChange(of: viewModel.registrationSuccessful) { oldValue, newValue in
-//            if newValue {
-//                print("注册成功, 要关闭页面")
-//                dismiss()
-//            }
-//        }
     }
-    
-    // 3. 按钮的 Action，使用 Task 调用异步函数
     private func registerButtonTapped() {
         Task {
             UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
