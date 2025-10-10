@@ -9,9 +9,8 @@ class DashboardViewModel: ObservableObject {
     // UI state parameters
     @Published var isEnrolling: Bool = false
     @Published var isStartingSession: Bool = false
-    @Published var quizProblems: [QuizProblem] = []
+    @Published var quizProblemsForNavigation: [QuizProblem]? = nil
     
-    //
     @Published var enrollmentResponse: EnrollmentResponse? = nil
     @Published var alertItem: AlertItem?
     
@@ -45,40 +44,24 @@ class DashboardViewModel: ObservableObject {
             handleError(error, title: "Enrollment Failed")
         }
     }
-    
-//    func startSession(courseId: String, questionCount: Int) async throws -> SessionStartResponse {
-//        isStartingSession = true
-//        defer { isStartingSession = false }
-//        alartItem = nil
-//        
-//        let requestData = SessionStartRequest(courseId: courseId)
-//        let endpoint = SessionStartEndpoint(startSessionRequest: requestData)
-//        let response: SessionStartResponse = try await networkService.request(
-//            endpoint: endpoint,
-//            responseType: SessionStartResponse.self
-//        )
-//        return response
-//    }
-    func startSession(courseId: String, questionCount: Int) async {
-            isStartingSession = true
-            alertItem = nil
-            self.quizProblems = [] // 每次开始都清空旧数据
-            defer { isStartingSession = false }
 
-            do {
-                // 1. 获取原始 API 数据
-                let requestData = SessionStartRequest(courseId: courseId)
-                let endpoint = SessionStartEndpoint(startSessionRequest: requestData)
-                let response: SessionStartResponse = try await networkService.request(endpoint: endpoint, responseType: SessionStartResponse.self)
+    func startSession(courseId: String, questionCount: Int) async {
+        isStartingSession = true
+        alertItem = nil
+//            self.quizProblems = []
+        self.quizProblemsForNavigation = nil
+        defer { isStartingSession = false }
+
+        do {
+            let requestData = SessionStartRequest(courseId: courseId)
+            let endpoint = SessionStartEndpoint(startSessionRequest: requestData)
+            let response: SessionStartResponse = try await networkService.request(endpoint: endpoint, responseType: SessionStartResponse.self)
                 
-                // 2. 在内部直接进行数据转换
-                let mappedProblems = self.mapToUIModels(from: response.questions)
+            let mappedProblems = self.mapToUIModels(from: response.questions)
                 
-                // 3. 更新发布的属性，这将通知 View 数据已准备好
-                self.quizProblems = mappedProblems
+            self.quizProblemsForNavigation = mappedProblems
                 
             } catch {
-                // 4. 在内部直接处理错误
                 handleError(error, title: "Session Start Failed")
             }
         }

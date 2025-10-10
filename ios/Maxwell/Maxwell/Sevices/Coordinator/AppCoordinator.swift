@@ -34,11 +34,17 @@ class AppCoordinator: ObservableObject {
                 }
             }
             .store(in: &cancellables)
-        // << 临时的启动逻辑，强制显示登录页面 >>
-        // 这会触发 authService.isAuthenticated = false (如果是初始状态)，
-        // 进而触发上面的 sink，调用 showOnboarding()
-        print("💡 [AppCoordinator] Using temporary startup logic: forcing onboarding state.")
-        self.authService.isAuthenticated = false
+        
+        // Note:
+        // Do NOT mutate published properties synchronously here.
+        // App entry already calls `checkAuthenticationStatus()` in MaxwellApp.task.
+        // If you still need to force onboarding for testing, defer it:
+        /*
+        Task { @MainActor in
+            print("💡 [AppCoordinator] Using temporary startup logic: forcing onboarding state (deferred).")
+            self.authService.isAuthenticated = false
+        }
+        */
     }
     
     func showOnboarding() {

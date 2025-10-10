@@ -6,6 +6,3 @@ struct User: Codable {
     let name: String
     let email: String
 }
-
-
-// after login, I hope to save the user's data and token for auto-login and show it on the welcome view. 

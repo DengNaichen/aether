@@ -4,7 +4,6 @@ import Combine
 @MainActor
 class QuizViewModel: ObservableObject {
     // MARK: - Published Properties
-    // TODO: I still need to know how to get the problems from last viewmodel
     let problems: [QuizProblem]
     
     @Published var currentProblemIndex = 0

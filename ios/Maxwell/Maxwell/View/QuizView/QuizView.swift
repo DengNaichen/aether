@@ -62,7 +62,11 @@ import SwiftUI
 
 struct QuizView: View {
     
-    @ObservedObject var viewModel: QuizViewModel
+    @StateObject var viewModel: QuizViewModel
+    
+    init(problems: [QuizProblem]) {
+        _viewModel = StateObject(wrappedValue: QuizViewModel(problems: problems))
+    }
     
     var body: some View {
         Text("This is the Quiz View")
@@ -102,11 +106,3 @@ struct QuizView: View {
         .navigationTitle("🙄")
     }
 }
-//
-//
-//// MARK: - Preview
-//struct MultipleChoiceQuestionView_Previews: PreviewProvider {
-//    static var previews: some View {
-//        QuizView()
-//    }
-//}
