@@ -1,7 +1,8 @@
 import SwiftUI
 
-struct RegistrationView: View {
-    @StateObject private var viewModel: RegistrationViewModel
+struct RegisterView: View {
+    @ObservedObject var viewModel: RegisterViewModel
+    @EnvironmentObject var coordinator: OnboardingCoordinator
     
     // 2. 使用 @State 管理只与此视图相关的输入状态
     @State private var name = ""
@@ -9,7 +10,7 @@ struct RegistrationView: View {
     @State private var password = ""
     
     // 用于在注册成功后关闭视图
-    @Environment(\.dismiss) private var dismiss
+//    @Environment(\.dismiss) private var dismiss
     
     private var isFormedValid: Bool {
         !name.isEmpty && email.contains("@") && password.count >= 6
@@ -17,14 +18,14 @@ struct RegistrationView: View {
 
     // 自定义 init 以接受注入的 ViewModel
     // 这使得视图的创建和依赖注入分离
-    init(viewModel: RegistrationViewModel) {
-        _viewModel = StateObject(wrappedValue: viewModel)
+    init(viewModel: RegisterViewModel) {
+        self.viewModel = viewModel
     }
 
     var body: some View {
         // 使用 ZStack 将加载动画覆盖在表单之上
         ZStack {
-            NavigationView {
+            NavigationStack {
                 Form {
                     Section(header: Text("个人信息")) {
                         TextField("姓名", text: $name)
@@ -51,13 +52,18 @@ struct RegistrationView: View {
                         // 根据 @State 属性判断按钮是否可用
                         .disabled(!isFormedValid || viewModel.isLoading)
                     }
+                    
+                    Section {
+                        Button("已有账户? 返回登录") {
+                            coordinator.showLoginView()
+                        }
+                        .tint(.secondary)
+                    }
                 }
                 .navigationTitle("注册新学生")
             }
-            // 禁用表单交互当正在加载时
             .disabled(viewModel.isLoading)
             
-            // 4. 根据 isLoading 状态显示加载动画
             if viewModel.isLoading {
                 ProgressView("注册中...")
                     .progressViewStyle(CircularProgressViewStyle())
@@ -75,12 +81,12 @@ struct RegistrationView: View {
                   dismissButton: .default(Text("OK"))
             )
         }
-        .onChange(of: viewModel.registrationSuccessful) { oldValue, newValue in
-            if newValue {
-                print("注册成功, 要关闭页面")
-                dismiss()
-            }
-        }
+//        .onChange(of: viewModel.registrationSuccessful) { oldValue, newValue in
+//            if newValue {
+//                print("注册成功, 要关闭页面")
+//                dismiss()
+//            }
+//        }
     }
     
     // 3. 按钮的 Action，使用 Task 调用异步函数
