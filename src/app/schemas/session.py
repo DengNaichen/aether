@@ -11,7 +11,7 @@ class StartSessionRequest(BaseModel):
     """
     course_id: str
     question_count: int = Field(
-        default=5,
+        default=2,
         gt=0,
         le=20,
         description="The number of questions requested for the session"

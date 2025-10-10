@@ -12,7 +12,6 @@ from src.app.schemas.enrollment import EnrollmentRequest, EnrollmentResponse
 from src.app.core.deps import get_current_active_user
 from src.app.schemas.session import StartSessionResponse, StartSessionRequest
 
-
 router = APIRouter(
     prefix="/sessions",
     tags=["Sessions"],
@@ -50,18 +49,18 @@ def mock_data():
                 ],
                 "correct_answer": 0
             }
-        } 
+        }
     ]
 
 
 @router.post("/question-recommendation",
-            response_model=StartSessionResponse,
-            status_code=status.HTTP_201_CREATED,
-            summary="Start a stateless question recommendation session"
-            )
+             response_model=StartSessionResponse,
+             status_code=status.HTTP_201_CREATED,
+             summary="Start a stateless question recommendation session"
+             )
 async def start_stateless_question_recommendation_session(
-    session_request: StartSessionRequest,
-    current_user: User = Depends(get_current_active_user)
+        session_request: StartSessionRequest,
+        current_user: User = Depends(get_current_active_user)
 ):
     """
     Start a stateless question recommendation session.
@@ -73,7 +72,7 @@ async def start_stateless_question_recommendation_session(
     """
     # For a stateless session, we don't need to store anything in the DB.
     # We just return the session parameters back to the user.
-    
+
     mock_questions = mock_data()
 
     response = StartSessionResponse(

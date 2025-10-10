@@ -10,23 +10,25 @@ struct AlertItem: Identifiable {
 }
 
 @MainActor
-class RegistrationViewModel: ObservableObject {
+class RegisterViewModel: ObservableObject {
     
     private let network: NetworkServicing
+    var onRegisterSuccess: () -> Void
 
     @Published var isLoading: Bool = false
-    @Published var registrationSuccessful: Bool = false
+//    @Published var registrationSuccessful: Bool = false
     @Published var alertItem: AlertItem?
     
-    init(network: NetworkServicing) {
+    init(network: NetworkServicing, onRegisterSuccess: @escaping () -> Void) {
         self.network = network
+        self.onRegisterSuccess = onRegisterSuccess
     }
  
     func register(username: String, email: String, password: String) async {
         isLoading = true
         
         defer { isLoading = false }
-        registrationSuccessful = false
+//        registrationSuccessful = false
         
         do {
             let userRequest = RegistrationRequest(name: username,
@@ -41,7 +43,8 @@ class RegistrationViewModel: ObservableObject {
                 responseType: RegistrationResponse.self
             )
             print("Successfully Create User With Email \(userRequest.email)")
-            registrationSuccessful = true
+//            registrationSuccessful = true
+            onRegisterSuccess()
         } catch {
             let errorMessage: String
             if let networkError = error as? NetworkError {

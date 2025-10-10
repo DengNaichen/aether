@@ -8,7 +8,6 @@ from src.app.core.database import engine, db_connections
 from src.app.routes import auth, user, question
 from src.app.routes import enrollment
 from src.app.routes import session
-# from src.app.models.base import Base
 import src.app.models as models
 
 
@@ -58,9 +57,9 @@ async def lifespan(app: FastAPI):
 
 # pass lifespan tp FastAPI
 app = FastAPI(lifespan=lifespan)
-app.include_router(auth_router.router)
+app.include_router(auth.router)
 app.include_router(user.router)
-app.include_router(question_router.router)
+app.include_router(question.router)
 app.include_router(enrollment.router)
 app.include_router(session.router)
 

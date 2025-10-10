@@ -7,18 +7,20 @@ class LoginViewModel: ObservableObject {
     
     private let network: NetworkServicing
     
-    @Published var isAuthenticated: Bool = false
+    var onLoginSuccess: () -> Void
+
     @Published var isLoading: Bool = false
-    @Published var alartItem: AlertItem?
+    @Published var alertItem: AlertItem?
     
-    init(network: NetworkServicing) {
+    init(network: NetworkServicing, onLoginSuccess: @escaping () -> Void) {
         self.network = network
+        self.onLoginSuccess = onLoginSuccess
     }
     
     func login(email: String, password: String) async {
         isLoading = true
         defer { isLoading = false }
-        alartItem = nil
+        alertItem = nil
         
         let form_data = [
             "username": email,
@@ -36,7 +38,7 @@ class LoginViewModel: ObservableObject {
             )
 
             print("✅ [LoginViewModel] Tokens saved to Keychain.")
-            self.isAuthenticated = true
+            self.onLoginSuccess()
             
         } catch {
             let errorMessage: String
@@ -45,8 +47,7 @@ class LoginViewModel: ObservableObject {
             } else {
                 errorMessage = "unknown error happen: \(error.localizedDescription)"
             }
-            self.alartItem = AlertItem(title: "Login Failed", message: errorMessage)
-            self.isAuthenticated = false
+            self.alertItem = AlertItem(title: "Login Failed", message: errorMessage)
         }
     }
 }
