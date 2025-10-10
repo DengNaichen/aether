@@ -3,9 +3,9 @@
 An adaptive learning system for Ontario high school students. It leverages a knowledge graph to model subjects and provide personalized learning paths and exercises.
 
 ## Features
-
-* **Knowledge Graph:** Structures academic subjects (e.g., Ontario G11 Physics, Chemistry) into nodes and relationships, forming the foundation for personalized recommendations.
-* **Adaptive Learning:** Dynamically recommends learning content and practice problems tailored to a student's current proficiency level, based on their response history and knowledge state.
+* **PlatForm**: iOS, ~~Web(TODO)~~
+* **Knowledge Graph:** Structures academic subjects (e.g., Ontario G11 Physics(SPH3U), Chemistry(SCH3U)) into nodes and relationships, forming the foundation for personalized recommendations.
+* **Adaptive Learning:** Dynamically recommends practice problems tailored to a student's current proficiency level, based on their response history and knowledge state.
 * **Student Modeling:** Models and predicts a student's mastery of concepts using algorithms like Bayesian Knowledge Tracing (BKT).
 
 ## Tech Stack
@@ -14,18 +14,18 @@ An adaptive learning system for Ontario high school students. It leverages a kno
 | --------------------- | -------------------------------------------------------------- |
 | **Backend** | Python, FastAPI                                                |
 | **Frontend** | Swift, SwiftUI (iOS App)                                       |
-| **Database** | Neo4j (for the knowledge graph and problems), PostgreSQL (for user data, etc.) |
+| **Database** | Neo4j (for the knowledge graph and problems), PostgreSQL (for user data, course info, session info, etc.) |
 | **Development & Deployment** | Docker, Docker Compose                                         |
-| **Testing** | Pytest                                                         |
+| **Testing** | Pytest, SwiftTest                                                         |
 
-## 🚀 Getting Started
+## Getting Started
 
 Ensure you have Docker, Python 3.10+, and Xcode installed on your development machine.
 
 ### 1. Clone the Repository
 
     git clone <your-repository-url>
-    cd maxwell-learning-system
+    cd aether
 
 ### 2. Configure Backend and Database
 
@@ -42,7 +42,6 @@ Ensure you have Docker, Python 3.10+, and Xcode installed on your development ma
         cd backend
         python -m venv venv
         source venv/bin/activate  # macOS/Linux
-        # venv\Scripts\activate   # Windows
 
 3.  **Install Dependencies:**
 
@@ -55,36 +54,12 @@ Ensure you have Docker, Python 3.10+, and Xcode installed on your development ma
 
 1.  Navigate to the iOS app directory:
 
-        cd ../ios-app
+        cd ../aether
 
 2.  Open the `.xcodeproj` or `.xcworkspace` file with Xcode.
 3.  Locate the `NetworkService` configuration and ensure the API `baseURL` points to your local backend service (e.g., `http://localhost:8000`).
 
-## ▶️ How to Run
 
-1.  **Run the Backend Service:**
-    With your virtual environment activated, run the following command in the `backend` directory:
-
-        uvicorn app.main:app --reload
-
-    Your backend API will be available at `http://localhost:8000`.
-
-2.  **Run the iOS App:**
-    In Xcode, select a simulator or a connected device and click the "Run" button.
-
-## 🗺️ Roadmap
-
--   [ ] **User Authentication:** Finalize the complete registration and login flow.
--   [ ] **Knowledge Graph Construction:** Expand the knowledge graph data for G11 Physics and Chemistry.
--   [ ] **BKT Algorithm Implementation:** Implement the Bayesian Knowledge Tracing algorithm on the backend to update student knowledge states.
--   [ ] **Problem Recommendation Engine:** Develop the logic for recommending problems based on the knowledge graph and student model.
--   [ ] **Learning Path Visualization:** Display the student's knowledge graph and recommended learning paths in the frontend app.
--   [ ] **Improve Test Coverage:** Write comprehensive unit and integration tests for the backend API.
-
-## 🤝 Contributing
-
-Contributions, bug reports, and suggestions are welcome.
-
-## 📄 License
+## License
 
 This project is licensed under the [MIT](https://choosealicense.com/licenses/mit/) License.

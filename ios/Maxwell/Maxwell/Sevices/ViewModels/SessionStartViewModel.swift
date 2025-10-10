@@ -3,12 +3,11 @@ import Combine
 
 // 假设 AlertItem 和 NetworkServicing 已经定义
 
-class SessionStartViewModel: ObservableObject {
+class SessionStartViewModel: ObservableObject, NetworkViewModeling {
     
     private let network: NetworkServicing
     
     @Published var isLoading: Bool = false
-//    @Published var sessionResponse: SessionStartResponse? = nil // 对应 SessionStartResponse 模型
     @Published var alertItem: AlertItem?
     
     @Published var quizProblems: [QuizProblem] = []
@@ -18,41 +17,17 @@ class SessionStartViewModel: ObservableObject {
         self.network = network
     }
     
-    /// 根据课程ID和问题数量，开始一个新的学习会话
     func startSession(courseId: String, questionCount: Int) async {
-        // 1. 设置初始状态
-        isLoading = true
-        defer { isLoading = false } // 确保函数退出时，加载状态恢复为 false
-        alertItem = nil
+
         self.quizProblems = []
         
-        do {
-            // 2. 准备并发送网络请求
+        let response = await performTask(errorTitle: "Session Start Failed") {
             let requestData = SessionStartRequest(courseId: courseId)
-            let sessionEndpoint = SessionStartEndpoint(startSessionRequest: requestData)
-            
-            let response: SessionStartResponse = try await network.request(
-                endpoint: sessionEndpoint,
-                responseType: SessionStartResponse.self
-            )
-            
-            let mappedProblems = self.mapToModels(from: response.questions)
-            await MainActor.run {
-                self.quizProblems = mappedProblems
-            }
-            
-        } catch {
-            let errorMessage: String
-            if let networkError = error as? NetworkError {
-                errorMessage = networkError.message
-            } else {
-                errorMessage = "An unknown error happen: \(error.localizedDescription)"
-            }
-            
-            await MainActor.run {
-                alertItem = AlertItem(title: "Session Start Failed",
-                                      message: errorMessage)
-            }
+            let endpoint = SessionStartEndpoint(startSessionRequest: requestData)
+            return try await self.network.request(endpoint: endpoint, responseType: SessionStartResponse.self)
+        }
+        if let response {
+            self.quizProblems = self.mapToModels(from: response.questions)
         }
         
         
