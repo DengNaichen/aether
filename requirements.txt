@@ -1,4 +1,4 @@
--e git+https://github.com/DengNaichen/aether.git@e6d1682b040a53a81c384fe92828f6ca14cf3692#egg=aether
+-e git+https://github.com/DengNaichen/aether.git@main
 aiosmtplib==3.0.2
 aiosqlite==0.21.0
 annotated-types==0.7.0
