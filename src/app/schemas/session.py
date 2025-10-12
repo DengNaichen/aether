@@ -1,8 +1,15 @@
-from pydantic import BaseModel, ConfigDict, Field
 from datetime import datetime
 from typing import List
 from uuid import UUID
+from enum import Enum
+
+from pydantic import BaseModel, ConfigDict, Field
+
 from src.app.schemas.questions import AnyQuestion
+
+class SessionStatus(str, Enum):
+    ACTIVE = "active"
+    COMPLETED = "completed"
 
 
 class StartSessionRequest(BaseModel):
@@ -25,7 +32,9 @@ class StartSessionResponse(BaseModel):
     session_id: UUID
     student_id: UUID
     course_id: str
-    session_date: datetime
+    status: SessionStatus
+    start_at: datetime
+    end_at: datetime | None = None
     questions: List[AnyQuestion]
 
     model_config = ConfigDict(from_attributes=True)

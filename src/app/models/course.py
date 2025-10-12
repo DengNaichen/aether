@@ -17,4 +17,4 @@ class Course(Base):
     __tablename__ = "course"
     id = Column(String, primary_key=True, nullable=False)
     name = Column(String, index=True)
-    description = Column
+    description = Column(String)

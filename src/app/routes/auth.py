@@ -1,15 +1,20 @@
 from fastapi import APIRouter, HTTPException, status, Body
-
+from uuid import UUID
+from app.core.deps import get_current_user
 from src.app.core.settings import settings
 from src.app.schemas.token import Token, AccessToken
 from fastapi.security import OAuth2PasswordRequestForm
+from jose import jwt, JWTError
 from fastapi import Depends
 from src.app.core.database import get_db
 from sqlalchemy.ext.asyncio import AsyncSession
+from src.app.models.user import User
+
+
 from src.app.core.security import create_access_token, authenticate_user, create_refresh_token
 from src.app.schemas.user import UserRead, UserCreate
 from src.app.crud.user import get_user_by_email, create_user, update_refresh_token, get_user_by_id
-from jose import jwt, JWTError
+
 
 router = APIRouter(
     prefix="/auth",
@@ -68,15 +73,17 @@ async def refresh_access_token(
     try:
         payload = jwt.decode(refresh_token,
                              settings.SECRET_KEY,
-                             algorithms=[settings.ALGORITHM])
-        user_id: str = payload.get("sub")
-        if not user_id:
+                             algorithms=[settings.ALGORITHM]
+        )
+        user_id_str: str = payload.get("sub")
+        if not user_id_str:
             raise HTTPException(status_code=401, detail="Invalid refresh token")
+        user_id = UUID(user_id_str)
+
     except JWTError:
         raise HTTPException(status_code=401, detail="Invalid refresh token")
 
-
-    user = await get_user_by_id(db, user_id=int(user_id))
+    user = await get_user_by_id(db, user_id=user_id)
 
     if not user:
         raise HTTPException(status_code=401, detail="User not found")
@@ -91,3 +98,14 @@ async def refresh_access_token(
     await db.commit()
 
     return {"access_token": new_access_token, "token_type": "bearer"}
+
+
+@router.post("/logout")
+async def logout(
+        db: AsyncSession = Depends(get_db),
+        current_user: User = Depends(get_current_user)
+):
+    if current_user.refresh_token is None:
+        return {"message": "User already logged out"}
+    await update_refresh_token(db=db, user_id=current_user.id, token=None)
+    return {"message": "Successfully logged out"}

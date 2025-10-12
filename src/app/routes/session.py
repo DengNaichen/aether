@@ -8,13 +8,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.app.core.database import get_db
 from src.app.models.enrollment import Enrollment
 from src.app.models.user import User
+# from src.app.models.session import Session
 from src.app.schemas.enrollment import EnrollmentRequest, EnrollmentResponse
 from src.app.core.deps import get_current_active_user
-from src.app.schemas.session import StartSessionResponse, StartSessionRequest
+from src.app.schemas.session import StartSessionResponse, StartSessionRequest, SessionStatus
 
 router = APIRouter(
-    prefix="/sessions",
-    tags=["Sessions"],
+    prefix="/quiz",
+    tags=["quiz"],
 )
 
 
@@ -53,33 +54,63 @@ def mock_data():
     ]
 
 
-@router.post("/question-recommendation",
+@router.post("/start",
              response_model=StartSessionResponse,
              status_code=status.HTTP_201_CREATED,
-             summary="Start a stateless question recommendation session"
+             summary="Start a new quiz"
              )
-async def start_stateless_question_recommendation_session(
+async def start_quiz_session(
         session_request: StartSessionRequest,
+        db: AsyncSession = Depends(get_db),
         current_user: User = Depends(get_current_active_user)
 ):
     """
-    Start a stateless question recommendation session.
+    Start a question recommendation session.
     Args:
         session_request (StartSessionRequest): The session request data.
         current_user (User): The current authenticated user.
     Returns:
         StartSessionResponse: The started session details.
     """
-    # For a stateless session, we don't need to store anything in the DB.
-    # We just return the session parameters back to the user.
 
+    # TODO: Integrate with the question recommendation engine.
+    # Before starting a new session
+    # check if there's an active session for the user and course.
+    existing_session = db.query(Session).filter(
+        Session.user_id == current_user.id,
+        Session.class_id == session_request.course_id,
+        Session.ended_at.is_(None)
+    ).first()
+
+    if existing_session:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="An active session already exists for this course."
+        )
+    
+    new_session = Session(
+        user_id=current_user.id,
+        class_id=session_request.course_id,
+        question_num=session_request.question_count,
+    )
+    db.add(new_session)
+    db.commit()
+    db.refresh(new_session)
+    
     mock_questions = mock_data()
-
-    response = StartSessionResponse(
-        session_id=uuid.uuid4(),
-        student_id=current_user.id,
-        course_id=session_request.course_id,
-        session_date=datetime.now(timezone.utc),
+    return StartSessionResponse(
+        session_id=new_session.id,
+        student_id=new_session.user_id,
+        course_id=new_session.class_id,
+        status=SessionStatus.ACTIVE,
+        start_at=new_session.started_at,
+        end_at=new_session.ended_at,
         questions=mock_questions
     )
-    return response
+
+
+# @router.post("/end/{session_id}",
+#              response_model=StartSessionResponse,
+#              summary="End an active learning session"
+# )
+# async def

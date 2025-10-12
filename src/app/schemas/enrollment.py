@@ -9,7 +9,7 @@ class EnrollmentRequest(BaseModel):
 
 class EnrollmentResponse(BaseModel):
     id: UUID
-    student_id: UUID
+    user_id: UUID
     course_id: str
     enrollment_date: datetime
 

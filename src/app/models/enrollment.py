@@ -18,9 +18,9 @@ class Enrollment(Base):
     """
     __tablename__ = "enrollment"
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    student_id = Column(UUID(as_uuid=True),
-                        ForeignKey("user.id"),
-                        nullable=False)
+    user_id = Column(UUID(as_uuid=True),
+                     ForeignKey("user.id"),
+                     nullable=False)
     course_id = Column(String, ForeignKey("course.id"), nullable=False)
     enrollment_date = Column(DateTime(timezone=True),
                              server_default=func.now())

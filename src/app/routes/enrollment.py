@@ -38,7 +38,7 @@ async def enroll_in_course(
     course_to_enroll = None
     # 检查请求的是不是我们正在测试的 'g11_phys'
     if enrollment_request.course_id == 'g11_phys':
-        print("⚠️ WARNING: Using a temporary mock for course 'g11_phys'. Bypassing database check.")
+        print("⚠️WARNING: Using a temporary mock for course 'g11_phys'. Bypassing database check.")
         # 创建一个临时的、在内存中的Course对象来通过下面的检查。
         course_to_enroll = Course(id=enrollment_request.course_id,
                                   name="Mocked G11 Physics")
@@ -49,7 +49,7 @@ async def enroll_in_course(
 
     # TODO: Add checks to verify student and course existence
     new_enrollment = Enrollment(
-        student_id=current_user.id,
+        user_id=current_user.id,
         course_id=enrollment_request.course_id
     )
     # create the enrollment response object
