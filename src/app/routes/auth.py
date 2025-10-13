@@ -1,15 +1,15 @@
 from fastapi import APIRouter, HTTPException, status, Body
 from uuid import UUID
 from app.core.deps import get_current_user
-from src.app.core.settings import settings
+from src.app.core.config import settings
 from src.app.schemas.token import Token, AccessToken
 from fastapi.security import OAuth2PasswordRequestForm
 from jose import jwt, JWTError
 from fastapi import Depends
-from src.app.core.database import get_db
+# from src.app.core.database import get_db
 from sqlalchemy.ext.asyncio import AsyncSession
 from src.app.models.user import User
-
+from src.app.core.deps import get_db
 
 from src.app.core.security import create_access_token, authenticate_user, create_refresh_token
 from src.app.schemas.user import UserRead, UserCreate

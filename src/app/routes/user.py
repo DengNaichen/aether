@@ -2,7 +2,7 @@ from fastapi import FastAPI, Depends, status, HTTPException, APIRouter
 from src.app.schemas.user import UserRead, UserCreate
 from sqlalchemy.ext.asyncio import AsyncSession
 from src.app.crud.user import get_user_by_email, create_user
-from src.app.core.database import get_db
+from src.app.core.deps import get_db
 
 from src.app import core
 

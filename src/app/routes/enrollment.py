@@ -3,7 +3,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.app.core.database import get_db
+from src.app.core.deps import get_db
 from src.app.models.course import Course
 from src.app.models.user import User
 from src.app.models.enrollment import Enrollment
