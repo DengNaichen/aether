@@ -1,27 +1,71 @@
 import uuid
-from sqlalchemy import Column, String, ForeignKey, DateTime, Integer
-from sqlalchemy.dialects.postgresql import UUID
-from src.app.models.base import Base
-from sqlalchemy.sql import func
+import enum
+from sqlalchemy import (
+    Column, String, ForeignKey, DateTime, Integer, Boolean,
+    Enum as SQLAlchemyEnum, func
+)
+from sqlalchemy.dialects.postgresql import UUID, JSONB
+from sqlalchemy.orm import relationship
+from app.models import Base  # 或者 from .base import Base
 
+
+# --- Enums ---
+# 建议将 Enum 定义在 models.py 的顶部或单独的文件中
+class QuizStatus(enum.Enum):
+    IN_PROGRESS = "in_progress"
+    COMPLETED = "completed"
+    ABORTED = "aborted"
+
+
+# --- Models ---
 
 class Quiz(Base):
-    """
-    SQLAlchemy model for the `session` table.
-    Attributes:
-        id (UUID): Primary key, unique identifier for the session.
-        user_id (UUID): Foreign key referencing the `user` table.
-        class_id (str): Foreign key referencing the `course` table.
-        question_num (int): Number of questions in the session.
-        started_at (datetime): Timestamp of when the session was started.
-        ended_at (datetime): Timestamp of when the session was ended.
-    """
-    __tablename__ = "session"
+    __tablename__ = "quizzes"
+
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id = Column(UUID(as_uuid=True),
-                    ForeignKey("user.id"),
-                    nullable=False)
-    class_id = Column(String, ForeignKey("course.id"), nullable=False)
+    course_id = Column(String, ForeignKey("course.id"), nullable=False)
     question_num = Column(Integer, nullable=False)
+
+    course = relationship("Course", back_populates="quizzes")
+    # [建议] 使用标准一对多关系，为未来“重考”功能做准备
+    submissions = relationship("QuizSubmission", back_populates="quiz")
+
+
+class QuizSubmission(Base):
+    __tablename__ = "quiz_submissions"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("user.id"), nullable=False)
+    quiz_id = Column(UUID(as_uuid=True), ForeignKey("quizzes.id"),
+                     nullable=False)
+
+    # [修正] 使用 SQLAlchemy 的 Enum 类型
+    status = Column(SQLAlchemyEnum(QuizStatus, name="quiz_status_enum",
+                                   create_constraint=True),
+                    nullable=False, default=QuizStatus.IN_PROGRESS)
+
+    score = Column(Integer, nullable=True)
     started_at = Column(DateTime(timezone=True), server_default=func.now())
-    ended_at = Column(DateTime(timezone=True), nullable=True)
+    submitted_at = Column(DateTime(timezone=True), nullable=True)
+
+    user = relationship("User", back_populates="quiz_submissions")
+    quiz = relationship("Quiz", back_populates="submissions")
+    answers = relationship("SubmissionAnswer",
+                           back_populates="submission",
+                           cascade="all, delete-orphan")
+
+
+class SubmissionAnswer(Base):
+    __tablename__ = "submission_answers"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    submission_id = Column(UUID(as_uuid=True),
+                           ForeignKey("quiz_submissions.id"), nullable=False)
+    question_id = Column(UUID(as_uuid=True), nullable=False)
+    user_answer = Column(JSONB, nullable=True)
+
+    # [修正] 允许为空，因为只有在评分后才有值
+    is_correct = Column(Boolean, nullable=True)
+
+    # [修正] 修复笔误 "Submission" -> "QuizSubmission"
+    submission = relationship("QuizSubmission", back_populates="answers")

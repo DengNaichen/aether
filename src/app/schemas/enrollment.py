@@ -4,7 +4,6 @@ from uuid import UUID
 
 
 class EnrollmentRequest(BaseModel):
-    # course_id: str
     pass
 
 

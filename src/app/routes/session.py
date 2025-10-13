@@ -4,23 +4,29 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
 
+from app.models.quiz import QuizSubmission, Quiz, QuizStatus
+from app.routes.course import get_course_by_id
+from app.schemas.quiz import QuizStartResponse, QuizCreate
 from src.app.models.enrollment import Enrollment
 from src.app.models.user import User
 # from src.app.models.session import Session
 from src.app.schemas.enrollment import EnrollmentRequest, EnrollmentResponse
-from src.app.core.deps import get_current_active_user
-from src.app.schemas.session import StartSessionResponse, StartSessionRequest, SessionStatus
+from src.app.core.deps import get_current_active_user, get_db
 
 router = APIRouter(
-    prefix="/quiz",
-    tags=["quiz"],
+    prefix="/course",
+    tags=["quizzes"],
 )
 
 
 def mock_data():
+    # 这个函数保持不变，它的数据结构可以被你的 AnyQuestion 模型解析
+    # 为确保能被解析，我给每个问题加上了 uuid
     return [
         {
+            "id": UUID("11111111-1111-1111-1111-111111111111"),
             "text": "What is the speed of light?",
             "difficulty": "easy",
             "knowledge_point_id": "physics",
@@ -36,16 +42,17 @@ def mock_data():
             }
         },
         {
+            "id": UUID("22222222-2222-2222-2222-222222222222"),
             "text": "What is Newton's second law?",
             "difficulty": "medium",
             "knowledge_point_id": "physics",
             "question_type": "multiple_choice",
             "details": {
                 "options": [
-                    "299,792 km/s",
-                    "150,000 km/s",
-                    "1,080 million km/h",
-                    "300,000 km/s"
+                    "F = ma",
+                    "E = mc^2",
+                    "a^2 + b^2 = c^2",
+                    "PV = nRT"
                 ],
                 "correct_answer": 0
             }
@@ -53,63 +60,76 @@ def mock_data():
     ]
 
 
-@router.post("/start",
-             response_model=StartSessionResponse,
+
+
+
+@router.post("{course_id}/quizzes}",
+             response_model=QuizStartResponse,
              status_code=status.HTTP_201_CREATED,
-             summary="Start a new quiz"
+             summary="Start a new dynamic quiz"
              )
-async def start_quiz_session(
-        session_request: StartSessionRequest,
+async def start_a_quiz(
+        course_id: str,
+        quiz_request: QuizCreate,
         db: AsyncSession = Depends(get_db),
         current_user: User = Depends(get_current_active_user)
 ):
     """
     Start a question recommendation session.
     Args:
-        session_request (StartSessionRequest): The session request data.
+        course_id (str): The course id.
+        quiz_request (QuizCreate): The quiz request.
+        db (AsyncSession): A database session.
         current_user (User): The current authenticated user.
-    Returns:
-        StartSessionResponse: The started session details.
     """
+    # check if a course exist
+    await get_course_by_id(course_id=course_id, db=db)
 
-    # TODO: Integrate with the question recommendation engine.
-    # Before starting a new session
-    # check if there's an active session for the user and course.
-    existing_session = db.query(Session).filter(
-        Session.user_id == current_user.id,
-        Session.class_id == session_request.course_id,
-        Session.ended_at.is_(None)
-    ).first()
+    # check if user already have a quiz in-progress under this course
+    stmt = (
+        select(QuizSubmission)
+        .join(Quiz)
+        .where(
+            QuizSubmission.user_id == current_user.id,
+            Quiz.course_id == course_id,
+            QuizSubmission.status == QuizStatus.IN_PROGRESS,
+        )
+    )
+    result = await db.execute(stmt)
+    existing_submission = result.scalars().first()
 
-    if existing_session:
+    if existing_submission:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="An active session already exists for this course."
+            detail="An active quiz submission already exists "
+                   "for this course. Please complete it first."
         )
-    
-    new_session = Session(
+
+    new_quiz = Quiz(
+        course_id=course_id,
+        question_num=quiz_request.question_num,
+    )
+    db.add(new_quiz)
+
+    await db.flush()
+
+    new_submission = QuizSubmission(
         user_id=current_user.id,
-        class_id=session_request.course_id,
-        question_num=session_request.question_count,
+        quiz_id=new_quiz.id,
     )
-    db.add(new_session)
-    db.commit()
-    db.refresh(new_session)
-    
+    db.add(new_submission)
+
+    await db.commit()
+
+    await db.refresh(new_quiz)
+    await db.refresh(new_submission)
+
+    # TODO: Integrate with the question recommendation engine.
     mock_questions = mock_data()
-    return StartSessionResponse(
-        session_id=new_session.id,
-        student_id=new_session.user_id,
-        course_id=new_session.class_id,
-        status=SessionStatus.ACTIVE,
-        start_at=new_session.started_at,
-        end_at=new_session.ended_at,
-        questions=mock_questions
+    return QuizStartResponse(
+        id=new_quiz.id,
+        course_id=new_quiz.course_id,
+        question_num=new_quiz.question_num,
+        submission_id=new_submission.id,
+        question=mock_questions
     )
-
-
-# @router.post("/end/{session_id}",
-#              response_model=StartSessionResponse,
-#              summary="End an active learning session"
-# )
-# async def

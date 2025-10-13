@@ -6,64 +6,49 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
 from app.models import Enrollment
-from tests.conftest import TEST_USER_EMAIL, TEST_USER_PASSWORD, COURSE_ID, COURSE_NAME
+from tests.conftest import COURSE_ID
 from src.app.models.user import User
 from src.app.models.course import Course
 
+
+# TODO: more test case here need for the enrollment
 
 @pytest.mark.asyncio
 async def test_enroll_a_course_failed_with_unauthenticated_user(
         client: AsyncClient,
         course_in_db: Course,
-        test_db: AsyncSession,
 ):
-    enrollment_data = {
-        "course_id": COURSE_ID,
-    }
     response = await client.post(
-        "/enrollments/course",
-        json=enrollment_data,
+        f"/course/{course_in_db.id}/enrollments"
     )
     assert response.status_code == status.HTTP_401_UNAUTHORIZED
-    # TODO: what else assert?
+    assert response.json()["detail"] == "Not authenticated"
 
 
 @pytest.mark.asyncio
 async def test_enroll_a_course_failed_with_not_exist_course(
-        authenticated_client: AsyncClient,
-        course_in_db: Course,
-        user_in_db: User,
-        test_db: AsyncSession
+        authenticated_client: AsyncClient
 ):
-    enrollment_data = {
-        "course_id": "NOT_EXIST",
-    }
+    non_existent_course_id = "not_exist"
+
     response = await authenticated_client.post(
-        "/enrollments/course",
-        json=enrollment_data
+        f"/course/{non_existent_course_id}/enrollments"
     )
-    # the course do not exist in the database
-    # TODO: not sure the status code
     assert response.status_code == status.HTTP_404_NOT_FOUND
-    # TODO: what else assert need here ?
+    assert response.json()["detail"] == "Course not found"
 
 
 @pytest.mark.asyncio
 async def test_enroll_a_course_failed_with_already_enrolled(
         enrolled_user_client: AsyncClient,
-        course_in_db: AsyncSession,
-        user_in_db: User,
-        test_db: AsyncSession
+        course_in_db: Course
 ):
-    enrollment_data = {
-        "course_id": COURSE_ID,
-    }
     response = await enrolled_user_client.post(
-        "/enrollments/course",
-        json=enrollment_data
+        f"/course/{course_in_db.id}/enrollments"
     )
-    # failed because already exist(
-    assert response.status_code == status.HTTP_400_BAD_REQUEST
+    # failed because already exist
+    assert response.status_code == status.HTTP_409_CONFLICT
+    assert response.json()["detail"] == "User already enrolled this course."
 
 
 @pytest.mark.asyncio

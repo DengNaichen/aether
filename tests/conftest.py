@@ -124,16 +124,19 @@ async def course_in_db(test_db: AsyncSession) -> Course:
     return new_course
 
 
-# @pytest_asyncio.fixture(scope="function")
-# async def enrollment_in_db(test_db: AsyncSession) -> Enrollment:
-#     new_enrollment = Enrollment(
-#         user_id=TEST_USER_EMAIL, # TODO: here should be uuid ?
-#         course_id=COURSE_ID,
-#     )
-#     test_db.add(new_enrollment)
-#     await test_db.commit()
-#     await test_db.refresh(new_enrollment)
-#     return new_enrollment
+@pytest_asyncio.fixture(scope="function")
+async def enrollment_in_db(
+        test_db: AsyncSession,
+        user_in_db: User
+) -> Enrollment:
+    new_enrollment = Enrollment(
+        user_id=user_in_db.id,
+        course_id=COURSE_ID,
+    )
+    test_db.add(new_enrollment)
+    await test_db.commit()
+    await test_db.refresh(new_enrollment)
+    return new_enrollment
 
 
 # @pytest_asyncio.fixture(scope="function")
@@ -141,7 +144,7 @@ async def course_in_db(test_db: AsyncSession) -> Course:
 #     # TODO: need to consider this fixture
 #     new_quiz = Quiz(
 #         user_id=TEST_USER_EMAIL,
-#         class_id=COURSE_ID,
+#         course_id=COURSE_ID,
 #         question_num=5
 #     )
 #     test_db.add(new_quiz)
@@ -160,20 +163,24 @@ async def authenticated_client(
     return client
 
 
-# @pytest_asyncio.fixture(scope="function")
-# async def enrolled_user_client(
-#         authenticated_client: AsyncClient,
-#         test_db: AsyncSession,
-#         user_in_db: User,
-#         course_in_db: Course,
-# ):
-#     """提供一个已认证且其用户已注册了课程的客户端。"""
-#     new_enrollment = Enrollment(
-#         user_id=user_in_db.id, course_id=course_in_db.id
-#     )
-#     test_db.add(new_enrollment)
-#     await test_db.commit()
-#     return authenticated_client
+@pytest_asyncio.fixture(scope="function")
+async def enrolled_user_client(
+        authenticated_client: AsyncClient,
+        test_db: AsyncSession,
+        user_in_db: User,
+        course_in_db: Course
+):
+    """提供一个已认证且其用户已注册了课程的客户端。"""
+    new_enrollment = Enrollment(
+        user_id=user_in_db.id,
+        course_id=course_in_db.id
+    )
+    test_db.add(new_enrollment)
+    await test_db.commit()
+    yield authenticated_client
+
+    await test_db.delete(new_enrollment)
+    await test_db.commit()
 
 
 @pytest_asyncio.fixture(scope="session", autouse=True)
