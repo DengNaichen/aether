@@ -1,18 +1,21 @@
 import os
 import sys
+from pathlib import Path
 
-ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if ROOT_DIR not in sys.path:
-    sys.path.insert(0, ROOT_DIR)
+import pytest
 
-import pytest_asyncio
-from typing import AsyncGenerator
+from app.core.config import Settings
+
+ROOT_DIR = Path(__file__).parent.parent
+sys.path.insert(0, str(ROOT_DIR))
 
 # ============================================
 # 1. 设置测试环境变量 (在导入app之前)
 # ============================================
-os.environ["DATABASE_URL"] = "sqlite+aiosqlite:///:memory:"
-os.environ["SECRET_KEY"] = "test_secret_key"
+os.environ["ENVIRONMENT"] = "test"
+# os.environ["DATABASE_URL"] = "sqlite+aiosqlite:///file:memdb?mode=memory&cache=shared&uri=true"
+os.environ["DATABASE_URL"] = "sqlite+aiosqlite:///./test_db.sqlite"
+os.environ["SECRET_KEY"] = "test_secret_key_12345"
 os.environ["ALGORITHM"] = "HS256"
 os.environ["ACCESS_TOKEN_EXPIRE_MINUTES"] = "30"
 os.environ["NEO4J_URI"] = "bolt://localhost:7687"
@@ -23,14 +26,17 @@ os.environ["NEO4J_initial_dbms_default__database"] = "neo4j"
 # ============================================
 # 2. 导入应用和依赖
 # ============================================
+import pytest_asyncio
+from typing import AsyncGenerator
 from httpx import AsyncClient, ASGITransport
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import sessionmaker
 
-from src.app.core.database import get_db, engine as main_engine
+from src.app.models.base import Base
+from src.app.core.database import DatabaseManager
+from src.app.core.config import Settings
 from src.app.core.security import create_access_token, get_password_hash
 from src.app.main import app
-from src.app.models.base import Base
+from src.app.core.deps import get_db
 from src.app.models.course import Course
 from src.app.models.enrollment import Enrollment
 from src.app.models.user import User
@@ -40,29 +46,54 @@ TEST_USER_NAME = "test user conf"
 TEST_USER_EMAIL = "test.conf@example.com"
 TEST_USER_PASSWORD = "a_very_secure_password_123@conf"
 COURSE_ID = "existing_course"
-COURSE_NAME = "Existing course"
-
-
-# --- 测试数据库设置 ---
-test_engine = main_engine
-TestingSessionLocal = sessionmaker(
-    autocommit=False, autoflush=False, bind=test_engine, class_=AsyncSession
-)
+COURSE_NAME = "Existing Course"
 
 
 # --- Fixtures ---
 @pytest_asyncio.fixture(scope="function")
-async def test_db() -> AsyncGenerator[AsyncSession, None]:
-    """为每个测试提供一个干净、隔离的数据库会话。"""
-    # 显式导入所有模型，确保它们在 create_all 之前已注册
-    from src.app.models import user, course, enrollment
+async def test_db_manager() -> DatabaseManager:
+    """为测试创建独立的数据库管理器"""
+    test_settings = Settings(ENVIRONMENT="test")
+    test_db_mgr = DatabaseManager(test_settings)
 
-    async with test_engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    async with TestingSessionLocal() as session:
-        yield session
-    async with test_engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
+    # 创建所有表
+    from src.app.models import user, course, enrollment
+    await test_db_mgr.create_all_tables(Base)
+
+    yield test_db_mgr
+
+    # 清理
+    await test_db_mgr.drop_all_tables(Base)
+    await test_db_mgr.close()
+
+
+@pytest_asyncio.fixture(scope="function")
+async def test_db(test_db_manager: DatabaseManager) -> AsyncGenerator[
+    AsyncSession, None]:
+    """提供测试数据库会话"""
+    async with test_db_manager.get_session() as session:
+        try:
+            yield session
+        finally:
+            await session.close()
+
+
+@pytest_asyncio.fixture(scope="function")
+async def client(
+        test_db: AsyncSession,
+        test_db_manager: DatabaseManager
+) -> AsyncGenerator[AsyncClient, None]:
+
+    def override_get_db() -> AsyncGenerator[AsyncSession, None]:
+        yield test_db
+
+    app.dependency_overrides[get_db] = override_get_db
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        yield ac
+
+    del app.dependency_overrides[get_db]
 
 
 @pytest_asyncio.fixture(scope="function")
@@ -82,10 +113,9 @@ async def user_in_db(test_db: AsyncSession) -> User:
 
 @pytest_asyncio.fixture(scope="function")
 async def course_in_db(test_db: AsyncSession) -> Course:
-    """在数据库中创建一个课程，并返回该课程对象。"""
     new_course = Course(
-        id="existing_course",
-        name="Existing course",
+        id=COURSE_ID,
+        name=COURSE_NAME,
         description="This is an existing course for test",
     )
     test_db.add(new_course)
@@ -95,25 +125,14 @@ async def course_in_db(test_db: AsyncSession) -> Course:
 
 
 @pytest_asyncio.fixture(scope="function")
-async def client(test_db: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
-    """提供一个配置了测试数据库的API客户端。"""
-    def override_get_db() -> AsyncGenerator[AsyncSession, None]:
-        yield test_db
-
-    app.dependency_overrides[get_db] = override_get_db
-    transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as ac:
-        yield ac
-    del app.dependency_overrides[get_db]
-
-
-@pytest_asyncio.fixture(scope="function")
-async def authenticated_client(client: AsyncClient, user_in_db: User) -> AsyncClient:
-    """提供一个已认证的客户端，其用户身份来自 user_in_db fixture。"""
+async def authenticated_client(
+        client: AsyncClient,
+        user_in_db: User
+) -> AsyncClient:
     token = create_access_token(subject=str(user_in_db.id))
     client.headers["Authorization"] = f"Bearer {token}"
-    yield client
-    del client.headers["Authorization"]
+    return client
+    # del client.headers["Authorization"]
 
 
 @pytest_asyncio.fixture(scope="function")
@@ -129,4 +148,13 @@ async def enrolled_user_client(
     )
     test_db.add(new_enrollment)
     await test_db.commit()
-    yield authenticated_client
+    return authenticated_client
+
+
+@pytest_asyncio.fixture(scope="session", autouse=True)
+async def cleanup_test_db():
+    """测试会话结束后清理测试数据库文件"""
+    yield
+    import os
+    if os.path.exists("./test_db.sqlite"):
+        os.remove("./test_db.sqlite")

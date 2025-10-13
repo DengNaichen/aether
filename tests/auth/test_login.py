@@ -1,7 +1,7 @@
 import pytest
 from asyncpg.pgproto.pgproto import timedelta
 from httpx import AsyncClient
-from conftest import TEST_USER_PASSWORD, TEST_USER_EMAIL, TEST_USER_NAME
+from tests.conftest import TEST_USER_PASSWORD, TEST_USER_EMAIL, TEST_USER_NAME
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.security import create_access_token
 

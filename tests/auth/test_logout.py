@@ -9,8 +9,9 @@ from tests.conftest import TEST_USER_PASSWORD, TEST_USER_EMAIL
 
 @pytest.mark.asyncio
 async def test_logout_success(
-    client: AsyncClient,
-    user_in_db: "User"
+        client: AsyncClient,
+        user_in_db: "User",
+        test_db: AsyncSession,
 ):
     """
     测试成功登出。
