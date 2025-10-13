@@ -1,8 +1,7 @@
 import pytest
 from asyncpg.pgproto.pgproto import timedelta
 from httpx import AsyncClient
-from tests.conftest import TEST_USER_PASSWORD, TEST_USER_EMAIL, TEST_USER_NAME
-from sqlalchemy.ext.asyncio import AsyncSession
+from tests.conftest import TEST_USER_PASSWORD, TEST_USER_EMAIL
 from app.core.security import create_access_token
 
 # TODO: 使用错误格式请求（例如少传username / password）

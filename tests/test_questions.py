@@ -19,7 +19,6 @@ async def override_get_neo4j_driver():
 
 app.dependency_overrides[get_neo4j_driver] = override_get_neo4j_driver
 
-
 @pytest.mark.asyncio
 async def test_create_multiple_choice_question_success():
     mock_record = MagicMock()

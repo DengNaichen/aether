@@ -7,6 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from src.app.schemas.questions import AnyQuestion
 
+
 class SessionStatus(str, Enum):
     ACTIVE = "active"
     COMPLETED = "completed"

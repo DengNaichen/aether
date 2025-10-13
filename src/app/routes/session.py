@@ -5,7 +5,6 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.app.core.database import get_db
 from src.app.models.enrollment import Enrollment
 from src.app.models.user import User
 # from src.app.models.session import Session

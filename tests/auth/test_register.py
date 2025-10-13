@@ -2,7 +2,6 @@ import pytest
 from tests.conftest import TEST_USER_PASSWORD, TEST_USER_EMAIL, TEST_USER_NAME
 from httpx import AsyncClient
 from starlette import status
-from sqlalchemy.ext.asyncio import AsyncSession
 from src.app.models.user import User
 
 

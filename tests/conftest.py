@@ -13,8 +13,8 @@ sys.path.insert(0, str(ROOT_DIR))
 # 1. 设置测试环境变量 (在导入app之前)
 # ============================================
 os.environ["ENVIRONMENT"] = "test"
-# os.environ["DATABASE_URL"] = "sqlite+aiosqlite:///file:memdb?mode=memory&cache=shared&uri=true"
-os.environ["DATABASE_URL"] = "sqlite+aiosqlite:///./test_db.sqlite"
+os.environ["DATABASE_URL"] = "sqlite+aiosqlite:///file:memdb?mode=memory&cache=shared&uri=true"
+# os.environ["DATABASE_URL"] = "sqlite+aiosqlite:///./test_db.sqlite"
 os.environ["SECRET_KEY"] = "test_secret_key_12345"
 os.environ["ALGORITHM"] = "HS256"
 os.environ["ACCESS_TOKEN_EXPIRE_MINUTES"] = "30"
@@ -38,8 +38,9 @@ from src.app.core.security import create_access_token, get_password_hash
 from src.app.main import app
 from src.app.core.deps import get_db
 from src.app.models.course import Course
-from src.app.models.enrollment import Enrollment
 from src.app.models.user import User
+from src.app.models.enrollment import Enrollment
+from src.app.models.quiz import Quiz
 
 # --- 测试常量 ---
 TEST_USER_NAME = "test user conf"
@@ -83,7 +84,6 @@ async def client(
         test_db: AsyncSession,
         test_db_manager: DatabaseManager
 ) -> AsyncGenerator[AsyncClient, None]:
-
     def override_get_db() -> AsyncGenerator[AsyncSession, None]:
         yield test_db
 
@@ -124,6 +124,32 @@ async def course_in_db(test_db: AsyncSession) -> Course:
     return new_course
 
 
+# @pytest_asyncio.fixture(scope="function")
+# async def enrollment_in_db(test_db: AsyncSession) -> Enrollment:
+#     new_enrollment = Enrollment(
+#         user_id=TEST_USER_EMAIL, # TODO: here should be uuid ?
+#         course_id=COURSE_ID,
+#     )
+#     test_db.add(new_enrollment)
+#     await test_db.commit()
+#     await test_db.refresh(new_enrollment)
+#     return new_enrollment
+
+
+# @pytest_asyncio.fixture(scope="function")
+# async def active_quiz_in_db(test_db: AsyncSession) -> Quiz:
+#     # TODO: need to consider this fixture
+#     new_quiz = Quiz(
+#         user_id=TEST_USER_EMAIL,
+#         class_id=COURSE_ID,
+#         question_num=5
+#     )
+#     test_db.add(new_quiz)
+#     await test_db.commit()
+#     await test_db.refresh(new_quiz)
+#     return new_quiz
+
+
 @pytest_asyncio.fixture(scope="function")
 async def authenticated_client(
         client: AsyncClient,
@@ -132,23 +158,22 @@ async def authenticated_client(
     token = create_access_token(subject=str(user_in_db.id))
     client.headers["Authorization"] = f"Bearer {token}"
     return client
-    # del client.headers["Authorization"]
 
 
-@pytest_asyncio.fixture(scope="function")
-async def enrolled_user_client(
-    authenticated_client: AsyncClient,
-    test_db: AsyncSession,
-    user_in_db: User,
-    course_in_db: Course,
-):
-    """提供一个已认证且其用户已注册了课程的客户端。"""
-    new_enrollment = Enrollment(
-        user_id=user_in_db.id, course_id=course_in_db.id
-    )
-    test_db.add(new_enrollment)
-    await test_db.commit()
-    return authenticated_client
+# @pytest_asyncio.fixture(scope="function")
+# async def enrolled_user_client(
+#         authenticated_client: AsyncClient,
+#         test_db: AsyncSession,
+#         user_in_db: User,
+#         course_in_db: Course,
+# ):
+#     """提供一个已认证且其用户已注册了课程的客户端。"""
+#     new_enrollment = Enrollment(
+#         user_id=user_in_db.id, course_id=course_in_db.id
+#     )
+#     test_db.add(new_enrollment)
+#     await test_db.commit()
+#     return authenticated_client
 
 
 @pytest_asyncio.fixture(scope="session", autouse=True)

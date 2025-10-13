@@ -1,11 +1,12 @@
 import uuid
-
+from fastapi import status
 import pytest
-from datetime import datetime, timezone
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
 
-from conftest import TEST_USER_EMAIL, TEST_USER_PASSWORD, COURSE_ID, COURSE_NAME
+from app.models import Enrollment
+from tests.conftest import TEST_USER_EMAIL, TEST_USER_PASSWORD, COURSE_ID, COURSE_NAME
 from src.app.models.user import User
 from src.app.models.course import Course
 
@@ -13,25 +14,56 @@ from src.app.models.course import Course
 @pytest.mark.asyncio
 async def test_enroll_a_course_failed_with_unauthenticated_user(
         client: AsyncClient,
-        course_in_db: AsyncSession
+        course_in_db: Course,
+        test_db: AsyncSession,
 ):
-    pass
-
-
-@pytest.mark.asyncio
-async def test_enroll_a_course_failed_with_already_enrolled(
-        client: AsyncClient,
-        course_in_db: AsyncSession
-):
-    pass
+    enrollment_data = {
+        "course_id": COURSE_ID,
+    }
+    response = await client.post(
+        "/enrollments/course",
+        json=enrollment_data,
+    )
+    assert response.status_code == status.HTTP_401_UNAUTHORIZED
+    # TODO: what else assert?
 
 
 @pytest.mark.asyncio
 async def test_enroll_a_course_failed_with_not_exist_course(
-        client: AsyncClient,
-        course_in_db: AsyncSession
+        authenticated_client: AsyncClient,
+        course_in_db: Course,
+        user_in_db: User,
+        test_db: AsyncSession
 ):
-    pass
+    enrollment_data = {
+        "course_id": "NOT_EXIST",
+    }
+    response = await authenticated_client.post(
+        "/enrollments/course",
+        json=enrollment_data
+    )
+    # the course do not exist in the database
+    # TODO: not sure the status code
+    assert response.status_code == status.HTTP_404_NOT_FOUND
+    # TODO: what else assert need here ?
+
+
+@pytest.mark.asyncio
+async def test_enroll_a_course_failed_with_already_enrolled(
+        enrolled_user_client: AsyncClient,
+        course_in_db: AsyncSession,
+        user_in_db: User,
+        test_db: AsyncSession
+):
+    enrollment_data = {
+        "course_id": COURSE_ID,
+    }
+    response = await enrolled_user_client.post(
+        "/enrollments/course",
+        json=enrollment_data
+    )
+    # failed because already exist(
+    assert response.status_code == status.HTTP_400_BAD_REQUEST
 
 
 @pytest.mark.asyncio
@@ -41,26 +73,20 @@ async def test_enroll_a_course_successful_as_authenticated_user(
         user_in_db: User,
         test_db: AsyncSession
 ):
-    # auth_headers = authenticated_client.headers
+    course_id = COURSE_ID
+    response = await authenticated_client.post(
+        f"/course/{course_id}/enrollments"
+    )
 
-    enrollment_data = {
-        "course_id": COURSE_ID
-    }
+    assert response.status_code == status.HTTP_201_CREATED
 
-    response = await authenticated_client.post("/enrollments/course",
-                                 json=enrollment_data)
+    enrollment_query = select(Enrollment).where(
+        Enrollment.course_id == course_id,
+        Enrollment.user_id == user_in_db.id
+    )
+    enrollment_from_db = (await test_db.execute(enrollment_query)).scalar_one_or_none()
 
-    assert response.status_code == 201
+    assert enrollment_from_db is not None, "Enrollment was not created"
 
-    await test_db.refresh(course_in_db)
-
-    response_data = response.json()
-    assert response_data["course_id"] == course_in_db.id
-
-    await test_db.refresh(user_in_db)
-    response_user_id = uuid.UUID(response_data["user_id"])
-    assert response_user_id == user_in_db.id
-
-    enrolled_user_from_db = await test_db.get(User, response_user_id)
-    assert enrolled_user_from_db is not None
-    assert enrolled_user_from_db.email == user_in_db.email
+    assert enrollment_from_db.course_id == course_in_db.id
+    assert enrollment_from_db.user_id == user_in_db.id
