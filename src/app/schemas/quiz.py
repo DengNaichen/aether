@@ -3,35 +3,23 @@ from typing import List, Optional, Union
 from uuid import UUID
 from enum import Enum
 
-# from dns.resolver import Answer
 from pydantic import BaseModel, ConfigDict, Field
-from src.app.models.quiz import QuizStatus
 from src.app.schemas.questions import AnyQuestion
 
 
-# ============ Quiz Status ============
+# ===================================================================
+# 1. Enums
+# ===================================================================
 class QuizStatus(str, Enum):
     IN_PROGRESS = "in_progress"
     COMPLETED = "completed"
     ABORTED = "aborted"
 
 
-class AnswerFromClient(BaseModel):
-    question_id: UUID
-    user_answer: Optional[Union[int, str]]
-    is_correct: bool
-
-
-# [改动] 更新了提交模型，现在叫 QuizSubmissionResultFromClient
-# 它包含了前端计算的总分和每道题的评判结果
-class QuizSubmissionResultFromClient(BaseModel):
-    score: int  # 前端计算好的总分
-    answers: List[AnswerFromClient]  # 前端提交的、已判断对错的答案列表
-
-
-# ============ Quiz Models (PostgreSQL) ============
-# 这些是basic的quiz信息，只在PostgreSQL中存储
-
+# ===================================================================
+# 3. 基础数据模型 (Base Data Schemas)
+#    这些是其他核心数据模型可以继承的基础结构
+# ===================================================================
 class QuizBase(BaseModel):
     """
     Quiz的基础信息。
@@ -40,24 +28,6 @@ class QuizBase(BaseModel):
     course_id: str  # 哪个课程的quiz
     question_num: int  # 这个quiz有多少道题
 
-
-class QuizCreate(QuizBase):
-    """
-    创建一个新quiz时，API需要这些信息
-    """
-    pass
-
-
-class QuizResponse(QuizBase):
-    """
-    返回quiz基础信息给前端
-    """
-    id: UUID
-
-    class Config:
-        from_attributes = True  # 允许从SQLAlchemy model转换过来
-
-# 这些是用户做quiz的记录
 
 class QuizSubmissionBase(BaseModel):
     """
@@ -68,10 +38,50 @@ class QuizSubmissionBase(BaseModel):
     status: QuizStatus = QuizStatus.IN_PROGRESS
 
 
-class QuizSubmissionUpdate(BaseModel):
-    status: Optional[QuizStatus] = None
-    score: Optional[int] = None
-    submitted_at: Optional[datetime] = None
+# ===================================================================
+# 2. API 请求模型 (Request Models)
+#    这些是客户端(前端)发送给API的数据结构
+# ===================================================================
+class QuizRequest(QuizBase):
+    """
+    Quiz request schema
+    """
+    pass
+
+
+class AnswerFromClient(BaseModel):
+    question_id: UUID
+    user_answer: Optional[Union[int, str]]
+    is_correct: bool
+
+
+class QuizSubmissionResultFromClient(BaseModel):
+    score: int  # 前端计算好的总分
+    answers: List[AnswerFromClient]  # 前端提交的、已判断对错的答案列表
+
+
+# ===================================================================
+# 4. 核心数据模型 (Core Data Schemas)
+#    这些是与数据库模型对应的、可复用的Pydantic模型
+# ===================================================================
+class UserResponse(BaseModel):
+    """
+    用户的基本信息（从PostgreSQL获取）
+    """
+    id: UUID
+
+    class Config:
+        from_attributes = True
+
+
+class QuizResponse(QuizBase):
+    """
+    返回quiz基础信息给前端
+    """
+    id: UUID
+
+    class Config:
+        from_attributes = True  # 允许从SQLAlchemy model转换过来
 
 
 class QuizSubmissionResponse(QuizSubmissionBase):
@@ -84,66 +94,36 @@ class QuizSubmissionResponse(QuizSubmissionBase):
         from_attributes = True
 
 
+class SubmissionAnswerSchema(BaseModel):
+    question_id: UUID
+    # question: AnyQuestion
+    user_answer: Optional[Union[int, str]] = None
+    is_correct: Optional[bool] = None
+
+    class Config:
+        from_attributes = True
+
+
+# ===================================================================
+# 5. API 响应模型 (Response Models)
+#    这些是为特定API端点量身定做的、组合起来的响应结构
+# ===================================================================
+
+class QuizStartResponse(QuizResponse):
+    submission_id: UUID
+    questions: List[AnyQuestion]
+
+
 class QuizSubmissionDetailResponse(QuizSubmissionResponse):
     user: Optional['UserResponse'] = None
     quiz: Optional[QuizResponse] = None
 
 
-class AnswerUpdate(BaseModel):
-    question_id: UUID
-    user_answer: Optional[Union[int, str]]
-
-
-class QuizSubmissionAnswerUpdate(AnswerUpdate):
-    answer: List[AnswerUpdate]
-
-
-class QuizStartResponse(QuizResponse):
-    submission_id: UUID
-    questions: List[AnyQuestion]
-
-
 class QuizSubmissionWithAnswersResponse(QuizSubmissionDetailResponse):
-    answers: List['SubmissionAnswer']
-
-
-# class SubmissionAnswer(BaseModel):
-#     question_id: UUID
-#     question: AnyQuestion
-#     user_answer: Optional[Union[int, str]] = None
-#     is_correct: Optional[bool] = None
-#     marked_at: Optional[datetime] = None
-
-# [改动] Renamed to avoid conflict with the SQLAlchemy model
-class SubmissionAnswerSchema(BaseModel):
-    question_id: UUID
-    question: AnyQuestion
-    user_answer: Optional[Union[int, str]] = None
-    is_correct: Optional[bool] = None
-    marked_at: Optional[datetime] = None
-
-# ============ User Response Model ============
-class UserResponse(BaseModel):
-    """
-    用户的基本信息（从PostgreSQL获取）
-    """
-    id: UUID
-
-    class Config:
-        from_attributes = True
-
-#
-
-class QuizStartResponse(QuizResponse):
-    submission_id: UUID
-    questions: List[AnyQuestion]
-
-
-class QuizSubmissionWithAnswersResponse(QuizSubmissionDetailResponse):
-    # [改动] Updated the type hint to use the new schema name
     answers: List['SubmissionAnswerSchema']
+
 
 # Forward references update for Pydantic v2
 QuizSubmissionDetailResponse.model_rebuild()
-QuizSubmissionWithAnswersResponse.model_rebuild() # Added to ensure the forward reference is resolved
+QuizSubmissionWithAnswersResponse.model_rebuild()
 

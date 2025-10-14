@@ -8,11 +8,11 @@ from sqlalchemy.future import select
 
 from src.app.models.quiz import QuizSubmission, Quiz, QuizStatus
 from src.app.routes.course import get_course_by_id
-from src.app.schemas.quiz import QuizStartResponse, QuizCreate
-from src.app.models.enrollment import Enrollment
+from src.app.schemas.quiz import QuizStartResponse, QuizRequest
+# from src.app.models.enrollment import Enrollment
 from src.app.models.user import User
 # from src.app.models.session import Session
-from src.app.schemas.enrollment import EnrollmentRequest, EnrollmentResponse
+# from src.app.schemas.enrollment import EnrollmentRequest, EnrollmentResponse
 from src.app.core.deps import get_current_active_user, get_db
 
 router = APIRouter(
@@ -67,7 +67,7 @@ def mock_data():
              )
 async def start_a_quiz(
         course_id: str,
-        quiz_request: QuizCreate,
+        quiz_request: QuizRequest,
         db: AsyncSession = Depends(get_db),
         current_user: User = Depends(get_current_active_user)
 ):

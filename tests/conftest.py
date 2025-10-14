@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from src.app.core.config import Settings
+
 
 ROOT_DIR = Path(__file__).parent.parent
 sys.path.insert(0, str(ROOT_DIR))
@@ -31,6 +31,7 @@ from typing import AsyncGenerator
 from httpx import AsyncClient, ASGITransport
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.app.core.config import Settings
 from src.app.models.base import Base
 from src.app.core.database import DatabaseManager
 from src.app.core.config import Settings

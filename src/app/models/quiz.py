@@ -64,8 +64,6 @@ class SubmissionAnswer(Base):
     question_id = Column(UUID(as_uuid=True), nullable=False)
     user_answer = Column(JSON, nullable=True)
 
-    # [修正] 允许为空，因为只有在评分后才有值
     is_correct = Column(Boolean, nullable=True)
 
-    # [修正] 修复笔误 "Submission" -> "QuizSubmission"
     submission = relationship("QuizSubmission", back_populates="answers")
