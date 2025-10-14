@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
 
-from app.models import submission
+from src.app.models import submission
 # --- Core Dependencies ---
 from src.app.core.deps import get_current_active_user, get_db
 

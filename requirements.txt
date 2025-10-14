@@ -64,9 +64,9 @@ MarkupSafe
 matplotlib==3.10.0
 matplotlib-inline
 mistune
-mkl-fft
-mkl-random
-mkl-service==2.4.0
+# mkl-fft - removed: not available via pip, requires Intel MKL
+# mkl-random - removed: not available via pip, requires Intel MKL  
+# mkl-service==2.4.0 - removed: not available via pip, requires Intel MKL
 nbclient
 nbconvert
 nbformat
