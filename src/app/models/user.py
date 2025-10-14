@@ -7,6 +7,8 @@ from sqlalchemy import (
     Boolean
 )
 from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import relationship
+
 from src.app.models.base import Base
 
 
@@ -44,3 +46,5 @@ class User(Base):
                         server_default=func.now(),
                         onupdate=func.now())
     refresh_token = Column(String, nullable=True, index=True)
+
+    quiz_submissions = relationship("QuizSubmission", back_populates="user")

@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, status, Body
 from uuid import UUID
-from app.core.deps import get_current_user
+from src.app.core.deps import get_current_user
 from src.app.core.config import settings
 from src.app.schemas.token import Token, AccessToken
 from fastapi.security import OAuth2PasswordRequestForm

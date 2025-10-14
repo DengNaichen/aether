@@ -3,7 +3,7 @@ from typing import List, Optional, Union
 from uuid import UUID
 from enum import Enum
 
-
+# from dns.resolver import Answer
 from pydantic import BaseModel, ConfigDict, Field
 from src.app.models.quiz import QuizStatus
 from src.app.schemas.questions import AnyQuestion
@@ -14,6 +14,19 @@ class QuizStatus(str, Enum):
     IN_PROGRESS = "in_progress"
     COMPLETED = "completed"
     ABORTED = "aborted"
+
+
+class AnswerFromClient(BaseModel):
+    question_id: UUID
+    user_answer: Optional[Union[int, str]]
+    is_correct: bool
+
+
+# [改动] 更新了提交模型，现在叫 QuizSubmissionResultFromClient
+# 它包含了前端计算的总分和每道题的评判结果
+class QuizSubmissionResultFromClient(BaseModel):
+    score: int  # 前端计算好的总分
+    answers: List[AnswerFromClient]  # 前端提交的、已判断对错的答案列表
 
 
 # ============ Quiz Models (PostgreSQL) ============
@@ -33,13 +46,6 @@ class QuizCreate(QuizBase):
     创建一个新quiz时，API需要这些信息
     """
     pass
-
-
-# class QuizUpdate(BaseModel):
-#     """
-#     更新quiz时（比如改变题目数量）
-#     """
-#     question_num: Optional[int] = None
 
 
 class QuizResponse(QuizBase):
@@ -93,21 +99,28 @@ class QuizSubmissionAnswerUpdate(AnswerUpdate):
 
 
 class QuizStartResponse(QuizResponse):
-    submission_id: str
-    question: List[AnyQuestion]
+    submission_id: UUID
+    questions: List[AnyQuestion]
 
 
 class QuizSubmissionWithAnswersResponse(QuizSubmissionDetailResponse):
     answers: List['SubmissionAnswer']
 
 
-class SubmissionAnswer(BaseModel):
+# class SubmissionAnswer(BaseModel):
+#     question_id: UUID
+#     question: AnyQuestion
+#     user_answer: Optional[Union[int, str]] = None
+#     is_correct: Optional[bool] = None
+#     marked_at: Optional[datetime] = None
+
+# [改动] Renamed to avoid conflict with the SQLAlchemy model
+class SubmissionAnswerSchema(BaseModel):
     question_id: UUID
     question: AnyQuestion
     user_answer: Optional[Union[int, str]] = None
     is_correct: Optional[bool] = None
     marked_at: Optional[datetime] = None
-
 
 # ============ User Response Model ============
 class UserResponse(BaseModel):
@@ -118,3 +131,19 @@ class UserResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+#
+
+class QuizStartResponse(QuizResponse):
+    submission_id: UUID
+    questions: List[AnyQuestion]
+
+
+class QuizSubmissionWithAnswersResponse(QuizSubmissionDetailResponse):
+    # [改动] Updated the type hint to use the new schema name
+    answers: List['SubmissionAnswerSchema']
+
+# Forward references update for Pydantic v2
+QuizSubmissionDetailResponse.model_rebuild()
+QuizSubmissionWithAnswersResponse.model_rebuild() # Added to ensure the forward reference is resolved
+

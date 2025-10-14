@@ -2,12 +2,11 @@ from fastapi import FastAPI, Depends, status, HTTPException, Request
 from contextlib import asynccontextmanager
 from neo4j import AsyncGraphDatabase
 
+from src.app.routes import quiz
 from src.app.core.config import settings
 from src.app.core.database import db_manager
 
-from src.app.routes import auth, user, question, course
-from src.app.routes import enrollment
-# from src.app.routes import session
+from src.app.routes import auth, user, question, course, submissions
 import src.app.models as models
 
 
@@ -33,6 +32,8 @@ app.include_router(auth.router)
 app.include_router(user.router)
 app.include_router(question.router)
 app.include_router(course.router)
+app.include_router(quiz.router)
+app.include_router(submissions.router)
 
 
 @app.get("/health")

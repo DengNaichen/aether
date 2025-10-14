@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, status, HTTPException
 from sqlalchemy.future import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.schemas.enrollment import EnrollmentResponse
+from src.app.schemas.enrollment import EnrollmentResponse
 from src.app.models import User, Enrollment, Course
 from src.app.core.deps import get_current_active_user, get_db
 

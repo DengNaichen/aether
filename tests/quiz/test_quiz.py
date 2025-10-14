@@ -2,6 +2,7 @@ import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
+from uuid import UUID
 
 # Import constants from your conftest to ensure consistency
 from tests.conftest import COURSE_ID
@@ -32,8 +33,11 @@ class TestStartNewQuiz:
         - AND: The response body should match the QuizStartResponse schema.
         - AND: A new Quiz and QuizSubmission record should be created in the database.
         """
-        payload = {"question_num": 5}
-        endpoint = f"/courses/{COURSE_ID}/quizzes"
+        payload = {
+            "course_id": COURSE_ID,
+            "question_num": 2
+        }
+        endpoint = f"/course/{COURSE_ID}/quizzes"
 
         # --- Make the API call ---
         response = await enrolled_user_client.post(endpoint, json=payload)
@@ -52,14 +56,14 @@ class TestStartNewQuiz:
 
         # --- Assert the database state ---
         # Verify a Quiz was created
-        quiz_query = await test_db.execute(select(Quiz).where(Quiz.id == data["id"]))
+        quiz_query = await test_db.execute(select(Quiz).where(Quiz.id == UUID(data["id"])))
         created_quiz = quiz_query.scalars().one_or_none()
         assert created_quiz is not None
         assert created_quiz.course_id == COURSE_ID
 
         # Verify a QuizSubmission was created and linked correctly
         submission_query = await test_db.execute(
-            select(QuizSubmission).where(QuizSubmission.id == data["submission_id"])
+            select(QuizSubmission).where(QuizSubmission.id == UUID(data["submission_id"]))
         )
         created_submission = submission_query.scalars().one_or_none()
         assert created_submission is not None
@@ -72,8 +76,11 @@ class TestStartNewQuiz:
         """
         Tests that an unauthenticated user cannot start a quiz.
         """
-        payload = {"question_num": 5}
-        endpoint = f"/courses/{COURSE_ID}/quizzes"
+        payload = {
+            "course_id": COURSE_ID,
+            "question_num": 2
+        }
+        endpoint = f"/course/{COURSE_ID}/quizzes"
         response = await client.post(endpoint, json=payload)
         assert response.status_code == 401
 
@@ -81,9 +88,13 @@ class TestStartNewQuiz:
         """
         Tests that starting a quiz for a non-existent course fails.
         """
-        payload = {"question_num": 5}
+
+        payload = {
+            "course_id": COURSE_ID,
+            "question_num": 2
+        }
         non_existent_course_id = "course_that_does_not_exist"
-        endpoint = f"/courses/{non_existent_course_id}/quizzes"
+        endpoint = f"/course/{non_existent_course_id}/quizzes"
         response = await authenticated_client.post(endpoint, json=payload)
         assert response.status_code == 404
 
@@ -102,7 +113,7 @@ class TestStartNewQuiz:
         # 1. Create a quiz
         active_quiz = Quiz(course_id=course_in_db.id, question_num=10)
         test_db.add(active_quiz)
-        await test_db.flush() # Flush to get the ID
+        await test_db.flush()  # Flush to get the ID
 
         # 2. Create a submission linked to the quiz and user
         active_submission = QuizSubmission(
@@ -115,8 +126,11 @@ class TestStartNewQuiz:
         # --- End of setup ---
 
         # --- Attempt to start a new quiz ---
-        payload = {"question_num": 5}
-        endpoint = f"/courses/{COURSE_ID}/quizzes"
+        payload = {
+            "course_id": COURSE_ID,
+            "question_num": 2
+        }
+        endpoint = f"/course/{COURSE_ID}/quizzes"
         response = await enrolled_user_client.post(endpoint, json=payload)
 
         # --- Assert the conflict ---
@@ -137,6 +151,6 @@ class TestStartNewQuiz:
         """
         Tests that the request fails with a validation error for invalid payloads.
         """
-        endpoint = f"/courses/{COURSE_ID}/quizzes"
+        endpoint = f"/course/{COURSE_ID}/quizzes"
         response = await enrolled_user_client.post(endpoint, json=invalid_payload)
-        assert response.status_code == 422 # Unprocessable Entity
+        assert response.status_code == 422  # Unprocessable Entity

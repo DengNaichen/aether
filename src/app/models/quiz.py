@@ -2,11 +2,11 @@ import uuid
 import enum
 from sqlalchemy import (
     Column, String, ForeignKey, DateTime, Integer, Boolean,
-    Enum as SQLAlchemyEnum, func
+    Enum as SQLAlchemyEnum, func, JSON
 )
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship
-from app.models import Base  # 或者 from .base import Base
+from src.app.models import Base  # 或者 from .base import Base
 
 
 # --- Enums ---
@@ -62,7 +62,7 @@ class SubmissionAnswer(Base):
     submission_id = Column(UUID(as_uuid=True),
                            ForeignKey("quiz_submissions.id"), nullable=False)
     question_id = Column(UUID(as_uuid=True), nullable=False)
-    user_answer = Column(JSONB, nullable=True)
+    user_answer = Column(JSON, nullable=True)
 
     # [修正] 允许为空，因为只有在评分后才有值
     is_correct = Column(Boolean, nullable=True)

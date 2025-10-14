@@ -2,7 +2,7 @@ import pytest
 from asyncpg.pgproto.pgproto import timedelta
 from httpx import AsyncClient
 from tests.conftest import TEST_USER_PASSWORD, TEST_USER_EMAIL
-from app.core.security import create_access_token
+from src.app.core.security import create_access_token
 
 # TODO: 使用错误格式请求（例如少传username / password）
 # TODO: 尝试用refresh_token登录（应失败）

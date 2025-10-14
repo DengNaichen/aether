@@ -5,7 +5,7 @@ from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
-from app.models import Enrollment
+from src.app.models import Enrollment
 from tests.conftest import COURSE_ID
 from src.app.models.user import User
 from src.app.models.course import Course

@@ -2,6 +2,7 @@ import uuid
 
 from sqlalchemy import Column, String
 from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import relationship
 
 from src.app.models.base import Base
 
@@ -18,3 +19,5 @@ class Course(Base):
     id = Column(String, primary_key=True, nullable=False)
     name = Column(String, index=True)
     description = Column(String)
+
+    quizzes = relationship("Quiz", back_populates="course")
