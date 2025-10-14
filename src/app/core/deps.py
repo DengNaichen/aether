@@ -1,19 +1,20 @@
 import uuid
 from typing import AsyncGenerator
 
-from fastapi import Depends, HTTPException, status, Request
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
-from jose import jwt, JWTError
-from sqlalchemy.ext.asyncio import AsyncSession
+from jose import JWTError, jwt
 from neo4j import AsyncNeo4jDriver
-
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.app.core.config import settings
+from src.app.core.database import db_manager
+
 # from src.app.core.database import AsyncSessionLocal
 from src.app.crud.user import get_user_by_email, get_user_by_id
+
 # from src.app.main import db_connections
 from src.app.models.user import User
-from src.app.core.database import db_manager
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 
@@ -32,25 +33,23 @@ async def get_neo4j_driver() -> AsyncNeo4jDriver:
     if driver is None:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Neo4j Driver is not available"
+            detail="Neo4j Driver is not available",
         )
     return driver
 
 
 async def get_current_user(
-        db: AsyncSession = Depends(get_db),
-        token: str = Depends(oauth2_scheme)
+    db: AsyncSession = Depends(get_db), token: str = Depends(oauth2_scheme)
 ) -> User:
 
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
-        headers={"WWW-Authenticate": "Bearer"}
+        headers={"WWW-Authenticate": "Bearer"},
     )
     try:
         payload = jwt.decode(
-            token, settings.SECRET_KEY,
-            algorithms=[settings.ALGORITHM]
+            token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM]
         )
         user_id: str = payload.get("sub")
         if user_id is None:
@@ -70,6 +69,6 @@ async def get_current_user(
 
 
 async def get_current_active_user(
-        current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ) -> User:
     return current_user

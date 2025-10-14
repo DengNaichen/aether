@@ -1,7 +1,8 @@
 import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
-from tests.conftest import TEST_USER_PASSWORD, TEST_USER_EMAIL
+
+from tests.conftest import TEST_USER_EMAIL, TEST_USER_PASSWORD
 
 # TODO: 测试使用已登出的令牌再次登出 (应失败)
 # TODO: 检查令牌是否真的被加入了黑名单或失效列表 (如果后端实现了该机制)
@@ -9,9 +10,9 @@ from tests.conftest import TEST_USER_PASSWORD, TEST_USER_EMAIL
 
 @pytest.mark.asyncio
 async def test_logout_success(
-        client: AsyncClient,
-        user_in_db: "User",
-        test_db: AsyncSession,
+    client: AsyncClient,
+    user_in_db: "User",
+    test_db: AsyncSession,
 ):
     """
     测试成功登出。
@@ -37,8 +38,7 @@ async def test_logout_success(
 
 @pytest.mark.asyncio
 async def test_access_protected_route_after_logout(
-    client: AsyncClient,
-    user_in_db: "User"
+    client: AsyncClient, user_in_db: "User"
 ):
     """
     测试登出后，refresh_token 是否失效。

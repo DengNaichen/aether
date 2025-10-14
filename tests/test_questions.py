@@ -1,13 +1,13 @@
+import uuid
 from http.client import responses
+from unittest.mock import AsyncMock, MagicMock
 
 import httpx
 import pytest
-import uuid
 from httpx import AsyncClient
-from unittest.mock import AsyncMock, MagicMock
 
-from src.app.main import app
 from src.app.core.deps import get_neo4j_driver
+from src.app.main import app
 
 mock_neo4j_driver, mock_neo4j_session = AsyncMock(), AsyncMock()
 mock_neo4j_driver.session.return_value.__aenter__.return_value = mock_neo4j_session
@@ -19,12 +19,13 @@ async def override_get_neo4j_driver():
 
 app.dependency_overrides[get_neo4j_driver] = override_get_neo4j_driver
 
+
 @pytest.mark.asyncio
 async def test_create_multiple_choice_question_success():
     mock_record = MagicMock()
     mock_record.get.return_value = str(uuid.uuid4())
 
-    # configure the mock session's run method to return 
+    # configure the mock session's run method to return
     mock_neo4j_session.run.return_value.single.return_value = mock_record
 
     # Create the json payload
@@ -40,15 +41,16 @@ async def test_create_multiple_choice_question_success():
                 "299,792 km/s",
                 "150,000 km/s",
                 "1,080 million km/h",
-                "300,000 km/s"
+                "300,000 km/s",
             ],
-            "correct_answer": 0
-        }
+            "correct_answer": 0,
+        },
     }
-    async with AsyncClient(transport=httpx.ASGITransport(app=app),
-                           base_url="http://test") as client:
+    async with AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://test"
+    ) as client:
         response = await client.post("/question/", json=question_payload)
-    
+
     assert response.status_code == 200
     response_data = response.json()
     # check response data structure

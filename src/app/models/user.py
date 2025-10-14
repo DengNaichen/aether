@@ -1,11 +1,6 @@
 import uuid
-from sqlalchemy import (
-    Column,
-    String,
-    TIMESTAMP,
-    func,
-    Boolean
-)
+
+from sqlalchemy import TIMESTAMP, Boolean, Column, String, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 
@@ -13,7 +8,7 @@ from src.app.models.base import Base
 
 
 class User(Base):
-    """ Represents a student user in the databases
+    """Represents a student user in the databases
 
     This model stores essential information for a student, including personal
     details, authentication credentials, and account status.
@@ -31,6 +26,7 @@ class User(Base):
         created_at(datetime): The timestamp when the student account was created
         update_at(datetime): The timestamp when the student account was updated
     """
+
     __tablename__ = "user"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -42,9 +38,9 @@ class User(Base):
     oauth_id = Column(String, nullable=True)
 
     created_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
-    updated_at = Column(TIMESTAMP(timezone=True),
-                        server_default=func.now(),
-                        onupdate=func.now())
+    updated_at = Column(
+        TIMESTAMP(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
     refresh_token = Column(String, nullable=True, index=True)
 
     quiz_submissions = relationship("QuizSubmission", back_populates="user")

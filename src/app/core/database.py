@@ -1,18 +1,14 @@
-
-
-
-
-from sqlalchemy.ext.asyncio import (
-    create_async_engine,
-    AsyncSession,
-    AsyncEngine,
-    async_sessionmaker
-)
+from contextlib import asynccontextmanager
+from typing import AsyncGenerator, Optional
 
 from neo4j import AsyncGraphDatabase
 from neo4j._async.driver import AsyncDriver
-from typing import Optional, AsyncGenerator
-from contextlib import asynccontextmanager
+from sqlalchemy.ext.asyncio import (
+    AsyncEngine,
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
 
 from src.app.core.config import Settings, settings
 from src.app.models.base import Base
@@ -30,12 +26,9 @@ class DatabaseManager:
     def sql_engine(self) -> AsyncEngine:
         if self._sql_engine is None:
             self._sql_engine = create_async_engine(
-                self.settings.DATABASE_URL,
-                echo=self.settings.is_testing,
-                future=True
+                self.settings.DATABASE_URL, echo=self.settings.is_testing, future=True
             )
         return self._sql_engine
-
 
     @property
     def _get_session_factory(self) -> async_sessionmaker[AsyncSession]:
@@ -65,7 +58,7 @@ class DatabaseManager:
         if self._neo4j_driver is None:
             self._neo4j_driver = AsyncGraphDatabase.driver(
                 self.settings.NEO4J_URI,
-                auth=(self.settings.NEO4J_USER, self.settings.NEO4J_PASSWORD)
+                auth=(self.settings.NEO4J_USER, self.settings.NEO4J_PASSWORD),
             )
         return self._neo4j_driver
 

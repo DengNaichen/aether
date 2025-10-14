@@ -1,12 +1,12 @@
 from typing import Any, Coroutine
 
-from fastapi import APIRouter, Depends, status, HTTPException
-from sqlalchemy.future import select
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
 
-from src.app.schemas.enrollment import EnrollmentResponse
-from src.app.models import User, Enrollment, Course
 from src.app.core.deps import get_current_active_user, get_db
+from src.app.models import Course, Enrollment, User
+from src.app.schemas.enrollment import EnrollmentResponse
 
 router = APIRouter(
     prefix="/course",
@@ -14,14 +14,16 @@ router = APIRouter(
 )
 
 
-@router.post("/{course_id}/enrollments",
-             status_code=status.HTTP_201_CREATED,
-             summary="create a new enrollment for a course",
-             response_model=EnrollmentResponse)
+@router.post(
+    "/{course_id}/enrollments",
+    status_code=status.HTTP_201_CREATED,
+    summary="create a new enrollment for a course",
+    response_model=EnrollmentResponse,
+)
 async def create_enrollment(
-        course_id: str,
-        db: AsyncSession = Depends(get_db),
-        current_user: User = Depends(get_current_active_user)
+    course_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
 ) -> EnrollmentResponse:
     """
     Enroll a course with course_id
@@ -53,7 +55,7 @@ async def create_enrollment(
 
     raise HTTPException(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-        detail="An error occurred while enrolling this course."
+        detail="An error occurred while enrolling this course.",
     )
 
 
@@ -61,30 +63,25 @@ async def create_enrollment(
 
 
 async def check_repeat_enrollment(
-        course_id: str,
-        db: AsyncSession,
-        current_user: User,
+    course_id: str,
+    db: AsyncSession,
+    current_user: User,
 ):
     existing_enrollment_stmt = select(Enrollment).where(
-        Enrollment.course_id == course_id,
-        Enrollment.user_id == current_user.id
+        Enrollment.course_id == course_id, Enrollment.user_id == current_user.id
     )
     result = await db.execute(existing_enrollment_stmt)
     if result.scalar_one_or_none() is not None:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="User already enrolled this course."
+            detail="User already enrolled this course.",
         )
 
 
-async def get_course_by_id(
-        course_id: str,
-        db: AsyncSession
-) -> type[Course] | None:
+async def get_course_by_id(course_id: str, db: AsyncSession) -> type[Course] | None:
     course = await db.get(Course, course_id)
     if course is None:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Course not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail="Course not found"
         )
     return course

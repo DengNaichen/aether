@@ -1,7 +1,8 @@
-from pydantic import BaseModel, Field
-from typing import List, Literal, Union
 import uuid
 from enum import Enum
+from typing import List, Literal, Union
+
+from pydantic import BaseModel, Field
 
 
 class QuestionDifficulty(str, Enum):
@@ -28,12 +29,12 @@ class BaseQuestion(BaseModel):
 
 
 class MultipleChoiceQuestion(BaseQuestion):
-    question_type: Literal['multiple_choice']
+    question_type: Literal["multiple_choice"]
     details: MultipleChoiceDetails
 
 
 class FillInTheBlankQuestion(BaseQuestion):
-    question_type: Literal['fill_in_the_blank']
+    question_type: Literal["fill_in_the_blank"]
     details: FillInTheBlankDetails
 
 

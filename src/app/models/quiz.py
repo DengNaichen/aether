@@ -1,11 +1,12 @@
-import uuid
 import enum
-from sqlalchemy import (
-    Column, String, ForeignKey, DateTime, Integer, Boolean,
-    Enum as SQLAlchemyEnum, func, JSON
-)
-from sqlalchemy.dialects.postgresql import UUID, JSONB
+import uuid
+
+from sqlalchemy import JSON, Boolean, Column, DateTime
+from sqlalchemy import Enum as SQLAlchemyEnum
+from sqlalchemy import ForeignKey, Integer, String, func
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import relationship
+
 from src.app.models import Base  # 或者 from .base import Base
 
 
@@ -18,6 +19,7 @@ class QuizStatus(enum.Enum):
 
 
 # --- Models ---
+
 
 class Quiz(Base):
     __tablename__ = "quizzes"
@@ -36,13 +38,14 @@ class QuizSubmission(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id = Column(UUID(as_uuid=True), ForeignKey("user.id"), nullable=False)
-    quiz_id = Column(UUID(as_uuid=True), ForeignKey("quizzes.id"),
-                     nullable=False)
+    quiz_id = Column(UUID(as_uuid=True), ForeignKey("quizzes.id"), nullable=False)
 
     # [修正] 使用 SQLAlchemy 的 Enum 类型
-    status = Column(SQLAlchemyEnum(QuizStatus, name="quiz_status_enum",
-                                   create_constraint=True),
-                    nullable=False, default=QuizStatus.IN_PROGRESS)
+    status = Column(
+        SQLAlchemyEnum(QuizStatus, name="quiz_status_enum", create_constraint=True),
+        nullable=False,
+        default=QuizStatus.IN_PROGRESS,
+    )
 
     score = Column(Integer, nullable=True)
     started_at = Column(DateTime(timezone=True), server_default=func.now())
@@ -50,17 +53,18 @@ class QuizSubmission(Base):
 
     user = relationship("User", back_populates="quiz_submissions")
     quiz = relationship("Quiz", back_populates="submissions")
-    answers = relationship("SubmissionAnswer",
-                           back_populates="submission",
-                           cascade="all, delete-orphan")
+    answers = relationship(
+        "SubmissionAnswer", back_populates="submission", cascade="all, delete-orphan"
+    )
 
 
 class SubmissionAnswer(Base):
     __tablename__ = "submission_answers"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    submission_id = Column(UUID(as_uuid=True),
-                           ForeignKey("quiz_submissions.id"), nullable=False)
+    submission_id = Column(
+        UUID(as_uuid=True), ForeignKey("quiz_submissions.id"), nullable=False
+    )
     question_id = Column(UUID(as_uuid=True), nullable=False)
     user_answer = Column(JSON, nullable=True)
 

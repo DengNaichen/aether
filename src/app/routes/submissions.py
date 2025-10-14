@@ -5,18 +5,16 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
-
-from src.app.models import submission
 # --- Core Dependencies ---
 from src.app.core.deps import get_current_active_user, get_db
+from src.app.models import submission
+from src.app.models.quiz import QuizStatus, QuizSubmission, SubmissionAnswer
 
 # --- Models and Schemas ---
 from src.app.models.user import User
-from src.app.models.quiz import QuizSubmission, SubmissionAnswer, QuizStatus
-
 from src.app.schemas.quiz import (
     QuizSubmissionResultFromClient,
-    QuizSubmissionWithAnswersResponse
+    QuizSubmissionWithAnswersResponse,
 )
 
 # You can add this router to your main application
@@ -31,10 +29,10 @@ router = APIRouter(
     response_model=QuizSubmissionWithAnswersResponse,
 )
 async def submit_quiz_answer(
-        submission_id: UUID,
-        submission_data: QuizSubmissionResultFromClient,
-        db: AsyncSession = Depends(get_db),
-        current_user: User = Depends(get_current_active_user),
+    submission_id: UUID,
+    submission_data: QuizSubmissionResultFromClient,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
 ):
     """
     Submit a quiz based on client-side scoring.
@@ -71,7 +69,7 @@ async def submit_quiz_answer(
             submission_id=submission_id,
             question_id=answer_from_client.question_id,
             user_answer=answer_from_client.user_answer,
-            is_correct=answer_from_client.is_correct
+            is_correct=answer_from_client.is_correct,
         )
         new_answer_to_save.append(new_db_answer)
 
@@ -84,4 +82,3 @@ async def submit_quiz_answer(
     await db.commit()
     await db.refresh(submission, attribute_names=["answers", "user", "quiz"])
     return submission
-

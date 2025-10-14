@@ -1,9 +1,10 @@
 from datetime import datetime
+from enum import Enum
 from typing import List, Optional, Union
 from uuid import UUID
-from enum import Enum
 
 from pydantic import BaseModel, ConfigDict, Field
+
 from src.app.schemas.questions import AnyQuestion
 
 
@@ -25,6 +26,7 @@ class QuizBase(BaseModel):
     Quiz的基础信息。
     比如一个"英语第一章测试"这个quiz有10道题。
     """
+
     course_id: str  # 哪个课程的quiz
     question_num: int  # 这个quiz有多少道题
 
@@ -33,6 +35,7 @@ class QuizSubmissionBase(BaseModel):
     """
     Submission的基础字段
     """
+
     user_id: UUID
     quiz_id: UUID
     status: QuizStatus = QuizStatus.IN_PROGRESS
@@ -46,6 +49,7 @@ class QuizRequest(QuizBase):
     """
     Quiz request schema
     """
+
     pass
 
 
@@ -68,6 +72,7 @@ class UserResponse(BaseModel):
     """
     用户的基本信息（从PostgreSQL获取）
     """
+
     id: UUID
 
     class Config:
@@ -78,6 +83,7 @@ class QuizResponse(QuizBase):
     """
     返回quiz基础信息给前端
     """
+
     id: UUID
 
     class Config:
@@ -109,21 +115,21 @@ class SubmissionAnswerSchema(BaseModel):
 #    这些是为特定API端点量身定做的、组合起来的响应结构
 # ===================================================================
 
+
 class QuizStartResponse(QuizResponse):
     submission_id: UUID
     questions: List[AnyQuestion]
 
 
 class QuizSubmissionDetailResponse(QuizSubmissionResponse):
-    user: Optional['UserResponse'] = None
+    user: Optional["UserResponse"] = None
     quiz: Optional[QuizResponse] = None
 
 
 class QuizSubmissionWithAnswersResponse(QuizSubmissionDetailResponse):
-    answers: List['SubmissionAnswerSchema']
+    answers: List["SubmissionAnswerSchema"]
 
 
 # Forward references update for Pydantic v2
 QuizSubmissionDetailResponse.model_rebuild()
 QuizSubmissionWithAnswersResponse.model_rebuild()
-

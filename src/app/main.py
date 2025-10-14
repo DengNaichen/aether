@@ -1,13 +1,12 @@
-from fastapi import FastAPI, Depends, status, HTTPException, Request
 from contextlib import asynccontextmanager
+
+from fastapi import Depends, FastAPI, HTTPException, Request, status
 from neo4j import AsyncGraphDatabase
 
-from src.app.routes import quiz
+import src.app.models as models
 from src.app.core.config import settings
 from src.app.core.database import db_manager
-
-from src.app.routes import auth, user, question, course, submissions
-import src.app.models as models
+from src.app.routes import auth, course, question, quiz, submissions, user
 
 
 # define lifespan

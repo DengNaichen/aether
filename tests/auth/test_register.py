@@ -1,19 +1,17 @@
 import pytest
-from tests.conftest import TEST_USER_PASSWORD, TEST_USER_EMAIL, TEST_USER_NAME
 from httpx import AsyncClient
 from starlette import status
+
 from src.app.models.user import User
+from tests.conftest import TEST_USER_EMAIL, TEST_USER_NAME, TEST_USER_PASSWORD
 
 
 @pytest.mark.asyncio
-async def test_register_failed_with_exsited_user(
-        client: AsyncClient,
-        user_in_db: User
-):
+async def test_register_failed_with_exsited_user(client: AsyncClient, user_in_db: User):
     user_data = {
         "name": TEST_USER_NAME,
         "email": TEST_USER_EMAIL,
-        "password": TEST_USER_PASSWORD
+        "password": TEST_USER_PASSWORD,
     }
     response = await client.post("/auth/register", json=user_data)
 
@@ -22,19 +20,16 @@ async def test_register_failed_with_exsited_user(
 
 
 @pytest.mark.asyncio
-async def test_registration_success_with_empty_db(
-        client: AsyncClient
-):
+async def test_registration_success_with_empty_db(client: AsyncClient):
     # a successful registration student data
     new_student = {
         "name": "test user",
         "email": "test.user@example.com",
-        "password": "a-secure-password123"
+        "password": "a-secure-password123",
     }
 
     # send post-request
-    response = await client.post("/auth/register",
-                                 json=new_student)
+    response = await client.post("/auth/register", json=new_student)
     # assert status code
     assert response.status_code == 201
 
@@ -64,8 +59,7 @@ async def test_registration_success_with_empty_db(
 )
 @pytest.mark.asyncio
 async def test_registration_fails_for_syntactically_invalid_email_with_empty_db(
-    client: AsyncClient,
-    syntactically_invalid_email: str
+    client: AsyncClient, syntactically_invalid_email: str
 ):
     """
     for syntactically invalid email, API will return 422 error.
@@ -88,12 +82,11 @@ async def test_registration_fails_for_syntactically_invalid_email_with_empty_db(
     [
         "Joe Smith <email@example.com>",
         "test.email@example.com",
-    ]
+    ],
 )
 @pytest.mark.asyncio
 async def test_registration_succeeds_for_parseable_email(
-    parseable_email: str,
-    client: AsyncClient
+    parseable_email: str, client: AsyncClient
 ):
     """
     for parseable email, API will return 201 created.
@@ -110,15 +103,15 @@ async def test_registration_succeeds_for_parseable_email(
 
 
 # TODO: test other field:
-    # TODO: password
-        # TODO: password too short
-        # TODO: password too long
-        # TODO: password complexity
-        # TODO: password is empty
-    # TODO: name
-        # TODO: null
-        # TODO: too long
-        # !@#$%^&*()
+# TODO: password
+# TODO: password too short
+# TODO: password too long
+# TODO: password complexity
+# TODO: password is empty
+# TODO: name
+# TODO: null
+# TODO: too long
+# !@#$%^&*()
 
 # TODO: Request body is incomplete
 # TODO: email letter, upper case and lower case

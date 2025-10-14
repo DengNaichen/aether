@@ -1,16 +1,19 @@
-import uuid
 import datetime
-from pydantic import BaseModel, EmailStr, ConfigDict
+import uuid
+
+from pydantic import BaseModel, ConfigDict, EmailStr
 
 
 class UserBase(BaseModel):
-    """ All share field Student schema"""
+    """All share field Student schema"""
+
     email: EmailStr  # Pydantic will validate email
     name: str
 
 
 class UserCreate(UserBase):
     """Update Student info, clients can provide all data"""
+
     password: str
 
 

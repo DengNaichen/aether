@@ -1,10 +1,11 @@
-from sqlalchemy.future import select
-from sqlalchemy.ext.asyncio import AsyncSession
-from src.app.models.user import User
-from src.app.core.security import get_password_hash
 import uuid
 from uuid import UUID
 
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
+
+from src.app.core.security import get_password_hash
+from src.app.models.user import User
 from src.app.schemas.user import UserCreate
 
 
@@ -22,9 +23,7 @@ async def get_user_by_id(db: AsyncSession, user_id: UUID) -> User | None:
 
     Returns:
     """
-    result = await db.execute(
-        select(User).where(User.id == user_id)
-    )
+    result = await db.execute(select(User).where(User.id == user_id))
     return result.scalar_one_or_none()
 
 
@@ -43,10 +42,7 @@ async def create_user(user_data: UserCreate, db: AsyncSession) -> User:
 
 
 async def update_refresh_token(
-        db: AsyncSession,
-        *,
-        user_id: uuid.UUID,
-        token: str | None
+    db: AsyncSession, *, user_id: uuid.UUID, token: str | None
 ) -> User | None:
     user = await db.get(User, user_id)
     if not user:

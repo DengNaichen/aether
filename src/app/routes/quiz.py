@@ -1,19 +1,20 @@
-from uuid import UUID
 import uuid
 from datetime import datetime, timezone
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
-from src.app.models.quiz import QuizSubmission, Quiz, QuizStatus
-from src.app.routes.course import get_course_by_id
-from src.app.schemas.quiz import QuizStartResponse, QuizRequest
-# from src.app.models.enrollment import Enrollment
-from src.app.models.user import User
 # from src.app.models.session import Session
 # from src.app.schemas.enrollment import EnrollmentRequest, EnrollmentResponse
 from src.app.core.deps import get_current_active_user, get_db
+from src.app.models.quiz import Quiz, QuizStatus, QuizSubmission
+
+# from src.app.models.enrollment import Enrollment
+from src.app.models.user import User
+from src.app.routes.course import get_course_by_id
+from src.app.schemas.quiz import QuizRequest, QuizStartResponse
 
 router = APIRouter(
     prefix="/course",
@@ -36,10 +37,10 @@ def mock_data():
                     "299,792 km/s",
                     "150,000 km/s",
                     "1,080 million km/h",
-                    "300,000 km/s"
+                    "300,000 km/s",
                 ],
-                "correct_answer": 0
-            }
+                "correct_answer": 0,
+            },
         },
         {
             "id": UUID("22222222-2222-2222-2222-222222222222"),
@@ -48,28 +49,24 @@ def mock_data():
             "knowledge_point_id": "physics",
             "question_type": "multiple_choice",
             "details": {
-                "options": [
-                    "F = ma",
-                    "E = mc^2",
-                    "a^2 + b^2 = c^2",
-                    "PV = nRT"
-                ],
-                "correct_answer": 0
-            }
-        }
+                "options": ["F = ma", "E = mc^2", "a^2 + b^2 = c^2", "PV = nRT"],
+                "correct_answer": 0,
+            },
+        },
     ]
 
 
-@router.post("/{course_id}/quizzes",
-             response_model=QuizStartResponse,
-             status_code=status.HTTP_201_CREATED,
-             summary="Start a new dynamic quiz"
-             )
+@router.post(
+    "/{course_id}/quizzes",
+    response_model=QuizStartResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Start a new dynamic quiz",
+)
 async def start_a_quiz(
-        course_id: str,
-        quiz_request: QuizRequest,
-        db: AsyncSession = Depends(get_db),
-        current_user: User = Depends(get_current_active_user)
+    course_id: str,
+    quiz_request: QuizRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
 ):
     """
     Start a question recommendation session.
@@ -99,7 +96,7 @@ async def start_a_quiz(
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="An active quiz submission already exists "
-                   "for this course. Please complete it first."
+            "for this course. Please complete it first.",
         )
 
     new_quiz = Quiz(
@@ -128,5 +125,5 @@ async def start_a_quiz(
         course_id=new_quiz.course_id,
         question_num=new_quiz.question_num,
         submission_id=new_submission.id,
-        questions=mock_questions
+        questions=mock_questions,
     )

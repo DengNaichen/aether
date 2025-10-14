@@ -1,15 +1,15 @@
+import uuid
+from uuid import UUID
+
 import pytest
 import pytest_asyncio
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from uuid import UUID
 
-from src.app.models.user import User
 from src.app.models.course import Course
-from src.app.models.quiz import Quiz, QuizSubmission, SubmissionAnswer, QuizStatus
-
-import uuid
+from src.app.models.quiz import Quiz, QuizStatus, QuizSubmission, SubmissionAnswer
+from src.app.models.user import User
 
 # --- Test Constants ---
 QUESTION_1_ID = str(uuid.uuid4())
@@ -17,6 +17,7 @@ QUESTION_2_ID = str(uuid.uuid4())
 
 
 # --- Fixtures ---
+
 
 @pytest_asyncio.fixture(scope="function")
 async def in_progress_submission(
