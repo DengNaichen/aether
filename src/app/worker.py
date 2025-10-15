@@ -1,18 +1,12 @@
 import asyncio
 import json
 import traceback
+from typing import Callable, Dict
 
-import redis
 from datetime import datetime, timezone
-from neo4j import AsyncGraphDatabase
 
-# --- Configuration ---
-# In a real app, load these from environment variables!
-REDIS_HOST = "localhost"
-REDIS_PORT = 6379
-NEO4J_URI = "bolt://localhost:7687"
-NEO4J_USER = "neo4j"
-NEO4J_PASSWORD = "your_neo4j_password" # TODO: Change this!
+from src.app.core.database import db_manager, DatabaseManager
+from contextlib import asynccontextmanager
 
 MAX_RETRIES = 3
 RETRY_DELAY_BASE = 2  # in seconds
@@ -21,12 +15,32 @@ DLQ_NAME = "general_task_dlq"  # The name for our Dead-Letter Queue
 
 
 class WorkerContext:
-    def __init__(self, neo4j_driver, redis_client):
-        self.neo4j_driver = neo4j_driver
-        self.redis_client = redis_client
+    def __init__(self, db_mng: DatabaseManager):
+        self.db_manager = db_mng
+
+    @property
+    def neo4j_driver(self):
+        return self.db_manager.neo4j_driver
+
+    @property
+    def redis_driver(self):
+        return self.db_manager.redis_client
+
+    @asynccontextmanager
+    async def neo4j_session(self):
+        """
+        get Neo4J session
+        """
+        async with self.db_manager.get_neo4j_session() as session:
+            yield session
+
+    @asynccontextmanager
+    async def sql_session(self):
+        async with self.db_manager.get_sql_session() as session:
+            yield session
 
 
-TASK_HANDLERS = {}
+TASK_HANDLERS: Dict[str, Callable] = {}
 
 
 def register_handler(task_type: str):
@@ -40,6 +54,7 @@ def register_handler(task_type: str):
 async def handle_neo4j_create_course(payload: dict, ctx: WorkerContext):
     course_id = payload.get("course_id")
     course_name = payload.get("course_name")
+
     if not course_id:
         raise ValueError(f"Missing course id: {course_id} for graph database sync")
 
@@ -52,14 +67,22 @@ async def handle_neo4j_create_course(payload: dict, ctx: WorkerContext):
     print(f"✅ Course {course_id} synced to graph database")
 
 
-async def move_to_dlq(redis_client, task: dict, error_message: str):
+async def move_to_dlq(
+        redis_client,
+        task: dict,
+        error_message: str,
+        retry_count: int = 0
+):
     dlq_payload = {
         "original_task": task,
         "error_message": error_message,
+        "retry_count": retry_count,
         "failed_at": datetime.now(timezone.utc).isoformat(),
         "traceback": traceback.format_exc(),
     }
+
     await redis_client.lpush(DLQ_NAME, json.dumps(dlq_payload))
+    task_type = task.get("task_type", "unknown")
     print(f"🚨 Task move to DLQ: {task.get("task_type")}")
 
 
@@ -88,43 +111,115 @@ async def process_task(task_data: str, ctx: WorkerContext, max_retries: int = 3)
                 await asyncio.sleep(2 ** attempt)
 
 
-asynccon
+class WorkerStats:
+
+    def __init__(self):
+        self.processed_count = 0
+        self.failed_count = 0
+        self.start_time = datetime.now(timezone.utc)
+
+    def increment_processed(self):
+        self.processed_count += 1
+
+    def increment_failed(self):
+        self.failed_count += 1
+
+    def get_stats(self) -> dict:
+        runtime = (datetime.now() - self.start_time).total_seconds()
+        return {
+            "processed_count": self.processed_count,
+            "failed_count": self.failed_count,
+            "runtime": runtime,
+            "throughput": self.processed_count / runtime if runtime > 0 else 0,
+            "start_time": self.start_time.isoformat(),
+        }
+
+    def print_stats(self):
+        stats = self.get_stats()
+        print(f"\n{'=' * 50}")
+        print(f"📊 Worker Statistics")
+        print(f"{'=' * 50}")
+        print(f"✅ Processed: {stats['processed']}")
+        print(f"❌ Failed: {stats['failed']}")
+        print(f"⏱️  Runtime: {stats['runtime_seconds']:.2f}s")
+        print(f"🚀 Throughput: {stats['throughput']:.2f} tasks/sec")
+        print(f"{'=' * 50}\n")
 
 
+class AsyncWorker:
 
+    def __init__(self, db_mng: DatabaseManager, queue_name: str = MAIN_QUEUE_NAME):
+        self.db_manager = db_mng
+        self.queue_name = queue_name
+        self.ctx = WorkerContext(db_mng)
+        self.stats = WorkerStats()
+        self.running = False
+
+    async def start(self):
+        """Start the worker."""
+        print(f"\n{'='*50}")
+        print(f"🚀 Starting Worker")
+        print(f"{'=' * 50}")
+        print(f"📥 Listening on queue: {self.queue_name}")
+        print(f"📊 DLQ: {DLQ_NAME}")
+        print(f"🔄 Max retries: {MAX_RETRIES}")
+        print(f"📝 Registered handlers: {len(TASK_HANDLERS)}")
+        for task_type in TASK_HANDLERS.keys():
+            print(f"   - {task_type}")
+        print(f"{'=' * 50}\n")
+
+        await self.db_manager.initialize()
+
+        self.running = True
+
+        try:
+            await self._run_loop()
+        except KeyboardInterrupt:
+            print("\n⚠️ Received shutdown signal...")
+        finally:
+            await self.shutdown()
+
+    async def _run_loop(self):
+        """
+        main loop
+        """
+        while self.running:
+            try:
+                result = await self.ctx.redis_client.brpop(
+                    self.queue_name,
+                    timeout=1
+                )
+
+                if result is None:
+                    continue
+
+                _, task_data = result
+
+                try:
+                    await process_task(task_data, self.ctx)
+                    self.stats.increment_processed()
+                except Exception as e:
+                    print(f"🚨 Critical error processing task: {e}")
+                    self.stats.increment_failed()
+
+                if self.stats.processed_count % 100 == 0:
+                    self.stats.print_stats()
+
+            except Exception as e:
+                print(f"🚨 Worker loop error: {e}")
+                await asyncio.sleep(1)
+
+    async def shutdown(self):
+        """
+        showdown the worker
+        """
+        print("\n Shutting down worker")
+        self.running = False
+        self.stats.print_stats()
+        await db_manager.close()
+        print("✅ Worker shutdown complete\n")
 
 
 async def main():
-    """The main worker process"""
-    neo4j_driver = AsyncGraphDatabase.driver(
-        NEO4J_URI,
-        auth=(NEO4J_USER, NEO4J_PASSWORD),
-    )
-    redis_client = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, decode_responses=True)
-    sync_redis_client = redis.asyncio.from_url(f"redis://{REDIS_HOST}:{REDIS_PORT}", decode_responses=True)
-
-    print("✅ Worker is running and waiting for tasks...")
-
-    while True:
-        task_message = None
-        try:
-            # BRPOP blocks the connection until a task is avaliable in the queue
-            #
-            _queue, task_message_str = redis_client.brpop(MAIN_QUEUE_NAME)
-
-
-            print(f"📩 Received task of type: {task_type}")
-
-
-
-
-            succeeded = False
-
-
-        except Exception as e:
-            print(f"🚨 A critical error occurred: {e}")
-            if task_message_str:
-                await move_to_dlq(redis_client, {"raw_message": task_message_str}, str(e))
-
-
-
+    worker = AsyncWorker(db_manager, MAIN_QUEUE_NAME)
+    await worker.start()
