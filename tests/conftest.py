@@ -75,7 +75,7 @@ async def test_db(
     test_db_manager: DatabaseManager,
 ) -> AsyncGenerator[AsyncSession, None]:
     """提供测试数据库会话"""
-    async with test_db_manager.get_session() as session:
+    async with test_db_manager.get_sql_session() as session:
         try:
             yield session
         finally:

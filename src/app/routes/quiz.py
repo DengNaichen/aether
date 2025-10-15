@@ -6,14 +6,11 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
-# from src.app.models.session import Session
-# from src.app.schemas.enrollment import EnrollmentRequest, EnrollmentResponse
 from src.app.core.deps import get_current_active_user, get_db
 from src.app.models.quiz import Quiz, QuizStatus, QuizSubmission
 
-# from src.app.models.enrollment import Enrollment
 from src.app.models.user import User
-from src.app.routes.course import get_course_by_id
+from src.app.routes.enrollment import get_course_by_id
 from src.app.schemas.quiz import QuizRequest, QuizStartResponse
 
 router = APIRouter(

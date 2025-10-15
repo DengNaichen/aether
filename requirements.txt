@@ -21,9 +21,7 @@ cffi==2.0.0
 charset-normalizer
 click==8.3.0
 comm
-contourpy
 cryptography==46.0.2
-cycler
 debugpy
 decorator
 defusedxml
@@ -34,7 +32,6 @@ executing
 fastapi==0.117.1
 fastapi-mail==1.5.0
 fastjsonschema
-fonttools
 greenlet==3.2.4
 h11
 httpcore
@@ -42,46 +39,21 @@ httptools==0.6.4
 httpx
 idna==3.10
 iniconfig==2.1.0
-ipykernel
-ipython
-ipython_pygments_lexers
 jedi
 Jinja2
 json5
 jsonschema
 jsonschema-specifications
-jupyter-events
-jupyter-lsp
-jupyter_client
-jupyter_core
-jupyter_server
-jupyter_server_terminals
-jupyterlab
-jupyterlab_pygments
-jupyterlab_server
 kiwisolver
 MarkupSafe
-matplotlib==3.10.0
-matplotlib-inline
 mistune
-# mkl-fft - removed: not available via pip, requires Intel MKL
-# mkl-random - removed: not available via pip, requires Intel MKL  
-# mkl-service==2.4.0 - removed: not available via pip, requires Intel MKL
-nbclient
-nbconvert
-nbformat
 neo4j==5.28.2
-nest-asyncio
-notebook
-notebook_shim
-numpy
 overrides
 packaging
 pandocfilters
 parso
 passlib==1.7.4
 pexpect
-pillow
 platformdirs
 pluggy==1.6.0
 prometheus_client
@@ -131,7 +103,6 @@ tornado
 traitlets
 typing-inspection==0.4.1
 typing_extensions==4.15.0
-unicodedata2
 urllib3
 uvicorn==0.37.0
 uvloop==0.21.0
@@ -141,3 +112,4 @@ webencodings
 websocket-client
 websockets==15.0.1
 wheel==0.45.1
+redis >= 5.0.0

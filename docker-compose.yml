@@ -14,7 +14,7 @@ services:
     depends_on:
       db:
         condition: service_healthy
-      neo4j:
+      redis:
         condition: service_healthy
 
   db:
@@ -31,23 +31,21 @@ services:
       timeout: 5s
       retries: 5
 
-  neo4j:
-    image: neo4j:5.18.1
-    environment:
-      NEO4J_AUTH: ${NEO4J_USER}/${NEO4J_PASSWORD}
-      NEO4J_initial_dbms_default__database: ${NEO4J_initial_dbms_default__database}
+  redis:
+    image: redis:7-alpine
+    container_name: aether-redis
     ports:
-      - "7474:7474"
-      - "7687:7687"
+      - "6379:6379"
     volumes:
-      - neo4j_data:/data
+      - redis_data:/data
     healthcheck:
-      test: [ "CMD", "wget", "--spider", "-q", "localhost:7474" ]
+      test: ["CMD", "redis-cli", "ping"]
       interval: 5s
-      timeout: 5s
+      timeout: 3s
       retries: 5
+    restart: unless-stopped
 
 
 volumes:
   postgres_data:
-  neo4j_data:
+  redis_data:

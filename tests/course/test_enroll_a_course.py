@@ -19,7 +19,7 @@ async def test_enroll_a_course_failed_with_unauthenticated_user(
     client: AsyncClient,
     course_in_db: Course,
 ):
-    response = await client.post(f"/course/{course_in_db.id}/enrollments")
+    response = await client.post(f"/courses/{course_in_db.id}/enrollments")
     assert response.status_code == status.HTTP_401_UNAUTHORIZED
     assert response.json()["detail"] == "Not authenticated"
 
@@ -31,7 +31,7 @@ async def test_enroll_a_course_failed_with_not_exist_course(
     non_existent_course_id = "not_exist"
 
     response = await authenticated_client.post(
-        f"/course/{non_existent_course_id}/enrollments"
+        f"/courses/{non_existent_course_id}/enrollments"
     )
     assert response.status_code == status.HTTP_404_NOT_FOUND
     assert response.json()["detail"] == "Course not found"
@@ -41,7 +41,7 @@ async def test_enroll_a_course_failed_with_not_exist_course(
 async def test_enroll_a_course_failed_with_already_enrolled(
     enrolled_user_client: AsyncClient, course_in_db: Course
 ):
-    response = await enrolled_user_client.post(f"/course/{course_in_db.id}/enrollments")
+    response = await enrolled_user_client.post(f"/courses/{course_in_db.id}/enrollments")
     # failed because already exist
     assert response.status_code == status.HTTP_409_CONFLICT
     assert response.json()["detail"] == "User already enrolled this course."
@@ -53,9 +53,10 @@ async def test_enroll_a_course_successful_as_authenticated_user(
     course_in_db: Course,
     user_in_db: User,
     test_db: AsyncSession,
+    # TODO: neo4j_test_driver: this function need to be changed
 ):
     course_id = COURSE_ID
-    response = await authenticated_client.post(f"/course/{course_id}/enrollments")
+    response = await authenticated_client.post(f"/courses/{course_id}/enrollments")
 
     assert response.status_code == status.HTTP_201_CREATED
 

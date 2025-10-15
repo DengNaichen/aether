@@ -6,7 +6,7 @@ from neo4j import AsyncGraphDatabase
 import src.app.models as models
 from src.app.core.config import settings
 from src.app.core.database import db_manager
-from src.app.routes import auth, course, question, quiz, submissions, user
+from src.app.routes import auth, enrollment, question, quiz, submissions, user
 
 
 # define lifespan
@@ -30,7 +30,7 @@ app = FastAPI(lifespan=lifespan)
 app.include_router(auth.router)
 app.include_router(user.router)
 app.include_router(question.router)
-app.include_router(course.router)
+app.include_router(enrollment.router)
 app.include_router(quiz.router)
 app.include_router(submissions.router)
 

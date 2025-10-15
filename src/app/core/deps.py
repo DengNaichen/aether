@@ -10,10 +10,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.app.core.config import settings
 from src.app.core.database import db_manager
 
-# from src.app.core.database import AsyncSessionLocal
 from src.app.crud.user import get_user_by_email, get_user_by_id
 
-# from src.app.main import db_connections
 from src.app.models.user import User
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
@@ -21,7 +19,7 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
     # provide the database session
-    async with db_manager.get_session() as session:
+    async with db_manager.get_sql_session() as session:
         try:
             yield session
         finally:
