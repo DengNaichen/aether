@@ -5,6 +5,7 @@ from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
 from neo4j import AsyncNeo4jDriver
+from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.app.core.config import settings
@@ -24,6 +25,10 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
             yield session
         finally:
             pass
+
+
+async def get_redis_client() -> Redis:
+    return db_manager.redis_client
 
 
 async def get_neo4j_driver() -> AsyncNeo4jDriver:

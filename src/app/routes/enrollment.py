@@ -35,53 +35,6 @@ router = APIRouter(
 
 
 @router.post(
-    "/",
-    status_code=status.HTTP_201_CREATED,
-    summary="Create a new course",
-    response_model=CourseResponse
-)
-async def create_course(
-        course_data: CourseRequest,
-        db: AsyncSession = Depends(get_db),
-        neo4j_driver: AsyncDriver = Depends(get_neo4j_driver),
-        # admin:
-) -> Course:
-    """
-    Create a new course by admin
-    Args:
-        course_data (CourseRequest): Course data
-        db (AsyncSession): Database session
-        neo4j_driver (AsyncDriver): Neo4j driver
-        admin (User): User
-    """
-    course_id = assemble_course_id(course_data.grade, course_data.subject)
-
-    existing_course = await check_course_exists(course_id, db)
-    if existing_course:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=f"Course with ID {course_id} already exists",
-        )
-
-    new_course = Course(
-        id=course_id,
-        name=course_data.name,
-        description=course_data.description,
-    )
-    db.add(new_course)
-    await db.commit()
-    await db.refresh(new_course)
-
-    async with neo4j_driver.session() as session:
-        await session.run(
-            "CREATE (c:Course {id: $id})",
-            id=new_course.id,
-            name=new_course.name,
-        )
-    return new_course
-
-
-@router.post(
     "/{course_id}/enrollments",
     status_code=status.HTTP_201_CREATED,
     summary="create a new enrollment for a course",

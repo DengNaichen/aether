@@ -1,49 +1,87 @@
+import json
+
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.ext.asyncio import AsyncSession
+from redis.asyncio import Redis
+
 from src.app.models.course import Course
-from neo4j import AsyncDriver
-from src.app.core.deps import get_db, get_neo4j_driver
-from
+from src.app.core.deps import get_db, get_redis_client
+from src.app.helper.course_helper import assemble_course_id
+from src.app.schemas.courses import CourseRequest
 
 router = APIRouter(
     prefix="/courses",
     tags=["courses"],
 )
 
+
 @router.post(
     "/",
     status_code=status.HTTP_201_CREATED,
-    summary="Create a new course in both neo4j and sqlalchemy",
-    response_model=Course, # TODO: do I need response model?
+    summary="Create a new course",
+    response_model=Course,
 )
 async def create_course(
-        course_id: str,
-        course_name: str,
-        course_description: str,
+        course_data: CourseRequest,
         db: AsyncSession = Depends(get_db),
-        # TODO: this line need to be consider more carefully
-        neo4j_driver: AsyncDriver = Depends(get_neo4j_driver),
-):
+        redis_client: Redis = Depends(get_redis_client)
+        # admin: # TODO: need a admin account ?
+) -> Course:
     """
-    Create a new course in both neo4j and sqlalchemy
+    Create a new course by admin
     Args:
-        course_id (str): course id
-        course_name (str): course name
-        course_description (str): course description
-        db (AsyncSession): database session
-        neo4j_driver (AsyncGraphDatabase): neo4j driver
+        course_data (CourseRequest): Course data
+        db (AsyncSession): Database session
+        redis_client (Redis): Redis client
     """
+    course_id = assemble_course_id(course_data.grade, course_data.subject)
+
     await check_repeat_course(course_id, db)
-    course = Course(
+
+    new_course = Course(
         id=course_id,
-        course_name=course_name,
-        description=course_description,
+        name=course_data.name,
+        description=course_data.description,
     )
-    db.add(course)
+    db.add(new_course)
+
     try:
-        # TODO: add course to neo4j
-        neo4j_result = await asyncio.to_thread(
-            create_neo4j_new_course,
-            course_id=course_id,
-            course_name=course_name,
-            course_description=course_description,
+        await db.commit()
+        await db.refresh(new_course)
+
+        task = {
+            "task_type": "handle_neo4j_create_course",
+            "payload": {
+                "course_id": course_id,
+                "course_name": course_data.name,
+                "course_description": course_data.description,
+            }
+        }
+
+        await redis_client.lpush("general_task_queue", json.dumps(task))
+        print(f"📤 Task queued for course {course_id}")
+
+        return new_course
+
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to create course {course_id}: {e}"
+        )
+
+
+async def check_repeat_course(course_id: str, db: AsyncSession):
+    """
+    Check if a course was existed
+    """
+    from sqlalchemy import select
+    stmt = select(Course).where(Course.id == course_id)
+    result = await db.execute(stmt)
+    existing_course = result.scalar_one_or_none()
+
+    if existing_course:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Course with ID {course_id} already exists",
         )

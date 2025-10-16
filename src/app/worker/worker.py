@@ -1,70 +1,17 @@
 import asyncio
 import json
 import traceback
-from typing import Callable, Dict
 
 from datetime import datetime, timezone
 
 from src.app.core.database import db_manager, DatabaseManager
-from contextlib import asynccontextmanager
-
-MAX_RETRIES = 3
-RETRY_DELAY_BASE = 2  # in seconds
-MAIN_QUEUE_NAME = "general_task_queue"
-DLQ_NAME = "general_task_dlq"  # The name for our Dead-Letter Queue
-
-
-class WorkerContext:
-    def __init__(self, db_mng: DatabaseManager):
-        self.db_manager = db_mng
-
-    @property
-    def neo4j_driver(self):
-        return self.db_manager.neo4j_driver
-
-    @property
-    def redis_driver(self):
-        return self.db_manager.redis_client
-
-    @asynccontextmanager
-    async def neo4j_session(self):
-        """
-        get Neo4J session
-        """
-        async with self.db_manager.get_neo4j_session() as session:
-            yield session
-
-    @asynccontextmanager
-    async def sql_session(self):
-        async with self.db_manager.get_sql_session() as session:
-            yield session
-
-
-TASK_HANDLERS: Dict[str, Callable] = {}
-
-
-def register_handler(task_type: str):
-    def decorator(func):
-        TASK_HANDLERS[task_type] = func
-        return func
-    return decorator
-
-
-@register_handler("handle_neo4j_create_course")
-async def handle_neo4j_create_course(payload: dict, ctx: WorkerContext):
-    course_id = payload.get("course_id")
-    course_name = payload.get("course_name")
-
-    if not course_id:
-        raise ValueError(f"Missing course id: {course_id} for graph database sync")
-
-    async with ctx.neo4j_driver.session() as session:
-        await session.run(
-            "MERGE (c: Course {id: $id, name: $name})",
-            id=course_id,
-            name=course_name,
-        )
-    print(f"✅ Course {course_id} synced to graph database")
+from src.app.worker.config import (
+    WorkerContext,
+    MAIN_QUEUE_NAME,
+    DLQ_NAME,
+    TASK_HANDLERS,
+    MAX_RETRIES
+)
 
 
 async def move_to_dlq(
@@ -218,8 +165,3 @@ class AsyncWorker:
         self.stats.print_stats()
         await db_manager.close()
         print("✅ Worker shutdown complete\n")
-
-
-async def main():
-    worker = AsyncWorker(db_manager, MAIN_QUEUE_NAME)
-    await worker.start()
