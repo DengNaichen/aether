@@ -5,9 +5,9 @@
     - [ ] API endpoint:
         - [x] `POST/auth/register`
         - [x] `POST/auth/login`
-        - [ ] `POST/auth/logout`
+        - [x] `POST/auth/logout`
         - [x] `POST/user/me`
-    - [x] Token: Implement the JWT assignment, velidation and refresh
+    - [x] Token: Implement the JWT assignment, validation and refresh
 - [ ] iOS Client
     - [x] UI/UX
     - [x] Network Layer: implement the api service

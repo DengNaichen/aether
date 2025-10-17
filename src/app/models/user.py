@@ -10,8 +10,8 @@ from src.app.models.base import Base
 class User(Base):
     """Represents a student user in the databases
 
-    This model stores essential information for a student, including personal
-    details, authentication credentials, and account status.
+    This model stores essential information for a student or an admin,
+    including personal details, authentication credentials, and account status.
     It also supports both traditional password-based authentication
     and OAuth for third-party logins.
 
@@ -21,10 +21,11 @@ class User(Base):
         email(str): The student's unique email
         hashed_password(str): The hashed and salted password
         is_active(bool): A flag to indicate if the account is active.
+        is_admin(bool): A flag to indicate if the account is an admin.
         oauth_provider(str, optional): The name of the OAuth provider.
         oauth_id(str, optional): The unique user ID from the OAuth provider
         created_at(datetime): The timestamp when the student account was created
-        update_at(datetime): The timestamp when the student account was updated
+        updated_at(datetime): The timestamp when the student account was updated
     """
 
     __tablename__ = "user"
@@ -34,6 +35,8 @@ class User(Base):
     email = Column(String(255), unique=True, nullable=False)
     hashed_password = Column(String(255), nullable=False)
     is_active = Column(Boolean, default=True)
+    is_admin = Column(Boolean, default=False, nullable=False)
+
     oauth_provider = Column(String, nullable=True)
     oauth_id = Column(String, nullable=True)
 

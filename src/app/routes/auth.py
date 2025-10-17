@@ -30,11 +30,30 @@ router = APIRouter(
 )
 
 
-@router.post("/register", response_model=UserRead, status_code=status.HTTP_201_CREATED)
-async def register_student(user_data: UserCreate, db: AsyncSession = Depends(get_db)):
+@router.post(
+        "/register",
+        response_model=UserRead,
+        status_code=status.HTTP_201_CREATED
+)
+async def register_user(
+    user_data: UserCreate,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Register a new user.
+    Args:
+        user_data (UserCreate): The user data for registration.
+        db (AsyncSession): The database session dependency.
+    Returns:
+        UserRead: The created user data.
+    Raises:
+        HTTPException: If the email is already registered.
+    """
     existing_user = await get_user_by_email(db=db, email=user_data.email)
+
     if existing_user:
         raise HTTPException(status_code=400, detail="Email already registered")
+    
     new_user = await create_user(db=db, user_data=user_data)
     return new_user
 
@@ -52,7 +71,7 @@ async def login_for_access_token(
             detail="Incorrect email or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    access_token = create_access_token(subject=str(user.id))
+    access_token = create_access_token(user=str(user.id))
     refresh_token = create_refresh_token(subject=str(user.id))
 
     await update_refresh_token(db=db, user_id=user.id, token=refresh_token)
@@ -111,7 +130,7 @@ async def refresh_access_token(
     if user.refresh_token != refresh_token:
         raise HTTPException(status_code=401, detail="Invalid refresh token")
 
-    new_access_token = create_access_token(subject=user.email)
+    new_access_token = create_access_token(user=user.email)
     new_refresh_token = create_refresh_token(subject=user.email)
 
     user.refresh_token = new_refresh_token

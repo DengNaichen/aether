@@ -4,6 +4,7 @@ from typing import Any, Union
 
 from jose import jwt
 from passlib.context import CryptContext
+from pydantic import EmailStr
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.app import crud
@@ -15,25 +16,66 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
 # jwt configuration
-SECERT_KEY = settings.SECRET_KEY
+SECRET_KEY = settings.SECRET_KEY
 ALGORITHM = settings.ALGORITHM
 REFRESH_TOKEN_EXPIRE_DAY = settings.REFRESH_TOKEN_EXPIRE_DAYS
 ACCESS_TOKEN_EXPIRE_MINUTES = 1440
 
 
 def get_password_hash(password: str) -> str:
+    """
+    hash a plaintext password
+
+    Args:
+        password (str): password to hash
+
+    Returns:
+        str: hashed password
+    """
     return pwd_context.hash(password)
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    """verify if the plain password matches the hashed password"""
+    """
+    verify if the plain password matches the hashed password
+
+    Args:
+        plain_password (str): plain password to verify
+        hashed_password (str): hashed password to verify
+
+    Returns:
+        bool: True if the password matches the hashed password
+        False otherwise
+    """
     return pwd_context.verify(plain_password, hashed_password)
 
 
 def create_access_token(
-    subject: Union[str, Any], expires_delta: timedelta | None = None
+        user: User,
+        expires_delta: timedelta | None = None
 ) -> str:
-    """create JWT based on the expired data and user info"""
+    """
+    Generate a JWT access token for a given user
+
+    This function creates a signed JWT containing the user's ID,
+    admin status, issued-at time, and expiration time. The expiration
+    time can be customized via `expires_delta` or default to the
+    configured `REFRESH_TOKEN_EXPIRE_DAYS` environment variable.
+
+    Args:
+        user(User): The user object for whom the access token is created.
+        expires_delta (timedelta | None, optional): The time duration after
+            which the access token will expire. If not provided, a default
+            duration is applied.
+
+    Returns:
+        str: The encoded JWT access token.
+
+    Example:
+        >>> token = create_access_token(user)
+        >>> print(token)
+        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'
+    """
     if expires_delta:
         expire = datetime.now(timezone.utc) + expires_delta
     else:
@@ -43,20 +85,41 @@ def create_access_token(
 
     to_encode = {
         "exp": expire,
-        "sub": str(subject),
+        "sub": str(user.id),
         "iat": datetime.now(timezone.utc),
         "jti": str(uuid.uuid4()),
+        "is_admin": user.is_admin,
     }
-    encoded_jwt = jwt.encode(to_encode, SECERT_KEY, algorithm=ALGORITHM)
+    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
     return encoded_jwt
 
 
-def create_refresh_token(subject: str) -> str:
-    expires = datetime.now(timezone.utc) + timedelta(days=REFRESH_TOKEN_EXPIRE_DAY)
+def create_refresh_token(user: User) -> str:
+    """
+    Generate a JWT refresh token for a given user
+
+    This function creates a signed refresh token can be used to obtain
+    new access tokens with requiring the user to log in again. The token
+    includes the user's ID, a unique identifier(JTI), issued-at time,
+    and an expiration date based on the configured `REFRESH_TOKEN_EXPIRE_DAYS`
+
+    Args:
+        user(User): The user object for whom the refresh token is created.
+
+    Returns:
+        str: The encoded JWT refresh token.
+
+    Example:
+        >>> token = create_refresh_token(user)
+        >>> print(token)
+        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'
+    """
+    expires = (datetime.now(timezone.utc)
+               + timedelta(days=REFRESH_TOKEN_EXPIRE_DAY))
     to_encode = {
         "exp": expires,
-        "sub": str(subject),
+        "sub": str(user.id),
         "iat": datetime.now(timezone.utc),
         "jti": str(uuid.uuid4()),
     }
@@ -64,15 +127,42 @@ def create_refresh_token(subject: str) -> str:
     return encode_jwt
 
 
-# TODO: should I use EmailStr here ?
-async def authenticate_user(db: AsyncSession, email: str, password: str) -> User | None:
+async def authenticate_user(
+        db: AsyncSession,
+        email: EmailStr,
+        password: str
+) -> User | None:
     """
-    User verification function
+    Authenticate a user with the given email and password.
+
+    This asynchronous function retrieves the user from the database by email,
+    verifies that the user exists and is active, and checks whether the
+    provided password matches the stored hashed password. Returns the user
+    object if authentication is successful; otherwise, returns None.
+
+    Args:
+        db (AsyncSession): SQLAlchemy asynchronous database session.
+        email (EmailStr): Email address of the user.
+        password (str): Plain-text password provided by the user.
+
+    Returns:
+        User | None: The authenticated user object if credentials are valid;
+            otherwise, None.
+
+    Example:
+        >>> async def demo():
+        ...     exp_em = EmailStr("example@email")
+        ...     exp_user = await authenticate_user(db, email=exp_em, password="p")
+        ...     if user:
+        ...         print(user.id)
+        ...     else:
+        ...         print("Invalid credentials")
     """
     user = await crud.user.get_user_by_email(db, email=email)
 
-    # if the user doesn't exist, return None
     if not user:
+        return None
+    if not user.is_active:
         return None
     if not verify_password(password, user.hashed_password):
         return None

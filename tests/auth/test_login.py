@@ -51,9 +51,8 @@ async def test_access_protected_route_with_expired_token(
     login_data = {"username": "refresh@test.com", "password": "a-secure-password123456"}
 
     # create an expired token
-    expired_token = create_access_token(
-        subject=login_data["username"], expires_delta=timedelta(minutes=-1)
-    )
+    expired_token = create_access_token(user=login_data["username"],
+                                        expires_delta=timedelta(minutes=-1))
     headers = {"Authorization": f"Bearer {expired_token}"}
     response = await client.get("user/me", headers=headers)
 
@@ -72,9 +71,9 @@ async def test_refresh_with_invalid_token(client: AsyncClient):
 
 @pytest.mark.asyncio
 async def test_refresh_with_expired_refresh_token(client: AsyncClient):
-    expired_refresh_token = create_access_token(
-        subject="any@user.com", expires_delta=timedelta(minutes=-1)
-    )
+    expired_refresh_token = create_access_token(user="any@user.com",
+                                                expires_delta=timedelta(
+                                                    minutes=-1))
     refresh_payload = {"refresh_token": expired_refresh_token}
     response = await client.post("/auth/refresh", json=refresh_payload)
 

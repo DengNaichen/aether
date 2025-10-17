@@ -3,6 +3,7 @@ import sys
 from pathlib import Path
 
 import pytest
+from redis.asyncio import Redis
 
 ROOT_DIR = Path(__file__).parent.parent
 sys.path.insert(0, str(ROOT_DIR))
@@ -83,6 +84,19 @@ async def test_db(
 
 
 @pytest_asyncio.fixture(scope="function")
+async def test_redis(
+
+) -> AsyncGenerator[Redis, None]:
+    """
+    provide a redis client for each test function, and clean after
+    """
+    client = aioredis.from_url(os.environ["REDIS_URL"])
+    yield client
+    await client.flushall()
+    await client.close()
+
+
+@pytest_asyncio.fixture(scope="function")
 async def client(
     test_db: AsyncSession, test_db_manager: DatabaseManager
 ) -> AsyncGenerator[AsyncClient, None]:
@@ -154,7 +168,7 @@ async def enrollment_in_db(test_db: AsyncSession, user_in_db: User) -> Enrollmen
 
 @pytest_asyncio.fixture(scope="function")
 async def authenticated_client(client: AsyncClient, user_in_db: User) -> AsyncClient:
-    token = create_access_token(subject=str(user_in_db.id))
+    token = create_access_token(user=str(user_in_db.id))
     client.headers["Authorization"] = f"Bearer {token}"
     return client
 

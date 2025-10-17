@@ -1,7 +1,7 @@
 import uuid
 from typing import AsyncGenerator
 
-from fastapi import Depends, HTTPException, Request, status
+from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
 from neo4j import AsyncNeo4jDriver
@@ -10,16 +10,18 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.app.core.config import settings
 from src.app.core.database import db_manager
-
-from src.app.crud.user import get_user_by_email, get_user_by_id
-
+from src.app.crud.user import get_user_by_id
 from src.app.models.user import User
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
-    # provide the database session
+    """
+    Dependency that provides a SQLAlchemy async session.
+    Yields:
+        AsyncSession: An asynchronous database session.
+    """
     async with db_manager.get_sql_session() as session:
         try:
             yield session
@@ -28,10 +30,22 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
 
 
 async def get_redis_client() -> Redis:
+    """
+    Dependency to get a Redis client from the connection pool.
+    Returns:
+        Redis: An asynchronous Redis client.
+    """
     return db_manager.redis_client
 
 
 async def get_neo4j_driver() -> AsyncNeo4jDriver:
+    """
+    Dependency to get the Neo4j driver.
+    Returns:
+        AsyncNeo4jDriver: An asynchronous Neo4j driver.
+    Raises:
+        HTTPException: If the Neo4j driver is not available.
+    """
     driver = db_manager.neo4j_driver
     if driver is None:
         raise HTTPException(
@@ -42,9 +56,30 @@ async def get_neo4j_driver() -> AsyncNeo4jDriver:
 
 
 async def get_current_user(
-    db: AsyncSession = Depends(get_db), token: str = Depends(oauth2_scheme)
+        db: AsyncSession = Depends(get_db),
+        token: str = Depends(oauth2_scheme)
 ) -> User:
+    """
+    Retrieves the current authenticated user from a JWT access token.
 
+    This asynchronously dependency decodes and validates the provided JWT token,
+    extracts the user ID from the payload, and fetches the corresponding user
+    record from the database. If the token is invalid, expired, or the user
+    does not exist, an HTTP 401 Unauthorized response is raised.
+
+    Args:
+        db(AsyncSession): SQLAlchemy async database session, injected by FastAPI
+            dependency system via `Depends(get_db)`.
+        token(str): JWT access token extracted from the 'Authorization'
+            header using the `oauth2_scheme` dependency.
+
+    Returns:
+        user (User): User object corresponding to the token subject.
+    
+    Raises:
+        HTTPException: If user does not exist or token is invalid.
+        ValueError: If user ID is not a valid UUID
+    """
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
@@ -74,4 +109,38 @@ async def get_current_user(
 async def get_current_active_user(
     current_user: User = Depends(get_current_user),
 ) -> User:
+    """
+    Ensures that the current user is active.
+    Args:
+        current_user (User): The currently authenticated user, injected by
+            FastAPI dependency system via `Depends(get_current_user)`.
+    Returns:
+        User: The active user object.
+    Raises:
+        HTTPException: If the user is inactive.
+    """
+    if not current_user.is_active:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
+                             detail="Inactive user")
+    return current_user
+
+
+async def get_current_admin_user(
+    current_user: User = Depends(get_current_user),
+) -> User:
+    """
+    Ensures that the current user has admin privileges.
+    Args:
+        current_user (User): The currently authenticated user, injected by
+            FastAPI dependency system via `Depends(get_current_user)`.
+    Returns:
+        User: The admin user object.
+    Raises:
+        HTTPException: If the user is not an admin.
+    """
+    if not current_user.is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Insufficient privileges"
+        )
     return current_user
