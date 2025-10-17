@@ -68,6 +68,29 @@ async def login_for_access_token(
 async def refresh_access_token(
     db: AsyncSession = Depends(get_db), refresh_token: str = Body(..., embed=True)
 ):
+    """
+    Refresh the access token
+    A valid, not expired refresh token is used to generate a new access token.
+    Steps:
+    1. Validate the refresh token
+    2. parse the user id from the refresh token
+    3. check if the user exist in the database, and varify if the token is matched
+    4. if validate success, generate a new access token and a new refresh token
+    5. old refresh token will expired, and new refresh token will be store.
+
+    Args:
+        db (AsyncSession): database session dependency
+        refresh_token (str): refresh token in the request body, the request body
+            should be `{"refresh_token": "your-refresh-token"}"`.
+
+    Returns:
+        AccessToken: an object containing a new `access_token` and `refresh_token`
+
+    Raises:
+        HTTPException(401): if the refresh token is invalid, user not found
+            or the bea
+
+    """
     try:
         payload = jwt.decode(
             refresh_token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM]
@@ -101,6 +124,12 @@ async def refresh_access_token(
 async def logout(
     db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)
 ):
+    """
+    Log user out
+    Arguments:
+        db: Sql db session
+        current_user: User object
+    """
     if current_user.refresh_token is None:
         return {"message": "User already logged out"}
     await update_refresh_token(db=db, user_id=current_user.id, token=None)

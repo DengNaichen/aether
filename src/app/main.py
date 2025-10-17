@@ -33,6 +33,7 @@ app.include_router(question.router)
 app.include_router(enrollment.router)
 app.include_router(quiz.router)
 app.include_router(submissions.router)
+# app.include_router(courses.router)
 
 
 @app.get("/health")

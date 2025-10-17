@@ -1,20 +1,11 @@
 from datetime import datetime
-from enum import Enum
 from typing import List, Optional, Union
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from src.app.schemas.questions import AnyQuestion
-
-
-# ===================================================================
-# 1. Enums
-# ===================================================================
-class QuizStatus(str, Enum):
-    IN_PROGRESS = "in_progress"
-    COMPLETED = "completed"
-    ABORTED = "aborted"
+from src.app.models.quiz import QuizStatus
 
 
 # ===================================================================

@@ -18,10 +18,11 @@ class QuizStatus(enum.Enum):
     ABORTED = "aborted"
 
 
-# --- Models ---
-
-
 class Quiz(Base):
+    """
+    The quiz base model
+
+    """
     __tablename__ = "quizzes"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -29,7 +30,6 @@ class Quiz(Base):
     question_num = Column(Integer, nullable=False)
 
     course = relationship("Course", back_populates="quizzes")
-    # [建议] 使用标准一对多关系，为未来“重考”功能做准备
     submissions = relationship("QuizSubmission", back_populates="quiz")
 
 
@@ -38,11 +38,15 @@ class QuizSubmission(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id = Column(UUID(as_uuid=True), ForeignKey("user.id"), nullable=False)
-    quiz_id = Column(UUID(as_uuid=True), ForeignKey("quizzes.id"), nullable=False)
+    quiz_id = Column(UUID(as_uuid=True),
+                     ForeignKey("quizzes.id"),
+                     nullable=False)
 
     # [修正] 使用 SQLAlchemy 的 Enum 类型
     status = Column(
-        SQLAlchemyEnum(QuizStatus, name="quiz_status_enum", create_constraint=True),
+        SQLAlchemyEnum(QuizStatus,
+                       name="quiz_status_enum",
+                       create_constraint=True),
         nullable=False,
         default=QuizStatus.IN_PROGRESS,
     )

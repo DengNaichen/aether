@@ -1,48 +1,67 @@
+import json
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException
 
-from src.app.core.deps import get_neo4j_driver
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.ext.asyncio import AsyncSession
+from redis.asyncio import Redis
+
+from src.app.models.question import Question
 from src.app.schemas.questions import AnyQuestion
+from src.app.core.deps import get_db, get_redis_client
 
-router = APIRouter(prefix="/question", tags=["Question"])
+router = APIRouter(
+    prefix="/question",
+    tags=["question"]
+)
 
 
-@router.post("/", summary="create a new question(Neo4j)")
+@router.post("/",
+             status_code=status.HTTP_201_CREATED,
+             summary="create a new question",
+             response_model=AnyQuestion,  # TODO: the question need to be define
+             )
 async def create_question(
-    question_data: AnyQuestion, neo4j_driver=Depends(get_neo4j_driver)
+    question_data: AnyQuestion,
+    db: AsyncSession = Depends(get_db),
+    redis_client: Redis = Depends(get_redis_client),
 ):
-    # Convert Pydantic model to Neo4j node
-    node_properties = {
-        "id": str(question_data.id),
-        "text": question_data.text,
-        "difficulty": question_data.difficulty.value,
-        "created_at": datetime.now(timezone.utc),
-    }
-    node_properties.update(question_data.details.model_dump())
+    new_questions = Question(
+        id=question_data.id,
+        text=question_data.text,
+        difficulty=question_data.difficulty,
+        question_type=question_data.question_type,
+        details=question_data.details.model_dump(),
+        knowledge_point_id=question_data.knowledge_point_id
+    )
+    db.add(new_questions)
 
-    if question_data.question_type == "multiple_choice":
-        labels = ":Question:MultipleChoice"
-    elif question_data.question_type == "fill_in_the_blank":
-        labels = ":Question:FillInTheBlank"
-    else:
-        raise HTTPException(status_code=400, detail="Unsupported question type")
+    try:
+        await db.commit()
+        await db.refresh(new_questions)
 
-    query = f"""
-    MATCH (kp:KnowledgePoint {{id: $kpid}})
-    CREATE (q{labels} $props)
-    CREATE (q)-[:TESTS]->(kp)
-    RETURN q.id AS create_id
-    """
+        task = {
+            "task_type": "handle_neo4j_create_question",
+            "payload": {
+                "question_id": new_questions.id,
+                "question_type": new_questions.question_type,
+                "knowledge_point_id": new_questions.knowledge_point_id
+            }
+        }
 
-    async with await neo4j_driver.session() as session:
-        result = await session.run(
-            query, kpid=question_data.knowledge_point_id, props=node_properties
+        await redis_client.publish("general_task_queue", json.dumps(task))
+
+        print(f"📤 Task queued for knowledge node id {new_questions.id}")
+        return new_questions
+
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to create new question: {e}"
         )
-        record = await result.single()
-        if not record:
-            raise HTTPException(
-                status_code=500, detail="Failed to create question or link it"
-            )
 
-    return {"status": "success", "data": question_data}
+
+
+
+

@@ -1,10 +1,3 @@
-//
-//  MaxwellUITestsLaunchTests.swift
-//  MaxwellUITests
-//
-//  Created by Naicheng Deng on 2025-09-28.
-//
-
 import XCTest
 
 final class MaxwellUITestsLaunchTests: XCTestCase {

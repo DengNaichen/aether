@@ -1,10 +1,3 @@
-//
-//  MaxwellTests.swift
-//  MaxwellTests
-//
-//  Created by Naicheng Deng on 2025-09-28.
-//
-
 import Testing
 @testable import Maxwell
 

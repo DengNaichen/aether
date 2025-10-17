@@ -35,16 +35,6 @@ class AppCoordinator: ObservableObject {
             }
             .store(in: &cancellables)
         
-        // Note:
-        // Do NOT mutate published properties synchronously here.
-        // App entry already calls `checkAuthenticationStatus()` in MaxwellApp.task.
-        // If you still need to force onboarding for testing, defer it:
-        /*
-        Task { @MainActor in
-            print("💡 [AppCoordinator] Using temporary startup logic: forcing onboarding state (deferred).")
-            self.authService.isAuthenticated = false
-        }
-        */
     }
     
     func showOnboarding() {
