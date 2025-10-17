@@ -8,9 +8,9 @@ class KnowledgeNode(Base):
     """
     SQLAlchemy model for KnowledgeNode.
     """
-    __tablename__ = "knowledge_node"
+    __tablename__ = "knowledge_nodes"
     id = Column(String, primary_key=True)
     name = Column(String, nullable=False)
 
-    course_id = Column(String, ForeignKey("course.id"))
+    course_id = Column(String, ForeignKey("courses.id"))
     description = Column(String, nullable=False)

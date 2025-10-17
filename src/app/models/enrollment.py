@@ -17,8 +17,8 @@ class Enrollment(Base):
         enrollment_date (datetime): Timestamp of when the enrollment was created
     """
 
-    __tablename__ = "enrollment"
+    __tablename__ = "enrollments"
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id = Column(UUID(as_uuid=True), ForeignKey("user.id"), nullable=False)
-    course_id = Column(String, ForeignKey("course.id"), nullable=False)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    course_id = Column(String, ForeignKey("courses.id"), nullable=False)
     enrollment_date = Column(DateTime(timezone=True), server_default=func.now())

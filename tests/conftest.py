@@ -83,17 +83,17 @@ async def test_db(
             await session.close()
 
 
-@pytest_asyncio.fixture(scope="function")
-async def test_redis(
-
-) -> AsyncGenerator[Redis, None]:
-    """
-    provide a redis client for each test function, and clean after
-    """
-    client = aioredis.from_url(os.environ["REDIS_URL"])
-    yield client
-    await client.flushall()
-    await client.close()
+# @pytest_asyncio.fixture(scope="function")
+# async def test_redis(
+#
+# ) -> AsyncGenerator[Redis, None]:
+#     """
+#     provide a redis client for each test function, and clean after
+#     """
+#     client = aioredis.from_url(os.environ["REDIS_URL"])
+#     yield client
+#     await client.flushall()
+#     await client.close()
 
 
 @pytest_asyncio.fixture(scope="function")

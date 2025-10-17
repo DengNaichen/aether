@@ -28,12 +28,12 @@ class User(Base):
         updated_at(datetime): The timestamp when the student account was updated
     """
 
-    __tablename__ = "user"
+    __tablename__ = "users"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    name = Column(String(255), nullable=False)
-    email = Column(String(255), unique=True, nullable=False)
-    hashed_password = Column(String(255), nullable=False)
+    name = Column(String, nullable=False)
+    email = Column(String, unique=True, nullable=False)
+    hashed_password = Column(String, nullable=False)
     is_active = Column(Boolean, default=True)
     is_admin = Column(Boolean, default=False, nullable=False)
 
@@ -46,4 +46,5 @@ class User(Base):
     )
     refresh_token = Column(String, nullable=True, index=True)
 
-    quiz_submissions = relationship("QuizSubmission", back_populates="user")
+    quiz_submissions = relationship("QuizSubmission",
+                                    back_populates="user")

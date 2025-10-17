@@ -13,7 +13,7 @@ async def test_register_failed_with_exsited_user(client: AsyncClient, user_in_db
         "email": TEST_USER_EMAIL,
         "password": TEST_USER_PASSWORD,
     }
-    response = await client.post("/auth/register", json=user_data)
+    response = await client.post("/users/register", json=user_data)
 
     assert response.status_code == status.HTTP_400_BAD_REQUEST
     assert response.json() == {"detail": "Email already registered"}
@@ -29,7 +29,7 @@ async def test_registration_success_with_empty_db(client: AsyncClient):
     }
 
     # send post-request
-    response = await client.post("/auth/register", json=new_student)
+    response = await client.post("/users/register", json=new_student)
     # assert status code
     assert response.status_code == 201
 
@@ -70,7 +70,7 @@ async def test_registration_fails_for_syntactically_invalid_email_with_empty_db(
         "password": "a-secure-password123",
     }
 
-    response = await client.post("/auth/register", json=new_user_data)
+    response = await client.post("/users/register", json=new_user_data)
 
     assert response.status_code == 422
     response_data = response.json()
@@ -97,7 +97,7 @@ async def test_registration_succeeds_for_parseable_email(
         "password": "a-secure-password123",
     }
 
-    response = await client.post("/auth/register", json=new_user_data)
+    response = await client.post("/users/register", json=new_user_data)
 
     assert response.status_code == 201
 

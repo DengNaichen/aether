@@ -2,6 +2,7 @@ import uuid
 from uuid import UUID
 from typing import Union
 
+from pydantic import EmailStr
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
@@ -10,7 +11,7 @@ from src.app.models.user import User
 from src.app.schemas.user import UserCreate, AdminUserCreate
 
 
-async def get_user_by_email(db: AsyncSession, email: str) -> User | None:
+async def get_user_by_email(db: AsyncSession, email: EmailStr) -> User | None:
     """Obtain a user by their email address in the database.
     
     Args:
@@ -49,16 +50,17 @@ async def create_user(
 
     Args:
         db (AsyncSession): The database session.
-        user_data (UserCreate | AdminUserCreate): The user data for creating a new user.
+        user_in (UserCreate | AdminUserCreate): The user data for creating
+            a new user.
 
     Returns:
         User: The created user object.
     """
     # convert a new user in the database
-    user_data = user_in.model_dump()
+    user_data = user_in.model_dump(exclude={"password"})
 
     # hashed the password before storing
-    hashed_password = get_password_hash(user_data.password)
+    hashed_password = get_password_hash(user_in.password)
     user_data["hashed_password"] = hashed_password
 
     # create the user model instance using the dictionary

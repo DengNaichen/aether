@@ -26,18 +26,20 @@ class Quiz(Base):
     __tablename__ = "quizzes"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    course_id = Column(String, ForeignKey("course.id"), nullable=False)
+    course_id = Column(String, ForeignKey("courses.id"), nullable=False)
     question_num = Column(Integer, nullable=False)
 
-    course = relationship("Course", back_populates="quizzes")
-    submissions = relationship("QuizSubmission", back_populates="quiz")
+    course = relationship("Course",
+                          back_populates="quizzes")
+    submissions = relationship("QuizSubmission",
+                               back_populates="quiz")
 
 
 class QuizSubmission(Base):
     __tablename__ = "quiz_submissions"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id = Column(UUID(as_uuid=True), ForeignKey("user.id"), nullable=False)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     quiz_id = Column(UUID(as_uuid=True),
                      ForeignKey("quizzes.id"),
                      nullable=False)
@@ -58,7 +60,9 @@ class QuizSubmission(Base):
     user = relationship("User", back_populates="quiz_submissions")
     quiz = relationship("Quiz", back_populates="submissions")
     answers = relationship(
-        "SubmissionAnswer", back_populates="submission", cascade="all, delete-orphan"
+        "SubmissionAnswer",
+        back_populates="submission",
+        cascade="all, delete-orphan"
     )
 
 
@@ -74,4 +78,5 @@ class SubmissionAnswer(Base):
 
     is_correct = Column(Boolean, nullable=True)
 
-    submission = relationship("QuizSubmission", back_populates="answers")
+    submission = relationship("QuizSubmission",
+                              back_populates="answers")

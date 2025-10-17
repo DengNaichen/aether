@@ -16,7 +16,7 @@ class Course(Base):
         description (str): Description of the course.
     """
 
-    __tablename__ = "course"
+    __tablename__ = "courses"
     id = Column(String, primary_key=True, nullable=False)
     name = Column(String, index=True)
     description = Column(String)

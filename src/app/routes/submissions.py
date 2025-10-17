@@ -7,7 +7,6 @@ from sqlalchemy.future import select
 
 # --- Core Dependencies ---
 from src.app.core.deps import get_current_active_user, get_db
-from src.app.models import submission
 from src.app.models.quiz import QuizStatus, QuizSubmission, SubmissionAnswer
 
 # --- Models and Schemas ---
