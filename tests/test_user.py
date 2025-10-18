@@ -1,10 +1,7 @@
 import pytest
 from asyncpg.pgproto.pgproto import timedelta
-from httpx import AsyncClient
 
 from app.core.security import create_access_token
-from tests.conftest import TEST_USER_EMAIL, TEST_USER_PASSWORD
-import pytest
 from httpx import AsyncClient
 from starlette import status
 
