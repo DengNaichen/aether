@@ -10,11 +10,14 @@ async def handle_neo4j_create_course(payload: dict, ctx: WorkerContext):
         raise ValueError(f"Missing course id: {course_id} "
                          f"for graph database sync")
 
-    async with ctx.neo4j_driver.session() as session:
-        await session.run(
-            "MERGE (c: Course {id: $id, name: $name})",
-            id=course_id,
-            name=course_name,
+    async with ctx.neo4j_session() as session:
+        # Use execute_write to ensure the transaction is committed.
+        await session.execute_write(
+            lambda tx: tx.run(
+                "MERGE (c: Course {id: $id, name: $name})",
+                id=course_id,
+                name=course_name,
+            )
         )
     print(f"✅ Course {course_id} synced to graph database")
 
@@ -30,7 +33,7 @@ async def handle_neo4j_create_knowledge_node(payload: dict, ctx: WorkerContext):
         raise ValueError(f"Missing knowledge node id: {knowledge_node_id} "
                          f"for graph database sync")
 
-    async with ctx.neo4j_driver.session() as session:
+    async with ctx.neo4j_session() as session:
         await session.run(
             # TODO: rewrite this query
             "MATCH (n) RETURN n",
@@ -48,7 +51,7 @@ async def handle_neo4j_create_question(payload: dict, ctx: WorkerContext):
     if not question_id:
         raise ValueError(f"Missing question id: {question_id} "
                          f"for graph database sync")
-    async with ctx.neo4j_driver.session() as session:
+    async with ctx.neo4j_session() as session:
         await session.run(
             # TODO: rewrite this query
             "MATCH (n) RETURN n",

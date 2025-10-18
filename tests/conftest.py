@@ -1,28 +1,31 @@
 import os
 import sys
 from pathlib import Path
+from dotenv import load_dotenv
+
+# Load test environment variables at the very beginning
+load_dotenv(dotenv_path=Path(__file__).parent.parent / ".env.test")
 
 from redis.asyncio import Redis
 
 ROOT_DIR = Path(__file__).parent.parent
 sys.path.insert(0, str(ROOT_DIR))
 
-# ============================================
-# 1. 设置测试环境变量 (在导入app之前)
-# ============================================
-os.environ["ENVIRONMENT"] = "test"
-os.environ["DATABASE_URL"] = (
-    "sqlite+aiosqlite:///file:memdb?mode=memory&cache=shared&uri=true"
-)
-# os.environ["DATABASE_URL"] = "sqlite+aiosqlite:///./test_db.sqlite"
-os.environ["SECRET_KEY"] = "test_secret_key_12345"
-os.environ["ALGORITHM"] = "HS256"
-os.environ["ACCESS_TOKEN_EXPIRE_MINUTES"] = "30"
-os.environ["NEO4J_URI"] = "bolt://localhost:7687"
-os.environ["NEO4J_USER"] = "neo4j"
-os.environ["NEO4J_PASSWORD"] = "password"
-os.environ["NEO4J_initial_dbms_default__database"] = "neo4j"
-os.environ["REDIS_URL"] = "redis://localhost:6379/1"
+
+# os.environ["ENVIRONMENT"] = "test"
+# os.environ["DATABASE_URL"] = (
+#     "sqlite+aiosqlite:///file:memdb?mode=memory&cache=shared&uri=true"
+# )
+# os.environ["SECRET_KEY"] = "test_secret_key_12345"
+# os.environ["ALGORITHM"] = "HS256"
+# os.environ["ACCESS_TOKEN_EXPIRE_MINUTES"] = "30"
+#
+# os.environ["NEO4J_URI"] = "bolt://localhost:7687"
+# os.environ["NEO4J_USER"] = "neo4j"
+# os.environ["NEO4J_PASSWORD"] = "d1997225"
+# os.environ["NEO4J_DATABASE"] = "g11physics"
+#
+# os.environ["REDIS_URL"] = "redis://localhost:6379/1"
 
 from typing import AsyncGenerator, Any
 
@@ -32,10 +35,11 @@ from typing import AsyncGenerator, Any
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
+from neo4j import AsyncGraphDatabase, AsyncDriver
 
 from app.core.config import Settings
 from app.core.database import DatabaseManager
-from app.core.deps import get_db, get_redis_client
+from app.core.deps import get_db, get_redis_client, get_neo4j_driver
 from app.core.security import create_access_token, get_password_hash
 from app.main import app
 from app.models.base import Base
@@ -58,8 +62,8 @@ COURSE_NAME = "Existing Course"
 @pytest_asyncio.fixture(scope="function")
 async def test_db_manager() -> AsyncGenerator[DatabaseManager, Any]:
     """为测试创建独立的数据库管理器"""
-    test_settings = Settings(ENVIRONMENT="test")
-    test_db_mgr = DatabaseManager(test_settings)
+    from app.core.config import settings
+    test_db_mgr = DatabaseManager(settings)
 
     await test_db_mgr.create_all_tables(Base)
 
@@ -95,6 +99,17 @@ async def test_redis(
 
 
 @pytest_asyncio.fixture(scope="function")
+async def neo4j_test_driver(
+    test_db_manager: DatabaseManager,
+) -> AsyncGenerator[AsyncDriver, None]:
+    neo4j_driver = test_db_manager.neo4j_driver
+    yield neo4j_driver
+
+    async with test_db_manager.get_neo4j_session() as session:
+        await session.run("MATCH (n) DETACH DELETE n")
+
+
+@pytest_asyncio.fixture(scope="function")
 async def client(
     test_db: AsyncSession,
     test_db_manager: DatabaseManager
@@ -105,8 +120,12 @@ async def client(
     async def override_get_redis_client() -> AsyncGenerator[Redis, None]:
         yield test_db_manager.redis_client
 
+    async def override_get_neo4j_driver() -> AsyncGenerator[AsyncDriver, None]:
+        yield test_db_manager.neo4j_driver
+
     app.dependency_overrides[get_db] = override_get_db
     app.dependency_overrides[get_redis_client] = override_get_redis_client
+    app.dependency_overrides[get_neo4j_driver] = override_get_neo4j_driver
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
@@ -114,6 +133,7 @@ async def client(
 
     del app.dependency_overrides[get_db]
     del app.dependency_overrides[get_redis_client]
+    del app.dependency_overrides[get_neo4j_driver]
 
 
 @pytest_asyncio.fixture(scope="function")

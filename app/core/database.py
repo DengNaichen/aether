@@ -88,39 +88,38 @@ class DatabaseManager:
         return self._neo4j_driver
 
     @asynccontextmanager
-    async def get_neo4j_session(
-            self, database: str = "neo4j"
-    ) -> AsyncGenerator[Neo4jAsyncSession, None]:
+    async def get_neo4j_session(self) -> AsyncGenerator[Neo4jAsyncSession, None]:
         """
         Context manager for Neo4j sessions.
         Usage:
             async with db_manager.get_neo4j_session() as session:
                 result = await session.run("MATCH (n) RETURN n LIMIT 10")
         """
-        async with self.neo4j_driver.session(database=database) as session:
+        neo4j_db_name = self.settings.NEO4J_DATABASE
+        async with self.neo4j_driver.session(database=neo4j_db_name) as session:
             try:
                 yield session
             except Exception:
                 raise
 
-    async def execute_neo4j_query(
-            self,
-            query: str,
-            parameters: dict = None,
-            database: str = "neo4j"
-    ):
-        """
-        Execute Neo4j query and return results.
-        Arguments:
-            query: Cypher query string.
-            parameters: Optional parameters to pass to Neo4j.
-            database: Neo4j database name.
-        Returns:
-            List of results.
-        """
-        async with self.neo4j_driver.session(database=database) as session:
-            result = await session.run(query, parameters or {})
-            return result.data()
+    # async def execute_neo4j_query(
+    #         self,
+    #         query: str,
+    #         parameters: dict = None,
+    #         database: str = "neo4j"
+    # ):
+    #     """
+    #     Execute Neo4j query and return results.
+    #     Arguments:
+    #         query: Cypher query string.
+    #         parameters: Optional parameters to pass to Neo4j.
+    #         database: Neo4j database name.
+    #     Returns:
+    #         List of results.
+    #     """
+    #     async with self.neo4j_driver.session(database=database) as session:
+    #         result = await session.run(query, parameters or {})
+    #         return result.data()
 
     # ==================== Redis ====================
     @property
@@ -239,8 +238,8 @@ class DatabaseManager:
         You should customize this based on your schema.
         """
         constraints = [
-            "CREATE CONSTRAINT IF NOT EXISTS FOR (u:User) REQUIRE u.id IS UNIQUE",
-            "CREATE INDEX IF NOT EXISTS FOR (u:User) ON (u.email)",
+            # "CREATE CONSTRAINT IF NOT EXISTS FOR (u:User) REQUIRE u.id IS UNIQUE",
+            # "CREATE INDEX IF NOT EXISTS FOR (u:User) ON (u.email)",
             # Add more constraints as needed
         ]
 

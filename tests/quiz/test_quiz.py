@@ -5,10 +5,10 @@ from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
-from app import Course
+from app.models.course import Course
 
 # Import the models to verify database state after API calls
-from app import Quiz, QuizStatus, QuizSubmission
+from app.models.quiz import Quiz, QuizStatus, QuizSubmission
 from app.models.user import User
 
 # Import constants from your conftest to ensure consistency

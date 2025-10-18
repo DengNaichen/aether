@@ -7,8 +7,8 @@ from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
-from app import Course
-from app import Quiz, QuizStatus, QuizSubmission, SubmissionAnswer
+from app.models.course import Course
+from app.models.quiz import Quiz, QuizStatus, QuizSubmission, SubmissionAnswer
 from app.models.user import User
 
 # --- Test Constants ---

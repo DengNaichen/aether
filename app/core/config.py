@@ -1,12 +1,13 @@
 from typing import ClassVar, Literal
 from pydantic import Field
+import os
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=f".env.{os.getenv('ENVIRONMENT', 'dev')}",
         env_file_encoding="utf-8",
         extra="ignore"
     )
@@ -37,3 +38,7 @@ class Settings(BaseSettings):
 
 
 settings = Settings()  # type: ignore
+import logging
+logging.basicConfig(level=logging.INFO)
+logging.info(f"Settings loaded for ENVIRONMENT: {settings.ENVIRONMENT}")
+logging.info(f"Database URL: {settings.DATABASE_URL}")

@@ -3,9 +3,9 @@ services:
   web:
     build:
       context: .
-    # use .env file to set the environment parameter
+    # use .env.dev file to set the environment parameter
     env_file:
-      - .env
+      - .env.dev
     ports:
       - "8000:8000"
     volumes:

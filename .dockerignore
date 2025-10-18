@@ -53,9 +53,9 @@ yarn-error.log*
 
 # --- Secrets & Environment ---
 # 忽略本地环境变量文件 (极其重要!)
-.env
+.env.dev
 .env.*
-*.env
+.env.dev
 
 # --- Docker Specific ---
 # 忽略 Docker 相关文件，它们不需要被复制到镜像里
