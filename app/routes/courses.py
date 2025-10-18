@@ -8,7 +8,7 @@ from app.models.course import Course
 from app.models.user import User
 from app.core.deps import get_db, get_redis_client, get_current_admin_user
 from app.helper.course_helper import assemble_course_id
-from app.schemas.courses import CourseRequest
+from app.schemas.courses import CourseRequest, CourseResponse
 
 router = APIRouter(
     prefix="/courses",
@@ -20,7 +20,7 @@ router = APIRouter(
     "/",
     status_code=status.HTTP_201_CREATED,
     summary="Create a new course",
-    response_model=Course,
+    response_model=CourseResponse,
 )
 async def create_course(
         course_data: CourseRequest,
@@ -36,7 +36,8 @@ async def create_course(
         redis_client (Redis): Redis client
         admin (User): Admin user
     """
-    course_id = assemble_course_id(course_data.grade, course_data.subject)
+    course_id = assemble_course_id(course_data.grade,
+                                   course_data.subject)
 
     await check_repeat_course(course_id, db)
 

@@ -2,6 +2,8 @@ import os
 import sys
 from pathlib import Path
 
+from redis.asyncio import Redis
+
 ROOT_DIR = Path(__file__).parent.parent
 sys.path.insert(0, str(ROOT_DIR))
 
@@ -20,6 +22,7 @@ os.environ["NEO4J_URI"] = "bolt://localhost:7687"
 os.environ["NEO4J_USER"] = "neo4j"
 os.environ["NEO4J_PASSWORD"] = "password"
 os.environ["NEO4J_initial_dbms_default__database"] = "neo4j"
+os.environ["REDIS_URL"] = "redis://localhost:6379/1"
 
 from typing import AsyncGenerator, Any
 
@@ -32,7 +35,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings
 from app.core.database import DatabaseManager
-from app.core.deps import get_db
+from app.core.deps import get_db, get_redis_client
 from app.core.security import create_access_token, get_password_hash
 from app.main import app
 from app.models.base import Base
@@ -58,13 +61,10 @@ async def test_db_manager() -> AsyncGenerator[DatabaseManager, Any]:
     test_settings = Settings(ENVIRONMENT="test")
     test_db_mgr = DatabaseManager(test_settings)
 
-    # 创建所有表
-
     await test_db_mgr.create_all_tables(Base)
 
     yield test_db_mgr
 
-    # 清理
     await test_db_mgr.drop_all_tables(Base)
     await test_db_mgr.close()
 
@@ -81,33 +81,39 @@ async def test_db(
             await session.close()
 
 
-# @pytest_asyncio.fixture(scope="function")
-# async def test_redis(
-#
-# ) -> AsyncGenerator[Redis, None]:
-#     """
-#     provide a redis client for each test function, and clean after
-#     """
-#     client = aioredis.from_url(os.environ["REDIS_URL"])
-#     yield client
-#     await client.flushall()
-#     await client.close()
+@pytest_asyncio.fixture(scope="function")
+async def test_redis(
+        test_db_manager: DatabaseManager,
+) -> AsyncGenerator[Redis, None]:
+    """
+    provide a redis client for each test function, and clean after
+    """
+    redis_client = test_db_manager.redis_client
+    yield redis_client
+
+    await redis_client.flushall()
 
 
 @pytest_asyncio.fixture(scope="function")
 async def client(
-    test_db: AsyncSession, test_db_manager: DatabaseManager
+    test_db: AsyncSession,
+    test_db_manager: DatabaseManager
 ) -> AsyncGenerator[AsyncClient, None]:
     def override_get_db() -> AsyncGenerator[AsyncSession, None]:
         yield test_db
 
+    async def override_get_redis_client() -> AsyncGenerator[Redis, None]:
+        yield test_db_manager.redis_client
+
     app.dependency_overrides[get_db] = override_get_db
+    app.dependency_overrides[get_redis_client] = override_get_redis_client
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
         yield ac
 
     del app.dependency_overrides[get_db]
+    del app.dependency_overrides[get_redis_client]
 
 
 @pytest_asyncio.fixture(scope="function")

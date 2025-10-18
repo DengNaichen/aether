@@ -4,10 +4,10 @@ from app.helper.course_helper import Grade, Subject
 
 
 class CourseRequest(BaseModel):
-    name: str
-    description: str
     grade: Grade
     subject: Subject
+    name: str
+    description: str
 
 
 class CourseResponse(BaseModel):

@@ -2,6 +2,7 @@ from sqlalchemy import Column, String
 from sqlalchemy.orm import relationship
 
 from app.models.base import Base
+from app.helper.course_helper import Subject, Grade
 
 
 class Course(Base):
@@ -17,5 +18,8 @@ class Course(Base):
     id = Column(String, primary_key=True, nullable=False)
     name = Column(String, index=True)
     description = Column(String)
+
+    grade = Grade
+    subject = Subject
 
     quizzes = relationship("Quiz", back_populates="course")

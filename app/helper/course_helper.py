@@ -3,7 +3,7 @@ from enum import Enum
 
 
 class Grade(Enum):
-    G10 = "G10"
+    G10 = "g10"
     G11 = "g11"
     G12 = "g12"
 
