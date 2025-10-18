@@ -13,11 +13,12 @@ from app.models.quiz import QuizStatus
 #    这些是其他核心数据模型可以继承的基础结构
 # ===================================================================
 class QuizBase(BaseModel):
-    """
-    Quiz的基础信息。
-    比如一个"英语第一章测试"这个quiz有10道题。
-    """
+    """ Base model for quizzes
 
+    Attributes:
+        course_id(str): The course ID of the quiz belong to
+        question_num(int): The question number of the quiz
+    """
     course_id: str  # 哪个课程的quiz
     question_num: int  # 这个quiz有多少道题
 

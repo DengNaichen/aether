@@ -6,7 +6,6 @@ from tests.conftest import (TEST_USER_EMAIL, TEST_ADMIN_EMAIL,
 
 
 class TestCreateUserByAdmin:
-
     @pytest.mark.asyncio
     async def test_admin_can_create_normal_user(
             self,

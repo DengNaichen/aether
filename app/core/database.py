@@ -34,7 +34,8 @@ class DatabaseManager:
         if self._sql_engine is None:
             self._sql_engine = create_async_engine(
                 self.settings.DATABASE_URL,
-                echo=self.settings.is_testing,
+                # echo=self.settings.is_testing,
+                echo=False,
                 future=True,
                 pool_pre_ping=True
             )

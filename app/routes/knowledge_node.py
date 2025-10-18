@@ -48,8 +48,6 @@ async def create_knowledge_node(
             "payload": {
                 "knowledge_node_id": new_knowledge_node.id,
                 "course_id": course_id,
-                "name": new_knowledge_node.name,
-                "description": knowledge_node.description
             }
         }
 
@@ -62,7 +60,7 @@ async def create_knowledge_node(
         await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to create knowledge node {new_knowledge_node.id}"
+            detail=f"Failed to create knowledge {new_knowledge_node.id}: {e}"
         )
 
 

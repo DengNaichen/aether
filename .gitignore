@@ -112,3 +112,5 @@ playground.xcworkspace
 *.ipynb
 # Jupyter Notebook checkpoints
 .ipynb_checkpoints/
+
+*.rdb

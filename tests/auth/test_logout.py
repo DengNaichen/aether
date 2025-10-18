@@ -22,13 +22,13 @@ async def test_logout_success(
     """
     # 步骤 1: 登录获取 token
     login_data = {"username": TEST_USER_EMAIL, "password": TEST_USER_PASSWORD}
-    login_response = await client.post("/auth/login", data=login_data)
+    login_response = await client.post("/users/login", data=login_data)
     assert login_response.status_code == 200
     token = login_response.json()["access_token"]
     headers = {"Authorization": f"Bearer {token}"}
 
     # 步骤 2: 调用登出接口
-    logout_response = await client.post("/auth/logout", headers=headers)
+    logout_response = await client.post("/users/logout", headers=headers)
 
     # 步骤 3: 断言登出成功
     assert logout_response.status_code == 200
@@ -49,7 +49,7 @@ async def test_access_protected_route_after_logout(
     """
     # 步骤 1: 登录
     login_data = {"username": TEST_USER_EMAIL, "password": TEST_USER_PASSWORD}
-    login_response = await client.post("/auth/login", data=login_data)
+    login_response = await client.post("/users/login", data=login_data)
     assert login_response.status_code == 200
     tokens = login_response.json()
     access_token = tokens["access_token"]
@@ -57,12 +57,12 @@ async def test_access_protected_route_after_logout(
     headers = {"Authorization": f"Bearer {access_token}"}
 
     # 步骤 2: 登出
-    logout_response = await client.post("/auth/logout", headers=headers)
+    logout_response = await client.post("/users/logout", headers=headers)
     assert logout_response.status_code == 200
 
     # 步骤 3: 使用已登出的 refresh_token 尝试刷新
     refresh_data = {"refresh_token": refresh_token}
-    refresh_response = await client.post("/auth/refresh", json=refresh_data)
+    refresh_response = await client.post("/users/refresh", json=refresh_data)
 
     # 步骤 4: 断言刷新失败
     assert refresh_response.status_code == 401
@@ -76,7 +76,7 @@ async def test_logout_with_invalid_token(client: AsyncClient):
     测试使用一个无效的 token 尝试登出。
     """
     headers = {"Authorization": "Bearer this-is-an-invalid-token"}
-    response = await client.post("/auth/logout", headers=headers)
+    response = await client.post("/users/logout", headers=headers)
 
     assert response.status_code == 401
     assert response.json()["detail"] == "Could not validate credentials"
@@ -87,7 +87,7 @@ async def test_logout_without_token(client: AsyncClient):
     """
     测试在未提供 token 的情况下请求登出接口。
     """
-    response = await client.post("/auth/logout")
+    response = await client.post("/users/logout")
 
     # FastAPI 在缺少 Authorization header 时通常会返回 401
     assert response.status_code == 401

@@ -1,23 +1,13 @@
+import json
 from typing import LiteralString
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from neo4j import AsyncDriver
-import redis.asyncio as redis
+from redis.asyncio import Redis
 
-REDIS_URL = "redis://localhost"
-
-redis_pool = redis.from_url(REDIS_URL, encoding="utf-8", decode_responses=True)
-
-
-async def get_redis_client():
-    """
-    Dependency to get a Redis client from the connection pool.
-    """
-
-from app.core.deps import get_current_active_user, get_db, get_neo4j_driver
+from app.core.deps import get_current_active_user, get_db, get_redis_client
 from app.models import Course, Enrollment, User
 from app.schemas.enrollment import EnrollmentResponse
 
@@ -36,15 +26,16 @@ router = APIRouter(
 async def create_enrollment(
         course_id: str,
         db: AsyncSession = Depends(get_db),
-        neo4j_driver: AsyncDriver = Depends(get_neo4j_driver),
+        redis_client: Redis = Depends(get_redis_client),
         current_user: User = Depends(get_current_active_user),
+
 ) -> Enrollment:
     """
     Enroll a course with course_id
     Args:
         course_id: the id of the course to enroll
         db: the database session
-        neo4j_driver: the neo4j driver
+        redis_client: the redis client
         current_user: the current user
     Returns:
         EnrollmentResponse: The created enrollment details.
@@ -62,30 +53,31 @@ async def create_enrollment(
     db.add(enrollment)
 
     try:
-        # do the neo4j operation first
-        neo4j_result = await enroll_user_to_course_in_neo4j(
-            driver=neo4j_driver,
-            user_id=current_user.id,
-            course_id=course_id,
-        )
-
-        if neo4j_result is None:
-            raise Exception(f"Failed to create/verify user in graph database")
-
-        # if Neo4j can return the result, we can submit it to sql
         await db.commit()
         await db.refresh(enrollment)
 
+        task = {
+            "task_type": "handle_neo4j_enroll_a_student_in_a_course",
+            "payload": {
+                "course_id": course_id,
+                "student_id": current_user.id,
+                "student_name": current_user.name,
+            }
+        }
+
+        await redis_client.lpush("general_task_queue",
+                                 json.dumps(task)
+                                 )
+        print(f"📤 Task queued for enroll student with id: {current_user.id} "
+              f"and name: {current_user.name} into course {course_id}")
         return enrollment
 
     except Exception as e:
         await db.rollback()
-        print(f"Enrollment failed: {e}")
-
-    raise HTTPException(
-        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-        detail="An error occurred while enrolling this course.",
-    )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to create enrollment {course_id}: {e}"
+        )
 
 
 # TODO: withdrawal a course
@@ -98,7 +90,8 @@ async def check_repeat_enrollment(
         current_user: User,
 ):
     existing_enrollment_stmt = select(Enrollment).where(
-        Enrollment.course_id == course_id, Enrollment.user_id == current_user.id
+        Enrollment.course_id == course_id,
+        Enrollment.user_id == current_user.id
     )
     result = await db.execute(existing_enrollment_stmt)
     if result.scalar_one_or_none() is not None:
@@ -126,38 +119,3 @@ async def check_course_exists(
 ) -> type[Course] | None:
     course = await db.get(Course, course_id)
     return course
-
-
-async def enroll_user_to_course_in_neo4j(
-        driver: AsyncDriver,
-        user_id: UUID,
-        course_id: str,
-):
-    query: LiteralString = """
-    // 1. create the user node
-    MERGE (u:User {UserId: $user_id})
-    // 2. find or create the course node
-    MERGE (c:Course {CourseId: $course_id})
-    // 3. find or create the relationship between user and course
-    MERGE(u)-[r:ENROLLED_IN]->(c)
-    // 4. return a the relationship as 
-    RETURN count(r) > 0 AS success
-    """
-    async with driver.session() as session:
-        result = await session.run(query,
-                                   user_id=str(user_id),
-                                   course_id=course_id
-                                   )
-        record = await result.single()
-        return record and record['success']
-
-
-async def unenroll_user_in_neo4j(
-        driver: AsyncDriver,
-        user_id: UUID,
-        course_id: str
-):
-    query: LiteralString = """MATCH (u:User {userId: $user_id})-
-    [r:ENROLLED_IN]->(c:Course {courseId: $course_id}) DELETE r"""
-    async with driver.session() as session:
-        await session.run(query, user_id=str(user_id), course_id=course_id)
