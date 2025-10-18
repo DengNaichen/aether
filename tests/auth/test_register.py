@@ -2,12 +2,15 @@ import pytest
 from httpx import AsyncClient
 from starlette import status
 
-from src.app.models.user import User
+from app.models.user import User
 from tests.conftest import TEST_USER_EMAIL, TEST_USER_NAME, TEST_USER_PASSWORD
 
 
 @pytest.mark.asyncio
-async def test_register_failed_with_exsited_user(client: AsyncClient, user_in_db: User):
+async def test_register_failed_with_exsited_user(
+        client: AsyncClient,
+        user_in_db: User
+):
     user_data = {
         "name": TEST_USER_NAME,
         "email": TEST_USER_EMAIL,

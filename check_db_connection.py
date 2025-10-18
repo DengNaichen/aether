@@ -1,6 +1,6 @@
 import logging
 import asyncio
-from src.app.core.database import db_manager
+from app import db_manager
 
 # Configure basic logging
 logging.basicConfig(level=logging.INFO)

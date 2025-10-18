@@ -7,9 +7,9 @@ from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
-from src.app.models.course import Course
-from src.app.models.quiz import Quiz, QuizStatus, QuizSubmission, SubmissionAnswer
-from src.app.models.user import User
+from app import Course
+from app import Quiz, QuizStatus, QuizSubmission, SubmissionAnswer
+from app.models.user import User
 
 # --- Test Constants ---
 QUESTION_1_ID = str(uuid.uuid4())

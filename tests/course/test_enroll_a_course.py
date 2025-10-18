@@ -1,14 +1,12 @@
-import uuid
-
 import pytest
 from fastapi import status
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
-from src.app.models import Enrollment
-from src.app.models.course import Course
-from src.app.models.user import User
+from app import Enrollment
+from app import Course
+from app.models.user import User
 from tests.conftest import COURSE_ID
 
 # TODO: more test case here need for the enrollment

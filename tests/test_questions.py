@@ -1,13 +1,12 @@
 import uuid
-from http.client import responses
 from unittest.mock import AsyncMock, MagicMock
 
 import httpx
 import pytest
 from httpx import AsyncClient
 
-from src.app.core.deps import get_neo4j_driver
-from src.app.main import app
+from app.core.deps import get_neo4j_driver
+from app import app
 
 mock_neo4j_driver, mock_neo4j_session = AsyncMock(), AsyncMock()
 mock_neo4j_driver.session.return_value.__aenter__.return_value = mock_neo4j_session

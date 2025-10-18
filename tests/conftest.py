@@ -2,9 +2,6 @@ import os
 import sys
 from pathlib import Path
 
-import pytest
-from redis.asyncio import Redis
-
 ROOT_DIR = Path(__file__).parent.parent
 sys.path.insert(0, str(ROOT_DIR))
 
@@ -24,7 +21,7 @@ os.environ["NEO4J_USER"] = "neo4j"
 os.environ["NEO4J_PASSWORD"] = "password"
 os.environ["NEO4J_initial_dbms_default__database"] = "neo4j"
 
-from typing import AsyncGenerator
+from typing import AsyncGenerator, Any
 
 # ============================================
 # 2. 导入应用和依赖
@@ -33,34 +30,35 @@ import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.app.core.config import Settings
-from src.app.core.database import DatabaseManager
-from src.app.core.deps import get_db
-from src.app.core.security import create_access_token, get_password_hash
-from src.app.main import app
-from src.app.models.base import Base
-from src.app.models.course import Course
-from src.app.models.enrollment import Enrollment
-from src.app.models.quiz import Quiz
-from src.app.models.user import User
+from app.core.config import Settings
+from app.core.database import DatabaseManager
+from app.core.deps import get_db
+from app.core.security import create_access_token, get_password_hash
+from app.main import app
+from app.models.base import Base
+from app.models.course import Course
+from app.models.enrollment import Enrollment
+from app.models.user import User
 
 # --- 测试常量 ---
 TEST_USER_NAME = "test user conf"
+TEST_ADMIN_NAME = "test admin conf"
 TEST_USER_EMAIL = "test.conf@example.com"
+TEST_ADMIN_EMAIL = "test.admin@example.com"
 TEST_USER_PASSWORD = "a_very_secure_password_123@conf"
+TEST_ADMIN_PASSWORD = "admin_very_secure_password_123@conf"
 COURSE_ID = "existing_course"
 COURSE_NAME = "Existing Course"
 
 
 # --- Fixtures ---
 @pytest_asyncio.fixture(scope="function")
-async def test_db_manager() -> DatabaseManager:
+async def test_db_manager() -> AsyncGenerator[DatabaseManager, Any]:
     """为测试创建独立的数据库管理器"""
     test_settings = Settings(ENVIRONMENT="test")
     test_db_mgr = DatabaseManager(test_settings)
 
     # 创建所有表
-    from src.app.models import course, enrollment, user
 
     await test_db_mgr.create_all_tables(Base)
 
@@ -128,6 +126,21 @@ async def user_in_db(test_db: AsyncSession) -> User:
 
 
 @pytest_asyncio.fixture(scope="function")
+async def admin_in_db(test_db: AsyncSession) -> User:
+    new_admin = User(
+        email=TEST_ADMIN_EMAIL,
+        hashed_password=get_password_hash(TEST_ADMIN_PASSWORD),
+        name=TEST_ADMIN_NAME,
+        is_active=True,
+        is_admin=True,
+    )
+    test_db.add(new_admin)
+    await test_db.commit()
+    await test_db.refresh(new_admin)
+    return new_admin
+
+
+@pytest_asyncio.fixture(scope="function")
 async def course_in_db(test_db: AsyncSession) -> Course:
     new_course = Course(
         id=COURSE_ID,
@@ -141,7 +154,10 @@ async def course_in_db(test_db: AsyncSession) -> Course:
 
 
 @pytest_asyncio.fixture(scope="function")
-async def enrollment_in_db(test_db: AsyncSession, user_in_db: User) -> Enrollment:
+async def enrollment_in_db(
+        test_db: AsyncSession,
+        user_in_db: User
+) -> Enrollment:
     new_enrollment = Enrollment(
         user_id=user_in_db.id,
         course_id=COURSE_ID,
@@ -167,8 +183,19 @@ async def enrollment_in_db(test_db: AsyncSession, user_in_db: User) -> Enrollmen
 
 
 @pytest_asyncio.fixture(scope="function")
-async def authenticated_client(client: AsyncClient, user_in_db: User) -> AsyncClient:
-    token = create_access_token(user=str(user_in_db.id))
+async def authenticated_client(
+        client: AsyncClient,
+        user_in_db: User
+) -> AsyncClient:
+    token = create_access_token(user_in_db)
+    client.headers["Authorization"] = f"Bearer {token}"
+    return client
+
+
+@pytest_asyncio.fixture(scope="function")
+async def authenticated_admin_client(client: AsyncClient,
+                                     admin_in_db: User) -> AsyncClient:
+    token = create_access_token(admin_in_db)
     client.headers["Authorization"] = f"Bearer {token}"
     return client
 
