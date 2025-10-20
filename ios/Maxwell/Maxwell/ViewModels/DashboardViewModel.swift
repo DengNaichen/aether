@@ -54,7 +54,7 @@ class DashboardViewModel: ObservableObject {
 
         do {
             let requestData = SessionStartRequest(courseId: courseId)
-            let endpoint = SessionStartEndpoint(startSessionRequest: requestData)
+            let endpoint = QuizEndpoint(startSessionRequest: requestData)
             let response: SessionStartResponse = try await networkService.request(endpoint: endpoint, responseType: SessionStartResponse.self)
                 
             let mappedProblems = self.mapToUIModels(from: response.questions)

@@ -16,27 +16,21 @@ class AuthService: ObservableObject {
     
     var accessToken: String? {
         let token = tokenManager.getAccessToken()
-        print("➡️ [AuthService] 'accessToken' property was accessed. Token is: \(token != nil ? "FOUND" : "NIL")")
         return token
     }
     
     init() {
         if let _ = tokenManager.getRefreshToken() {
-            print("✅ [AuthService] Found refresh token in Keychain.")
             isAuthenticated = true
         } else {
-            print("🛑 [AuthService] No refresh token found in Keychain.")
             isAuthenticated = false
         }
     }
 
     func checkAuthenticationStatus() async {
-        print("➡️ [AuthService] Checking authentication status...")
         if let _ = tokenManager.getRefreshToken() {
-            print("✅ [AuthService] Found refresh token. User is authenticated.")
             self.isAuthenticated = true
         } else {
-            print("🛑 [AuthService] No refresh token found. User is not authenticated.")
             self.isAuthenticated = false
         }
     }
@@ -45,6 +39,5 @@ class AuthService: ObservableObject {
         tokenManager.clearToken()
         isAuthenticated = false
         currentUser = nil
-        print("User logged out")
     }
 }

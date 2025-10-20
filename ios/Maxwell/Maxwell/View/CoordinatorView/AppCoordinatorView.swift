@@ -31,4 +31,3 @@ struct AppCoordinatorView: View {
         .transition(.opacity)
     }
 }
-

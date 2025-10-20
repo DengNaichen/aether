@@ -126,3 +126,20 @@ class NetworkService: NetworkServicing, ObservableObject {
         }
     }
 }
+
+
+
+
+
+class MockNetworkService: NetworkService {
+    
+    override init(baseURL: URL, session: URLSession = .shared, authService: AuthService) {
+        super.init(baseURL: baseURL, session: session, authService: authService)
+    }
+
+    convenience init() {
+        let mockBaseURL = URL(string: "https://mock.example.com")!
+        let mockAuthService = AuthService()
+        self.init(baseURL: mockBaseURL, session: .shared, authService: mockAuthService)
+    }
+}

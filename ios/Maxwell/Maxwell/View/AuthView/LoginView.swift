@@ -75,7 +75,6 @@ struct LoginView: View {
     }
 
     private func loginButtonTapped() {
-        // 使用 Task 创建一个异步上下文来调用 async 函数
         Task {
             await viewModel.login(email: email, password: password)
         }

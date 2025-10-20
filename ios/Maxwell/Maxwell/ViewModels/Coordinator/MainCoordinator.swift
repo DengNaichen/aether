@@ -19,7 +19,7 @@ class MainCoordinator: ObservableObject {
     init(networkService: NetworkService, onLogout: @escaping () -> Void) {
         self.networkService = networkService
         self.onLogout = onLogout
-        // TODO: Do I need the onLogout here ??
         self.dashboardViewModel = DashboardViewModel(network: networkService)
+        
     }
 }

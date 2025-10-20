@@ -23,7 +23,7 @@ class SessionStartViewModel: ObservableObject, NetworkViewModeling {
         
         let response = await performTask(errorTitle: "Session Start Failed") {
             let requestData = SessionStartRequest(courseId: courseId)
-            let endpoint = SessionStartEndpoint(startSessionRequest: requestData)
+            let endpoint = QuizEndpoint(startSessionRequest: requestData)
             return try await self.network.request(endpoint: endpoint, responseType: SessionStartResponse.self)
         }
         if let response {
