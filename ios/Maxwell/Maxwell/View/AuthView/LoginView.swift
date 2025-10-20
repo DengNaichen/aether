@@ -1,16 +1,11 @@
 import SwiftUI
 
 struct LoginView: View {
-    // 视图持有并管理 ViewModel 的生命周期
     @ObservedObject var viewModel: LoginViewModel
-    @EnvironmentObject var coordinator: OnboardingCoordinator
     
-    
-    // 用于UI输入的本地状态
     @State private var email = ""
     @State private var password = ""
     
-    // TODO: I probably still need it
     init(viewModel: LoginViewModel) {
         self.viewModel = viewModel
     }
@@ -19,50 +14,35 @@ struct LoginView: View {
         ZStack {
             NavigationStack {
                 Form {
-                    Section(header: Text("邮箱")) {
-                        TextField("输入邮箱", text: $email)
-                            .keyboardType(.emailAddress)
-                            .autocapitalization(.none)
-                            .textContentType(.emailAddress) // 帮助iOS自动填充
-                    }
-                    
-                    Section(header: Text("密码")) {
-                        SecureField("输入密码", text: $password)
-                            .textContentType(.password) // 帮助iOS自动填充
-                    }
-                    
-                    Section {
-                        Button(action: loginButtonTapped) {
-                            HStack {
-                                Spacer()
-                                Text("登录")
-                                Spacer()
-                            }
-                        }
-                        .disabled(email.isEmpty || password.isEmpty || viewModel.isLoading)
-                    }
+                    LoginInfoSection(email: $email)
+                    PasswordSection(password: $password)
+                    RegisterButtonSection(
+                        text: "Login",
+                        isEnable: email.isEmpty || password.isEmpty ||
+                        viewModel.isLoading,
+                        action: loginButtonTapped
+                    )
                     Section {
                         // Using a Button with a custom style for navigation
                         Button(action: {
-                            coordinator.showRegisterView()
+                            viewModel.navigateToRegister()
                         }) {
-                            Text("还没有账号？去注册")
+                            Text("No account? Sign up")
                                 .frame(maxWidth: .infinity, alignment: .center)
                         }
                     }
+//                    LoginNavigationSection(
+//                        text: "No account? Sign up",
+//                        action: viewModel.navigateToRegister()
+//                    )
                 }
-                .navigationTitle("登录")
+                .navigationTitle("Login")
             }
             .disabled(viewModel.isLoading)
             
             // 根据 isLoading 状态显示加载动画
             if viewModel.isLoading {
-                ProgressView("登录中...")
-                    .progressViewStyle(CircularProgressViewStyle())
-                    .padding()
-                    .background(Color.secondary.colorInvert())
-                    .cornerRadius(10)
-                    .shadow(radius: 10)
+                LoadingOverlay(message: "Login...")
             }
         }
         .alert(item: $viewModel.alertItem) { alertItem in
@@ -79,4 +59,17 @@ struct LoginView: View {
             await viewModel.login(email: email, password: password)
         }
     }
+}
+
+// MARK: - Xcode Preview
+#Preview {
+    let mockNet: NetworkServicing = MockNetworkService()
+    let onSuccess: () -> Void = {
+        print("Login success (preview)")
+    }
+    let mockViewModel = LoginViewModel(network: mockNet, onLoginSuccess: onSuccess)
+    mockViewModel.onRegisterTapped = {
+        print("Navigate to register(preview)")
+    }
+    return LoginView(viewModel: mockViewModel)
 }

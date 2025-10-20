@@ -14,9 +14,9 @@ class RegisterViewModel: ObservableObject {
     
     private let network: NetworkServicing
     var onRegisterSuccess: () -> Void
+    var onLoginTapped: (() -> Void)?
 
     @Published var isLoading: Bool = false
-//    @Published var registrationSuccessful: Bool = false
     @Published var alertItem: AlertItem?
     
     init(network: NetworkServicing, onRegisterSuccess: @escaping () -> Void) {
@@ -28,22 +28,18 @@ class RegisterViewModel: ObservableObject {
         isLoading = true
         
         defer { isLoading = false }
-//        registrationSuccessful = false
         
         do {
             let userRequest = RegistrationRequest(name: username,
                                                    email: email,
                                                    password: password)
-            // create the endpoint
             let registerEndpoint = RegisterEndpoint(registrationRequest: userRequest)
-            // get the response based on the endpoint
-            // TODO: for the response, we can design more for further feature
+            
             let _: RegistrationResponse = try await network.request(
                 endpoint: registerEndpoint,
                 responseType: RegistrationResponse.self
             )
             print("Successfully Create User With Email \(userRequest.email)")
-//            registrationSuccessful = true
             onRegisterSuccess()
         } catch {
             let errorMessage: String
@@ -55,5 +51,9 @@ class RegisterViewModel: ObservableObject {
             alertItem = AlertItem(title: "Registration Failed",
                                   message: errorMessage)
         }
+    }
+    
+    func navigateToLogin() {
+        onLoginTapped?()
     }
 }

@@ -2,7 +2,6 @@ import SwiftUI
 
 struct RegisterView: View {
     @ObservedObject var viewModel: RegisterViewModel
-    @EnvironmentObject var coordinator: OnboardingCoordinator
     
     @State private var name = ""
     @State private var email = ""
@@ -21,50 +20,23 @@ struct RegisterView: View {
         ZStack {
             NavigationStack {
                 Form {
-                    Section(header: Text("个人信息")) {
-                        TextField("姓名", text: $name)
-                            .autocapitalization(.words)
-                        TextField("邮箱", text: $email)
-                            .keyboardType(.emailAddress)
-                            .autocapitalization(.none)
-                            .textContentType(.emailAddress)
-                    }
-                    
-                    Section(header: Text("密码")) {
-                        SecureField("输入密码", text: $password)
-                            .textContentType(.newPassword)
-                    }
-                    
-                    Section {
-                        Button(action: registerButtonTapped) {
-                            HStack {
-                                Spacer()
-                                Text("注册")
-                                Spacer()
-                            }
-                        }
-                        .disabled(!isFormedValid || viewModel.isLoading)
-                    }
-                    
-                    Section {
-                        Button("已有账户? 返回登录") {
-                            coordinator.showLoginView()
-                        }
-                        .tint(.secondary)
-                    }
+                    PersonalInfoSection(name: $name, email: $email)
+                    PasswordSection(password: $password)
+                    RegisterButtonSection(
+                        text: "Register",
+                        isEnable: !isFormedValid || viewModel.isLoading,
+                        action: registerButtonTapped
+                    )
+                    LoginNavigationSection(
+                        text: "Already have an account? Login",
+                        action: viewModel.navigateToLogin)
                 }
-                .navigationTitle("注册新学生")
+                .navigationTitle("Registration")
             }
             .disabled(viewModel.isLoading)
             
             if viewModel.isLoading {
-                ProgressView("注册中...")
-                    .progressViewStyle(CircularProgressViewStyle())
-                    .padding()
-                    .background(Color.secondary.colorInvert())
-                    .cornerRadius(10)
-                    .shadow(radius: 10)
-                    .transition(.opacity.animation(.easeInOut))
+                LoadingOverlay(message: "Registering...")
             }
         }
         .alert(item: $viewModel.alertItem) { alertItem in
@@ -76,40 +48,34 @@ struct RegisterView: View {
     }
     private func registerButtonTapped() {
         Task {
-            UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
-            await viewModel.register(username: name, email: email, password: password)
+            dismissKeyboard()
+            await viewModel.register(username: name,
+                                     email: email,
+                                     password: password)
         }
+    }
+    
+    private func dismissKeyboard() {
+        UIApplication.shared.sendAction(
+            #selector(UIResponder.resolveClassMethod(_:)),
+            to: nil,
+            from: nil,
+            for: nil)
     }
 }
 
-
-// MARK: - Xcode 预览
-//struct MockNetworkService: NetworkServicing {
-//    func request<T: Decodable>(endpoint: String,
-//                       method: HTTPMethod,
-//                       body: RequestBody?,
-//                       responseType: T.Type)
-//    async throws -> T {
-//        
-//        try await Task.sleep(nanoseconds: 2_000_000_000)
-//        if T.self == RegistrationResponse.self{
-//            let mockResponse = RegistrationResponse(
-//                id: UUID(),
-//                name: "Mock user",
-//                email: "mock@example.com",
-//                createdAt: Date()
-//            )
-//            return mockResponse as! T
-//        }
-//        let errorDescription = "Mock for the type \(T.self) in not implemented in MockNetworkService."
-//        throw NSError(domain: "MockNetworkServiceError", code: 404, userInfo: [NSLocalizedDescriptionKey: errorDescription])
-//    }
-//}
-//
-//#Preview {
-//    // 在预览中，我们注入一个 Mock 的网络服务
-//    // 这样预览就不依赖于真实的网络，速度快且稳定
-//    let mockNetwork = MockNetworkService()
-//    let viewModel = RegistrationViewModel(network: mockNetwork)
-//    return RegistrationView(viewModel: viewModel)
-//}
+// MARK: - Xcode preview
+#Preview {
+    let mockNet: NetworkServicing = MockNetworkService()
+    let onSuccess: () -> Void = {
+        print("Register success (preview)")
+    }
+    let mockViewModel = RegisterViewModel(
+        network: mockNet,
+        onRegisterSuccess: onSuccess
+    )
+    mockViewModel.onLoginTapped = {
+        print("Navigate to login (preview)")
+    }
+    return RegisterView(viewModel: mockViewModel)
+}

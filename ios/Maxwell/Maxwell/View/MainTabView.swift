@@ -17,8 +17,6 @@ struct MainTabView: View {
     }
 }
 
-
-
 #Preview {
     MainTabView(network: MockNetworkService())
 }

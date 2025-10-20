@@ -8,6 +8,7 @@ class LoginViewModel: ObservableObject {
     private let network: NetworkServicing
     
     var onLoginSuccess: () -> Void
+    var onRegisterTapped: (() -> Void)?
 
     @Published var isLoading: Bool = false
     @Published var alertItem: AlertItem?
@@ -49,5 +50,9 @@ class LoginViewModel: ObservableObject {
             }
             self.alertItem = AlertItem(title: "Login Failed", message: errorMessage)
         }
+    }
+    
+    func navigateToRegister() {
+        onRegisterTapped?()
     }
 }

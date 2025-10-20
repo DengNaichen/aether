@@ -1,22 +1,7 @@
 import Foundation
 import Combine
 
-enum RequestBody {
-    case json(Encodable)
-    case formUrlEncoded([String: String])
-}
 
-enum HTTPMethod: String {
-    case GET, POST, PUT, DELETE
-}
-
-protocol Endpoint {
-    var path: String { get }
-    var method: HTTPMethod { get }
-    var body: RequestBody? { get }
-    
-    var requiredAuth: Bool { get }
-}
 
 protocol NetworkServicing {
     func request<T: Decodable> (
