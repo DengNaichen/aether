@@ -1,6 +1,6 @@
 import XCTest
 
-final class MaxwellUITestsLaunchTests: XCTestCase {
+final class AetherUITestsLaunchTests: XCTestCase {
 
     override class var runsForEachTargetApplicationUIConfiguration: Bool {
         true

@@ -1,7 +1,7 @@
 import Testing
-@testable import Maxwell
+@testable import Aether
 
-struct MaxwellTests {
+struct AetherTests {
 
     @Test func example() async throws {
         // Write your test here and use APIs like `#expect(...)` to check expected conditions.
