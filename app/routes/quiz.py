@@ -8,7 +8,7 @@ from app.core.deps import get_current_active_user, get_db
 from app.models.quiz import Quiz, QuizStatus, QuizSubmission
 
 from app.models.user import User
-from app.routes.courses import get_course_by_id
+from app.crud import crud
 from app.schemas.quiz import QuizRequest, QuizStartResponse
 
 router = APIRouter(
@@ -72,7 +72,13 @@ async def start_a_quiz(
         current_user (User): The current authenticated user.
     """
     # check if a course exist
-    await get_course_by_id(course_id=course_id, db=db)
+    is_course_exist = await crud.check_course_exist(course_id, db)
+    if not is_course_exist:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Course does not exist",
+        )
+    # await get_course_by_id(course_id=course_id, db=db)
 
     # check if user already have a quiz in-progress under this course
     stmt = (

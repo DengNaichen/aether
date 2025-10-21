@@ -12,7 +12,7 @@ from app.models.quiz import Quiz, QuizStatus, QuizSubmission
 from app.models.user import User
 
 # Import constants from your conftest to ensure consistency
-from tests.conftest import COURSE_ID
+from tests.conftest import COURSE_ID_ONE
 
 
 @pytest.mark.asyncio

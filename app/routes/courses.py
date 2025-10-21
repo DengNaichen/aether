@@ -113,14 +113,14 @@ async def create_enrollment(
     is_course_exist = await crud.check_course_exist(course_id, db)
     if not is_course_exist:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Course does not exist",
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Course Does Not Exist"
         )
     is_enrolled = await crud.check_enrollment(course_id, current_user, db)
-    if not is_enrolled:
+    if is_enrolled:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail=f"Course {course_id} has already been enrolled",
+            detail="User already enrolled this course."
         )
 
     enrollment = Enrollment(

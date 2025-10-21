@@ -27,7 +27,7 @@ sys.path.insert(0, str(ROOT_DIR))
 #
 # os.environ["REDIS_URL"] = "redis://localhost:6379/1"
 
-from typing import AsyncGenerator, Any
+from typing import AsyncGenerator, Any, List
 
 # ============================================
 # 2. 导入应用和依赖
@@ -54,8 +54,10 @@ TEST_USER_EMAIL = "test.conf@example.com"
 TEST_ADMIN_EMAIL = "test.admin@example.com"
 TEST_USER_PASSWORD = "a_very_secure_password_123@conf"
 TEST_ADMIN_PASSWORD = "admin_very_secure_password_123@conf"
-COURSE_ID = "existing_course"
-COURSE_NAME = "Existing Course"
+COURSE_ID_ONE = "existing_course_one"
+COURSE_NAME_ONE = "Existing Course One"
+COURSE_ID_TWO = "existing_course_two"
+COURSE_NAME_TWO = "Existing Course Two"
 
 
 # --- Fixtures ---
@@ -167,16 +169,23 @@ async def admin_in_db(test_db: AsyncSession) -> User:
 
 
 @pytest_asyncio.fixture(scope="function")
-async def course_in_db(test_db: AsyncSession) -> Course:
-    new_course = Course(
-        id=COURSE_ID,
-        name=COURSE_NAME,
+async def course_in_db(test_db: AsyncSession):
+    new_course_1 = Course(
+        id=COURSE_ID_ONE,
+        name=COURSE_NAME_ONE,
         description="This is an existing course for test",
     )
-    test_db.add(new_course)
+    new_course_2 = Course(
+        id=COURSE_ID_TWO,
+        name=COURSE_NAME_TWO,
+        description="This is an existing course for test",
+    )
+    test_db.add(new_course_1)
+    test_db.add(new_course_2)
     await test_db.commit()
-    await test_db.refresh(new_course)
-    return new_course
+    await test_db.refresh(new_course_1)
+    await test_db.refresh(new_course_2)
+    return new_course_1, new_course_2
 
 
 @pytest_asyncio.fixture(scope="function")
@@ -186,7 +195,7 @@ async def enrollment_in_db(
 ) -> Enrollment:
     new_enrollment = Enrollment(
         user_id=user_in_db.id,
-        course_id=COURSE_ID,
+        course_id=COURSE_ID_ONE,
     )
     test_db.add(new_enrollment)
     await test_db.commit()
@@ -234,7 +243,11 @@ async def enrolled_user_client(
     course_in_db: Course,
 ):
     """提供一个已认证且其用户已注册了课程的客户端。"""
-    new_enrollment = Enrollment(user_id=user_in_db.id, course_id=course_in_db.id)
+    course_one, _ = course_in_db
+    new_enrollment = Enrollment(
+        user_id=user_in_db.id,
+        course_id=course_one.id
+    )
     test_db.add(new_enrollment)
     await test_db.commit()
     yield authenticated_client
