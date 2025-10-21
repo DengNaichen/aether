@@ -34,27 +34,27 @@ async def handle_neo4j_enroll_a_student_in_a_course(
 
     """
     course_id = payload.get("course_id")
-    student_id = payload.get("student_id")
-    student_name = payload.get("student_name")
+    user_id = payload.get("user_id")
+    user_name = payload.get("user_name")
 
     if not course_id:
         raise ValueError(f"Missing course id: {course_id} ")
-    if not student_id:
-        raise ValueError(f"Missing student id: {student_id} ")
-    if not student_name:
-        raise ValueError(f"Missing student name: {student_name} ")
+    if not user_id:
+        raise ValueError(f"Missing student id: {user_id} ")
+    if not user_name:
+        raise ValueError(f"Missing student name: {user_name} ")
 
     async with ctx.neo4j_session() as session:
         await session.execute_write(
             lambda tx: tx.run(
                 """
-                MERGE (u: User {id: $user_id, name: $user_name}),
-                MERGE (c: Course {id: $course_id}),
+                MERGE (u: User {id: $user_id, name: $user_name})
+                MERGE (c: Course {id: $course_id})
                 MERGE(u)-[r:ENROLLED_IN]->(c)
                 RETURN count(r) > 0 AS success
                 """,
-                user_id=student_id,
-                user_name=student_name,
+                user_id=user_id,
+                user_name=user_name,
                 course_id=course_id,
             )
         )

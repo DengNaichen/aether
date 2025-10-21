@@ -12,5 +12,5 @@ class KnowledgeNode(Base):
     id = Column(String, primary_key=True)
     name = Column(String, nullable=False)
 
-    course_id = Column(String, ForeignKey("courses.id"))
+    course_id = Column(String, ForeignKey("courses.id"), nullable=False)
     description = Column(String, nullable=False)

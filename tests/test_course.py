@@ -4,7 +4,7 @@ from httpx import AsyncClient
 from redis.asyncio import Redis
 from fastapi import status
 
-from app.schemas.courses import CourseRequest
+from app.schemas.courses import CourseCreate
 from app.helper.course_helper import Grade, Subject
 from app.worker.config import WorkerContext
 from app.worker.handlers import handle_neo4j_create_course
@@ -17,7 +17,7 @@ class TestCourseByApi:
             authenticated_admin_client: AsyncClient,
             test_redis: Redis,
     ):
-        new_course = CourseRequest(
+        new_course = CourseCreate(
             grade=Grade.G10,
             subject=Subject.BIOLOGY,
             name="Grade 10 Biology",

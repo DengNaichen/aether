@@ -1,5 +1,7 @@
 import Foundation
 
+//struct Subject
+
 /// Represents a course data model
 ///
 /// The `Course` structure contains basic information about a course, including
@@ -36,21 +38,23 @@ struct CourseResponse: Codable, Equatable {
     // TODO: Define fields when backend schema is available
     var courseId: String
     var courseName: String
+    var isEnrolled: Bool
     var numOfKnowledgeNode: Int
     
     enum CodingKeys: String, CodingKey {
         case courseId = "course_id"
         case courseName = "course_name"
+        case isEnrolled = "is_enrolled"
         case numOfKnowledgeNode = "num_of_knowledge_nodes"
     }
 }
 
-struct CoursesRequest: Codable, Equatable {
+struct AllCoursesRequest: Codable, Equatable {
     // TODO: Seems I don't need it, but I will just keep for a while
 }
 
-struct CoursesResponse: Codable, Equatable {
-    // TODO: Seems I don't need it, but I will just keep for a while
+struct AllCoursesResponse: Codable, Equatable {
+    var courses: [CourseResponse]
 }
 
 struct EnrollmentRequest: Encodable, Equatable {

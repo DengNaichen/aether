@@ -1,6 +1,6 @@
 import SwiftUI
 
-struct DashboardView: View {
+struct HomeView: View {
 
     @StateObject private var viewModel: DashboardViewModel
     
@@ -15,16 +15,6 @@ struct DashboardView: View {
             VStack(spacing: 30) {
                 Text("😅😒🤯")
                     .font(.largeTitle)
-              
-                Button("Enroll in Default Course(G11 Physics)") {
-                    Task{
-                        await viewModel.enrollInCourse(courseId: "g11_phys")
-                    }
-                }
-                .padding()
-                .background(Color.green)
-                .foregroundColor(.white)
-                .cornerRadius(10)
               
                 Button("Start Test Session (G11 Physics)") {
                     Task {

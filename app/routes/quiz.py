@@ -8,7 +8,7 @@ from app.core.deps import get_current_active_user, get_db
 from app.models.quiz import Quiz, QuizStatus, QuizSubmission
 
 from app.models.user import User
-from app.routes.enrollment import get_course_by_id
+from app.routes.courses import get_course_by_id
 from app.schemas.quiz import QuizRequest, QuizStartResponse
 
 router = APIRouter(

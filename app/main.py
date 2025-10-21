@@ -5,7 +5,7 @@ from fastapi import FastAPI
 import app.models as models
 from app.core.config import settings
 from app.core.database import db_manager
-from app.routes import question, user, quiz, submissions, enrollment, admin, courses
+from app.routes import question, user, quiz, submissions, admin, courses
 
 
 # define lifespan
@@ -28,7 +28,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(lifespan=lifespan)
 app.include_router(user.router)
 app.include_router(question.router)
-app.include_router(enrollment.router)
+# app.include_router(enrollment.router)
 app.include_router(quiz.router)
 app.include_router(submissions.router)
 # app.include_router(courses.router)

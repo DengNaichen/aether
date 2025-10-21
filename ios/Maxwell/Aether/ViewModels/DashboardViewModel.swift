@@ -48,7 +48,6 @@ class DashboardViewModel: ObservableObject {
     func startSession(courseId: String, questionCount: Int) async {
         isStartingSession = true
         alertItem = nil
-//            self.quizProblems = []
         self.quizProblemsForNavigation = nil
         defer { isStartingSession = false }
 

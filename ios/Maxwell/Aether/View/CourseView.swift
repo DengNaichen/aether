@@ -12,13 +12,15 @@ struct CourseRowView: View {
                 .background(Color.blue.opacity(0.1))
                 .clipShape(Circle())
             VStack(alignment: .leading, spacing: 4) {
+                
                 Text(course.courseName)
                     .font(.headline)
                     .fontWeight(.bold)
                 
-                Text("\(course.numOfKnowledgeNodes)")
+                Text("\(course.numOfKnowledgeNodes) nodes")
                     .font(.subheadline)
                     .foregroundColor(.secondary)
+                
             }
             Spacer()
         }
@@ -26,15 +28,37 @@ struct CourseRowView: View {
     }
 }
 
+struct CourseDetailView: View {
+    let course: Course
+    @ObservedObject var viewModel: CourseViewModel
+    
+    
+    var body: some View {
+        Button("Enroll in \(course.courseName)") {
+            Task {
+                await viewModel.enrollInCourse(courseId: course.courseId)
+            }
+        }
+    }
+}
+
 
 struct CoursesListView: View {
-    @StateObject private var viewModel = CourseViewModel()
+    
+    @StateObject private var viewModel: CourseViewModel
+    
+    init(viewModel: CourseViewModel) {
+        self._viewModel = StateObject(wrappedValue: viewModel)
+    }
     
     var body: some View {
         NavigationView{
             List(viewModel.courses) { course in
                 NavigationLink(
-                    destination: Text("details: \(course.courseName)")
+                    destination: CourseDetailView(
+                        course: course,
+                        viewModel: viewModel
+                    )
                 ) {
                     CourseRowView(course: course)
                 }
@@ -42,13 +66,16 @@ struct CoursesListView: View {
             .listStyle(.plain)
             .navigationTitle(Text("Courses"))
             .onAppear {
-                viewModel.fetchCourses()
+                Task {
+                    // TODO: if this fail, we need a new error handler
+                    await viewModel.fetchAllCourses()
+                }
             }
         }
     }
 }
 
 
-#Preview {
-    CoursesListView()
-}
+//#Preview {
+//    CoursesListView()
+//}

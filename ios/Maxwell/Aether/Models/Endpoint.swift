@@ -48,10 +48,10 @@ struct GetUserInfoEndpoint: Endpoint {
     var requiredAuth: Bool { true }
 }
 
-struct GetCoursesEndpoint: Endpoint {
+struct GetAllCoursesEndpoint: Endpoint {
     var path: String { "/courses" }
     var method: HTTPMethod { .GET }
-    var body: RequestBody? { nil } // TODO:
+    var body: RequestBody? { nil }
     var requiredAuth: Bool { true }
 }
 
@@ -75,7 +75,6 @@ struct EnrollCourseEndpoint: Endpoint {
     
     var requiredAuth: Bool { true }
 }
-
 
 
 struct QuizEndpoint: Endpoint {
