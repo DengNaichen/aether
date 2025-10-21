@@ -93,7 +93,8 @@ class TestSubmitQuizAnswers:
         assert data["answers"][1]["is_correct"] is False
 
         # 2. Check database state for QuizSubmission
-        db_submission = await test_db.get(QuizSubmission, in_progress_submission.id)
+        db_submission = await test_db.get(QuizSubmission,
+                                          in_progress_submission.id)
         assert db_submission.status == QuizStatus.COMPLETED
         assert db_submission.score == 1
         assert db_submission.submitted_at is not None

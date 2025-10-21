@@ -5,7 +5,7 @@ from fastapi import FastAPI
 import app.models as models
 from app.core.config import settings
 from app.core.database import db_manager
-from app.routes import question, user, quiz, submissions, admin, courses
+from app.routes import question, user, quiz, submissions, admin, courses, knowledge_node
 
 
 # define lifespan
@@ -34,6 +34,7 @@ app.include_router(submissions.router)
 # app.include_router(courses.router)
 app.include_router(admin.router)
 app.include_router(courses.router)
+app.include_router(knowledge_node.router)
 
 
 @app.get("/health")

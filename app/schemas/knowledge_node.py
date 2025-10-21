@@ -27,7 +27,13 @@ class KnowledgeRelationCreate(BaseModel):
     relation_type: RelationType
 
 
-# class KnowledgeNodeResponse(BaseModel):
+class KnowledgeNodeResponse(BaseModel):
+    id: str
+    name: str
+    course_id: str
+    description: str
 
+    class Config:
+        from_attributes = True
 
 

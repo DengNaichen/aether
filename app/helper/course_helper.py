@@ -6,12 +6,14 @@ class Grade(Enum):
     G10 = "g10"
     G11 = "g11"
     G12 = "g12"
+    TEST = "existing"
 
 
 class Subject(Enum):
     PHYSICS = "phys"
     CHEMISTRY = "chem"
     BIOLOGY = "bio"
+    TEST = "course_one"
 
 
 def assemble_course_id(grade: Grade, subject: Subject) -> str:

@@ -6,7 +6,6 @@ from fastapi import APIRouter, HTTPException, status, UploadFile, File
 from fastapi.params import Depends
 from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.dialects.postgresql import insert
 from redis.asyncio import Redis
 
 from app.core.deps import get_db, get_redis_client
@@ -18,18 +17,16 @@ from app.schemas.knowledge_node import KnowledgeNodeCreate, RelationType, \
 
 from app.crud.crud import check_knowledge_node, check_course_exist
 from core.deps import get_current_admin_user
+from schemas.knowledge_node import KnowledgeNodeResponse
 
-router = APIRouter(
-    prefix="/courses",
-    tags=["courses"],
-)
+router = APIRouter()
 
 
 @router.post(
-    "{course_id}/node",
+    "/courses/{course_id}/node",
     status_code=status.HTTP_201_CREATED,
     summary="Create a new knowledge node",
-    response_model=KnowledgeNode,
+    response_model=KnowledgeNodeResponse,
 )
 async def create_knowledge_node(
         course_id: str,
@@ -37,7 +34,7 @@ async def create_knowledge_node(
         db: AsyncSession = Depends(get_db),
         redis_client: Redis = Depends(get_redis_client),
         admin: User = Depends(get_current_admin_user)
-) -> KnowledgeNode:
+) -> KnowledgeNodeResponse:
     """ Create a new knowledge node under a course with course id
 
     This endpoint create a knowledge node in the sql database and publishes
@@ -65,7 +62,11 @@ async def create_knowledge_node(
     """
     node_course_id = assemble_course_id(node.grade, node.subject)
 
-    assert course_id == node_course_id
+    if course_id != node_course_id:
+        raise HTTPException(
+            status_code=400,
+            detail="The course is not exist in the database"
+        )
 
     if_course_exist = await check_course_exist(course_id, db)
     if not if_course_exist:
@@ -101,10 +102,10 @@ async def create_knowledge_node(
             }
         }
 
-        await redis_client.publish("general_task_queue", json.dumps(task))
+        await redis_client.lpush("general_task_queue", json.dumps(task))
 
         print(f"📤 Task queued for knowledge node id {new_knowledge_node.id}")
-        return new_knowledge_node
+        return new_knowledge_node  # TODO: this need to be changed
 
     except Exception as e:
         await db.rollback()
@@ -115,7 +116,7 @@ async def create_knowledge_node(
 
 
 @router.post(
-    "/{course_id}/relationship",
+    "/courses/{course_id}/relationship",
     status_code=status.HTTP_201_CREATED,
     summary="Create a new knowledge relation in the neo4j database",
 )
