@@ -39,7 +39,7 @@ class Question(Base):
         details(JSON): The details of the question
         create_at(datetime): The date and time the question was created.
         updated_at(datetime): The date and time the question was updated.
-        knowledge_point_id(str): The knowledge point of the question.
+        knowledge_node_id(str): The knowledge point of the question.
     """
     __tablename__ = "questions"
     id = Column(UUID, primary_key=True, default=uuid.uuid4)
@@ -54,7 +54,6 @@ class Question(Base):
                         server_default=func.now(),
                         onupdate=func.now()
                         )
-    knowledge_point_id = Column(String,
-                                ForeignKey("knowledge_nodes.id"),
-                                nullable=False)
+    knowledge_node_id = Column(String, ForeignKey("knowledge_nodes.id"),
+                               nullable=False)
 

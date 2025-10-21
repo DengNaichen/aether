@@ -88,39 +88,79 @@ async def handle_neo4j_create_knowledge_node(payload: dict, ctx: WorkerContext):
     print(f"✅ knowledge node {knowledge_node_id} synced to graph database")
 
 
+@register_handler("handle_neo4j_create_knowledge_relation")
+async def handle_neo4j_create_knowledge_relation(
+        payload: dict, ctx: WorkerContext
+):
+    course_id = payload.get("course_id")
+    source_node_id = payload.get("source_node_id")
+    target_node_id = payload.get("target_node_id")
+    relation_type = payload.get("relation_type")
+
+    if not all([course_id, source_node_id, target_node_id, relation_type]):
+        raise ValueError(f"Missing one or more required parameters.")
+
+    query = (
+        f"MATCH (sn:KnowledgeNode {{id: $sn_id}}) "
+        f"MATCH (tn:KnowledgeNode {{id: $tn_id}}) "
+        f"MERGE (sn)-[r:{relation_type}]->(tn)"
+    )
+    
+    async with ctx.neo4j_session() as session:
+        await session.execute_write(
+            lambda tx: tx.run(
+                query,
+                sn_id=source_node_id,
+                tn_id=target_node_id,
+            )
+        )
+    print(f"✅ Knowledge relation '{relation_type}' between source node "
+          f"'{source_node_id}' and target node '{target_node_id}' "
+          f"synced to graph database")
+
+
 @register_handler("handle_neo4j_create_question")
 async def handle_neo4j_create_question(payload: dict, ctx: WorkerContext):
     question_id = payload.get("question_id")
     question_type = payload.get("question_type")
+    difficulty = payload.get("difficulty")
     knowledge_node_id = payload.get("knowledge_node_id")
 
-    if not question_id:
-        raise ValueError(f"Missing question id: {question_id} "
-                         f"for graph database sync")
+    if not all([question_id, question_type, difficulty, knowledge_node_id]):
+        raise ValueError(f"Missing one or more required parameters.")
+
+    query = (
+        f"MATCH (q:Question {{id: $question_id}}) "
+        f"MATCH (kn:KnowledgeNode {{id: knowledge_node_id}}) "
+        f"SET q:{question_type}:{difficulty} "
+        f"MERGE (q)-[r:TESTS]->(kn)"
+    )
     async with ctx.neo4j_session() as session:
-        await session.run(
-            # TODO: rewrite this query
-            "MATCH (n) RETURN n",
-            id=question_id,
+        await session.execute_write(
+            lambda tx: tx.run(
+                query,
+                question_id=question_id,
+                knowledge_node_id=knowledge_node_id,
+            ).consume()
         )
     print(f"✅ question {question_id} synced to graph database")
 
 
-@register_handler("handle_neo4j_update_knowledge_node")
-async def handle_neo4j_update_knowledge_node(payload: dict, ctx: WorkerContext):
-    pass
+# @register_handler("handle_neo4j_update_knowledge_node")
+# async def handle_neo4j_update_knowledge_node(payload: dict, ctx: WorkerContext):
+#     pass
 
 
-@register_handler("handle_neo4j_update_question")
-async def handle_neo4j_update_question(payload: dict, ctx: WorkerContext):
-    pass
-
-
-@register_handler("handle_neo4j_update_mastery_level")
-async def handle_neo4j_update_mastery_level(payload: dict, ctx: WorkerContext):
-    pass
-
-
-@register_handler("handle_neo4j_query_problem")
-async def handle_neo4j_query_problem(payload: dict, ctx: WorkerContext):
-    pass
+# @register_handler("handle_neo4j_update_question")
+# async def handle_neo4j_update_question(payload: dict, ctx: WorkerContext):
+#     pass
+#
+#
+# @register_handler("handle_neo4j_update_mastery_level")
+# async def handle_neo4j_update_mastery_level(payload: dict, ctx: WorkerContext):
+#     pass
+#
+#
+# @register_handler("handle_neo4j_query_problem")
+# async def handle_neo4j_query_problem(payload: dict, ctx: WorkerContext):
+#     pass

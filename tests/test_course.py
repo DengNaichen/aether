@@ -161,7 +161,7 @@ class TestFetchCourse:
         assert not courses[1]["is_enrolled"]
 
 
-class TestEnrollmentAPI:
+class TestEnrollmentCourse:
     @pytest.mark.asyncio
     async def test_enroll_a_course_failed_with_unauthenticated_user(
             self,
