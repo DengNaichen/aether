@@ -1,7 +1,8 @@
 import SwiftUI
 
 struct MainTabView: View {
-    var network: NetworkService
+    @Environment(\.modelContext) private var modelContext
+    var network: NetworkServicing
     var body: some View {
         TabView {
              HomeView(viewModel: DashboardViewModel(network: network))
@@ -9,7 +10,10 @@ struct MainTabView: View {
                     Label("Home", systemImage: "house.fill")
                 }
             
-            CoursesListView(viewModel: CourseViewModel(network: network))
+            CoursesListView(viewModel: CourseViewModel(
+                network: network,
+                modelContext: modelContext
+            ))
                 .tabItem {
                     Label("Course", systemImage: "graduationcap.fill")
                 }
@@ -17,6 +21,6 @@ struct MainTabView: View {
     }
 }
 
-#Preview {
-    MainTabView(network: MockNetworkService())
-}
+//#Preview {
+//    MainTabView(network: MockNetworkService())
+//}

@@ -113,18 +113,60 @@ class NetworkService: NetworkServicing, ObservableObject {
 }
 
 
+enum MockNetworkError: Error, LocalizedError {
+    case generalError
+    var errorDescription: String? {
+        "A mock network error occurred."
+    }
+}
 
 
-
-class MockNetworkService: NetworkService {
+class MockNetworkService: NetworkServicing, ObservableObject {
     
-    override init(baseURL: URL, session: URLSession = .shared, authService: AuthService) {
-        super.init(baseURL: baseURL, session: session, authService: authService)
+    var mockResponse: Decodable?
+    
+    var mockError: Error?
+    
+    var latency: TimeInterval = 0.5
+    
+    init() {
+        self.mockResponse = FetchAllCoursesResponse(
+            courses: [
+                FetchCourseResponse(
+                    courseId: "swiftui-101",
+                    courseName: "SwiftUI 完全指南",
+                    courseDescription: "从入门到精通，构建漂亮的iOS应用。",
+                    isEnrolled: true,
+                    numOfKnowledgeNode: 35),
+                FetchCourseResponse(
+                    courseId: "swiftdata-201",
+                    courseName: "精通 SwiftData",
+                    courseDescription: "掌握现代化的数据持久化方案。",
+                    isEnrolled: false,
+                    numOfKnowledgeNode: 52),
+                FetchCourseResponse(
+                    courseId: "combine-301",
+                    courseName: "响应式编程与 Combine",
+                    courseDescription: "学习苹果官方的响应式编程框架。",
+                    isEnrolled: false, numOfKnowledgeNode: 48)
+                            
+            ]
+        )
     }
 
-    convenience init() {
-        let mockBaseURL = URL(string: "https://mock.example.com")!
-        let mockAuthService = AuthService()
-        self.init(baseURL: mockBaseURL, session: .shared, authService: mockAuthService)
+    func request<T: Decodable>(
+        endpoint: Endpoint,
+        responseType: T.Type
+    ) async throws -> T {
+        try await Task.sleep(for: .seconds(latency))
+        
+        if let error = mockError {
+            throw error
+        }
+        
+        guard let response = mockResponse as? T else {
+            throw MockNetworkError.generalError
+        }
+        return response
     }
 }

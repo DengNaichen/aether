@@ -1,5 +1,5 @@
 import Foundation
-
+import SwiftData
 //struct Subject
 
 /// Represents a course data model
@@ -8,25 +8,40 @@ import Foundation
 /// the course identifier, name, number of knowledge nodes.
 struct Course: Equatable, Identifiable {
     var id = UUID()
-    /// The unique indentifier for the course
     var courseId: String
-    /// the name of the course
     var courseName: String
-    /// The number of knowledge nodes contained in the course
     var numOfKnowledgeNodes: Int
-    /// The enrollment status, will be used for Views
     var isEnrolled: Bool
     /// if the course is primary
     var isPrimary: Bool
-    ///
-    var systemImageName: String
+}
+
+@Model
+final class CourseModel {
+    @Attribute(.unique)
+    var courseId: String
+    var courseName: String
+    var courseDescription: String
+    var isEnrolled: Bool
+    var numOfKnowledgeNodes: Int
+    var isPrimary: Bool
+    
+    init(courseId: String, courseName: String, courseDescription: String,
+         isEnrolled: Bool, numOfKnowledgeNodes: Int, isPrimary: Bool) {
+        self.courseId = courseId
+        self.courseName = courseName
+        self.courseDescription = courseDescription
+        self.isEnrolled = isEnrolled
+        self.numOfKnowledgeNodes = numOfKnowledgeNodes
+        self.isPrimary = isPrimary
+    }
 }
 
 /// A request model for course-related abi calls
 ///
 /// `CourseRequest` is used to encode course identification data when making
 /// nerwork request to the backed API, for a single course
-struct CourseRequest: Encodable {
+struct FetchCourseRequest: Encodable {
     var courseId: String
     
     enum CodingKeys: String, CodingKey {
@@ -34,27 +49,29 @@ struct CourseRequest: Encodable {
     }
 }
 
-struct CourseResponse: Codable, Equatable {
+struct FetchCourseResponse: Codable, Equatable {
     // TODO: Define fields when backend schema is available
     var courseId: String
     var courseName: String
+    var courseDescription: String
     var isEnrolled: Bool
     var numOfKnowledgeNode: Int
     
     enum CodingKeys: String, CodingKey {
         case courseId = "course_id"
         case courseName = "course_name"
+        case courseDescription = "course_description"
         case isEnrolled = "is_enrolled"
         case numOfKnowledgeNode = "num_of_knowledge_nodes"
     }
 }
 
-struct AllCoursesRequest: Codable, Equatable {
-    // TODO: Seems I don't need it, but I will just keep for a while
+struct FetchAllCoursesRequest: Codable, Equatable {
+    // TODO: Seems I don't need it, but I will just keep it for a while
 }
 
-struct AllCoursesResponse: Codable, Equatable {
-    var courses: [CourseResponse]
+struct FetchAllCoursesResponse: Codable, Equatable {
+    var courses: [FetchCourseResponse]
 }
 
 struct EnrollmentRequest: Encodable, Equatable {

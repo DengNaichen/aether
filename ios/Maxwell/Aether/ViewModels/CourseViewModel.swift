@@ -1,20 +1,24 @@
 import Foundation
+import SwiftData
 import Combine
 
+@MainActor
 class CourseViewModel: ObservableObject, NetworkViewModeling {
     
     @Published var courses: [Course] = []
     
     private let network: NetworkServicing
+    private let modelContext: ModelContext
     
     @Published var isLoading: Bool = false
     @Published var isEnrolling: Bool = false
     @Published var alertItem: AlertItem?
     @Published var enrollmentResponse: EnrollmentResponse? = nil
-    @Published var allCoursesResponse: AllCoursesResponse? = nil
+    @Published var allCoursesResponse: FetchAllCoursesResponse? = nil
     
-    init(network: NetworkServicing) {
+    init(network: NetworkServicing, modelContext: ModelContext) {
         self.network = network
+        self.modelContext = modelContext
     }
     
     private func handleError(_ error: Error, title: String) {
@@ -37,41 +41,72 @@ class CourseViewModel: ObservableObject, NetworkViewModeling {
         defer { isLoading = false }
         do {
             let endpoint = GetAllCoursesEndpoint()
-            let response: AllCoursesResponse = try await network.request(
+            let response: FetchAllCoursesResponse = try await network.request(
                 endpoint: endpoint,
-                responseType: AllCoursesResponse.self
+                responseType: FetchAllCoursesResponse.self
             )
             // Keep the raw response if you want it elsewhere
             self.allCoursesResponse = response
-            // Convert and publish the courses array
-            // TODO: How to do this problem?
-            let covertedCourses =
-                response.courses.map{ ConvertResponseToCourse(response: $0) }
             
-            await MainActor.run {
-                self.courses = covertedCourses
-            }
+            let courseModels = response.courses.map {convertResponseToCourseModel (response: $0)}
+
+            try persist(courseModels: courseModels)
+            
+            loadCoursesFromDB()
+            
             
         } catch {
             handleError(error, title: "Fetch Course Failed")
         }
     }
     
-    // MARK: - convert the response to model
-    /// Convert the single course response model -> course model
-    func ConvertResponseToCourse(response: CourseResponse) -> Course {
-        Course(
+    // MARK: - Model Conversion Helpers
+    func convertResponseToCourseModel(response: FetchCourseResponse)
+    -> CourseModel {
+        return CourseModel(
             courseId: response.courseId,
             courseName: response.courseName,
-            numOfKnowledgeNodes: response.numOfKnowledgeNode,
+            courseDescription: response.courseDescription,
             isEnrolled: response.isEnrolled,
-            isPrimary: false, // TODO: this need to be changed later
-            systemImageName: "book" // TODO: this need to be change later
+            numOfKnowledgeNodes: response.numOfKnowledgeNode,
+            isPrimary: false // TODO: login, this need to be changed later
         )
     }
     
-    // - MARK: enroll a course
+    /// Convert the single course response model -> course model
+    func ConvertCourseModelToCourse(model: CourseModel) -> Course {
+        Course(
+            courseId: model.courseId,
+            courseName: model.courseName,
+            numOfKnowledgeNodes: model.numOfKnowledgeNodes,
+            isEnrolled: model.isEnrolled,
+            isPrimary: model.isPrimary
+        )
+    }
+    
+    private func persist(courseModels: [CourseModel]) throws {
+        try modelContext.delete(model: CourseModel.self)
+        for model in courseModels {
+            modelContext.insert(model)
+        }
+        try modelContext.save()
+    }
+    
+    @MainActor
+    private func loadCoursesFromDB() {
+        do {
+            let descriptor = FetchDescriptor<CourseModel>(sortBy: [SortDescriptor(\.courseName)])
+            let models = try modelContext.fetch(descriptor)
+            self.courses = models.map{ ConvertCourseModelToCourse(model: $0)}
+        } catch {
+            handleError(error, title: "Failed to load courses from database")
+        }
+        
+    }
+    
+    // MARK: - enroll a course
     func enrollInCourse(courseId: String) async {
+        // TODO: a local login to check if the user already enrolled this course
         isEnrolling = true
         defer { isEnrolling = false }
         alertItem = nil

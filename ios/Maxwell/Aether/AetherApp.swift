@@ -1,5 +1,5 @@
 import SwiftUI
-//import SwiftData
+import SwiftData
 
 @main
 struct AetherApp: App {
@@ -10,7 +10,6 @@ struct AetherApp: App {
     init() {
         let auth = AuthService()
         let ipAddress = "192.168.2.13"
-        
         guard let baseURL = URL(string: "http://\(ipAddress):8000") else {
             fatalError("Invalid base URL provided.")
         }
@@ -35,6 +34,7 @@ struct AetherApp: App {
             .task {
                 await authService.checkAuthenticationStatus()
             }
+            .modelContainer(for: CourseModel.self)
         }
     }
 }

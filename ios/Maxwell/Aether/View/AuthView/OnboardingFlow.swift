@@ -2,7 +2,7 @@ import SwiftUI
 
 
 struct OnboardingFlow: View {
-    let network: NetworkService // TODO: don't know if this is right
+    let network: NetworkServicing
     let authservice: AuthService
     
     @State private var showRegister = false

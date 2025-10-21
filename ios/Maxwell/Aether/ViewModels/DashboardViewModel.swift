@@ -4,7 +4,7 @@ import Combine
 @MainActor
 class DashboardViewModel: ObservableObject {
     
-    private let networkService: NetworkService
+    private let networkService: NetworkServicing
 
     // UI state parameters
     @Published var isEnrolling: Bool = false
@@ -14,7 +14,7 @@ class DashboardViewModel: ObservableObject {
     @Published var enrollmentResponse: EnrollmentResponse? = nil
     @Published var alertItem: AlertItem?
     
-    init (network: NetworkService) {
+    init (network: NetworkServicing) {
         self.networkService = network
     }
     
