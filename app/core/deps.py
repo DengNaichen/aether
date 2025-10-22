@@ -12,6 +12,7 @@ from app.core.config import settings
 from app.core.database import db_manager
 from app.crud.user import get_user_by_id
 from app.models.user import User
+from app.worker.config import WorkerContext
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 
@@ -53,6 +54,15 @@ async def get_neo4j_driver() -> AsyncNeo4jDriver:
             detail="Neo4j Driver is not available",
         )
     return driver
+
+
+async def get_worker_context() -> AsyncGenerator[WorkerContext, None]:
+    ctx = WorkerContext(db_manager)
+
+    try:
+        yield ctx
+    finally:
+        pass
 
 
 async def get_current_user(

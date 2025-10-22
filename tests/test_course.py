@@ -287,7 +287,3 @@ class TestEnrollmentWorker:
             )
             assert enrolled_course is not None
             assert enrolled_course.course_id == course_id
-
-
-
-            # TODO: need to clean the neo4j test database

@@ -1,3 +1,4 @@
+import asyncio
 import json
 
 import pytest
@@ -6,50 +7,56 @@ from redis.asyncio import Redis
 
 from app.schemas.knowledge_node import KnowledgeNodeCreate
 from app.helper.course_helper import Subject, Grade
+import app.models.neo4j_model as neo
+from app.core.database import DatabaseManager
 
 
 class TestNodeCreation:
+
     @pytest.mark.asyncio
     async def test_create_node_successfully(
             self,
             authenticated_admin_client: AsyncClient,
-            course_in_db,
-            test_redis: Redis,
+            course_in_neo4j_db: neo.Course,
+            test_db_manager: DatabaseManager,
     ):
-        course_one, _ = course_in_db
-        new_node = KnowledgeNodeCreate(
-            id="test_node",
-            name="test node",
-            description="test node description",
-            subject=Subject.TEST,
-            grade=Grade.TEST,
-        )
-        node_payload = new_node.model_dump(mode='json')
-        response = await authenticated_admin_client.post(
-            f"/courses/{course_one.id}/node",
-            json=node_payload,
-        )
+        client = authenticated_admin_client
+        parent_course_id = course_in_neo4j_db.course_id
+
+        new_node_id = "kn_physics_001"
+        new_node_name = "Newton's First Law"
+
+        payload = {
+            "id": new_node_id,
+            "name": new_node_name,
+            "description": "This is a test node",
+            "grade": Grade.TEST.value,  # need to think about
+            "subject": Subject.TEST.value
+        }
+
+        url = f"/courses/{parent_course_id}/node"
+
+        response = await client.post(url, json=payload)
+
         assert response.status_code == 201
 
         response_data = response.json()
+        assert response_data["id"] == new_node_id
+        assert response_data["name"] == new_node_name
 
-        assert response_data['id'] == new_node.id
-        assert response_data['name'] == new_node.name
-        assert response_data['description'] == new_node.description
+        async with test_db_manager.neo4j_scoped_connection():
+            db_node = await asyncio.to_thread(
+                neo.KnowledgeNode.nodes.get,
+                node_id=new_node_id,
+            )
+            assert db_node is not None
+            assert db_node.node_name == new_node_name
 
-        # Test queue
-        queued_task_str = await test_redis.lpop("general_task_queue")
+            db_course = await asyncio.to_thread(db_node.course.get)
 
-        assert queued_task_str is not None, "No task was queued in Redis"
-        queued_task = json.loads(queued_task_str)
-        expected_task = {
-            "task_type": "handle_neo4j_create_knowledge_node",
-            "payload": {
-                "node_id": new_node.id,
-                "course_id": course_one.id,
-            }
-        }
-        assert queued_task == expected_task
+            assert db_course is not None
+            assert db_course.course_id == parent_course_id
+
 
     @pytest.mark.asyncio
     async def test_create_node_failed_with_invalid_course(

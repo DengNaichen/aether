@@ -1,9 +1,11 @@
+import asyncio
 import csv
 import json
 from idlelib.iomenu import errors
 
 from fastapi import APIRouter, HTTPException, status, UploadFile, File
 from fastapi.params import Depends
+from neomodel import DoesNotExist
 from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 from redis.asyncio import Redis
@@ -16,8 +18,70 @@ from app.schemas.knowledge_node import KnowledgeNodeCreate, RelationType, \
     KnowledgeRelationCreate
 
 from app.crud.crud import check_knowledge_node, check_course_exist
-from app.core.deps import get_current_admin_user
+from app.core.deps import get_current_admin_user, get_worker_context
 from app.schemas.knowledge_node import KnowledgeNodeResponse
+from app.worker.config import WorkerContext
+import app.models.neo4j_model as neo
+
+
+# TODO: the following part need to be changed to another file
+class NodeAlreadyExistsError(Exception):
+    pass
+
+
+async def _create_knowledge_node_sync(
+        course_id: str,
+        node_data: KnowledgeNodeCreate,
+) -> neo.KnowledgeNode:
+    try:
+        course = neo.Course.nodes.get(course_id=course_id)
+    except DoesNotExist:
+        raise ValueError(f"Course {course_id} does not exist")
+
+    if neo.KnowledgeNode.nodes.first_or_none(node_id=node_data.id):
+        raise NodeAlreadyExistsError(f'Node {node_data.node_id} already exists')
+
+    new_node = neo.KnowledgeNode(
+        node_id=node_data.id,
+        node_name=node_data.name,
+        description=node_data.description,
+    ).save()
+    new_node.course.connect(course)
+
+    return new_node
+
+
+def _create_knowledge_relation_sync(
+        relation: KnowledgeRelationCreate,
+) -> dict:
+    try:
+        source_node = neo.KnowledgeNode.nodes.get(
+            node_id=relation.source_node_id
+        )
+        target_node = neo.KnowledgeNode.nodes.get(
+            node_id=relation.target_node_id
+        )
+    except DoesNotExist:
+        raise ValueError(f"Source or Target node does not exist")
+
+    if relation.relation_type == RelationType.HAS_PREREQUISITES:
+        source_node.prerequisites.connect(target_node)
+        # todo: how about another relations?
+    elif relation.relation_type == RelationType.HAS_SUBTOPIC:
+        source_node.subtopic.connect(target_node)
+    elif relation.relation_type == RelationType.IS_EXAMPLE_OF:
+        source_node.concept_this_is_example_of.connect(target_node)
+
+    else:
+        raise TypeError(f"Unknown relation type {relation.relation_type}")
+
+    return {
+        "status": "success",
+        "source": source_node.node_id,
+        "target": target_node.node_id,
+        "relation": relation.relation_type.value,
+    }
+
 
 router = APIRouter()
 
@@ -31,87 +95,49 @@ router = APIRouter()
 async def create_knowledge_node(
         course_id: str,
         node: KnowledgeNodeCreate,
-        db: AsyncSession = Depends(get_db),
-        redis_client: Redis = Depends(get_redis_client),
+        ctx: WorkerContext = Depends(get_worker_context),
         admin: User = Depends(get_current_admin_user)
 ) -> KnowledgeNodeResponse:
     """ Create a new knowledge node under a course with course id
 
-    This endpoint create a knowledge node in the sql database and publishes
-    a task to Redis for Neo4j graph creation. The course_id assembled from the
-    grade and subject in the request body.
-
-    Arg:
-        course_id: The course id of the course
-        node: The knowledge creation requestion constrain:
-            - id(str): Unique identifier of the knowledge node
-            - name(str): Name of the knowledge node
-            - description (str): Description of the knowledge node
-            - subject (Subject): Subject of the knowledge node
-            - grade (Grade): Grade of the knowledge node
-        db: Database session dependency
-        redis_client: Redis session dependency, for task queuing
-        admin: Admin user
-
-    Returns:
-         KnowledgeNode: The newly created knowledge node with all field populated
-
-    Raises:
-        HTTPException: 409 if the knowledge node already exists
-        HTTPException: 500 if the internal server error occurred
     """
+
     node_course_id = assemble_course_id(node.grade, node.subject)
 
     if course_id != node_course_id:
         raise HTTPException(
             status_code=400,
-            detail="The course is not exist in the database"
+            detail="URL course_id does not match node's course details"
         )
-
-    if_course_exist = await check_course_exist(course_id, db)
-    if not if_course_exist:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Course does not exist"
-        )
-
-    if_node_exist = await check_knowledge_node(node.id, db)
-    if if_node_exist:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Knowledge node already exists"
-        )
-
-    new_knowledge_node = KnowledgeNode(
-        id=node.id,
-        name=node.name,
-        course_id=course_id,
-        description=node.description
-    )
-    db.add(new_knowledge_node)
 
     try:
-        await db.commit()
-        await db.refresh(new_knowledge_node)
+        async with ctx.neo4j_scoped_connection():
+            new_knowledge_node = await _create_knowledge_node_sync(course_id,
+                                                                   node)
 
-        task = {
-            "task_type": "handle_neo4j_create_knowledge_node",
-            "payload": {
-                "node_id": new_knowledge_node.id,
-                "course_id": course_id,
-            }
-        }
+        responses = KnowledgeNodeResponse(
+            id=node.id,
+            name=node.name,
+            course_id=node_course_id,
+            description=node.description,
+        )
 
-        await redis_client.lpush("general_task_queue", json.dumps(task))
+        return responses
 
-        print(f"📤 Task queued for knowledge node id {new_knowledge_node.id}")
-        return new_knowledge_node  # TODO: this need to be changed
-
-    except Exception as e:
-        await db.rollback()
+    except NodeAlreadyExistsError as e:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to create knowledge {new_knowledge_node.id}: {e}"
+            status_code=409,
+            detail=str(e)
+        )
+    except ValueError as e:
+        raise HTTPException(
+            status_code=404,
+            detail=str(e)
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"An unexpected error occurred: {e}"
         )
 
 
@@ -121,12 +147,10 @@ async def create_knowledge_node(
     summary="Create a new knowledge relation in the neo4j database",
 )
 async def create_knowledge_relation(
-        course_id: str,
         relation: KnowledgeRelationCreate,
-        db: AsyncSession = Depends(get_db),
-        redis_client: Redis = Depends(get_redis_client),
+        ctx: WorkerContext = Depends(get_worker_context),
         admin: User = Depends(get_current_admin_user)
-):
+) -> dict:
     """ Create a new knowledge relation under a course
 
     This endpoint validates that both nodes exist in SQL, then queues an
@@ -143,13 +167,12 @@ async def create_knowledge_relation(
           (e.g., "HCl" is an example of "Strong Acid")
 
     Args:
-        course_id: The ID of the course containing both knowledge nodes
         relation: The relationship request containing:
             - source_node_id: ID of the source knowledge node
             - target_node_id: ID of the target knowledge node
             - relation_type: Type of relationship (enum value)
-        db: Database session dependency for validation
-        redis_client: Redis client dependency for task queuing
+
+        ctx: WorkerContext for task queuing
         admin: Admin user
 
     Returns:
@@ -167,52 +190,44 @@ async def create_knowledge_relation(
         - Relationships are not stored in SQL, only in Neo4j
         - Source data is maintained in CSV files for rebuild capability
     """
-    if_course_exist = await check_course_exist(course_id, db)
-    if not if_course_exist:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Course does not exist"
-        )
-    target_node_id = relation.target_node_id
-    source_node_id = relation.source_node_id
-    relation_type = relation.relation_type
-
-    # check if the targe node and source node exist
-    if_targe_exist = await check_knowledge_node(target_node_id, db)
-    if_source_exist = await check_knowledge_node(source_node_id, db)
-    if not if_source_exist:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Source node does not exist",
-        )
-    if not if_targe_exist:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Target node does not exist",
-        )
 
     try:
-        task = {
-            "task_type": "handle_neo4j_create_knowledge_relation",
-            "payload": {
-                "course_id": course_id,
-                "source_node_id": source_node_id,
-                "target_node_id": target_node_id,
-                "relation_type": relation_type,
-            }
-        }
-        await redis_client.publish("general_task_queue", json.dumps(task))
-        print(
-            f"📤 Task queued for building relation relation between"
-            f" {source_node_id} and {target_node_id} with relation type"
-            f" {relation_type.value}")
+        async with ctx.neo4j_scoped_connection():
+            result = await asyncio.to_thread(
+                _create_knowledge_relation_sync,
+                relation,
+            )
+        return result
 
+    except ValueError as e:
+        raise HTTPException(
+            status_code=400,
+            detail=str(e)
+        )
+
+    except TypeError as e:
+        raise HTTPException(
+            status_code=400,
+            detail=str(e)
+        )
     except Exception as e:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to create knowledge relation "
-                   f"{relation_type.value}: {e}"
+            status_code=500,
+            detail=f"An unexpected error occurred: {e}"
         )
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 @router.post(
