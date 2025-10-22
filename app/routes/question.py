@@ -8,7 +8,7 @@ from app.models.user import User
 from app.models.question import Question
 from app.schemas.questions import AnyQuestion
 from app.core.deps import get_db, get_redis_client
-from core.deps import get_current_admin_user
+from app.core.deps import get_current_admin_user
 
 router = APIRouter(
     prefix="/question",

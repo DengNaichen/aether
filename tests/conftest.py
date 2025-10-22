@@ -1,3 +1,4 @@
+import asyncio
 import os
 import sys
 from pathlib import Path
@@ -46,6 +47,7 @@ from app.models.base import Base
 from app.models.course import Course
 from app.models.enrollment import Enrollment
 from app.models.user import User
+import app.models.neo4j_model as neo
 
 # --- 测试常量 ---
 TEST_USER_NAME = "test user conf"
@@ -69,9 +71,22 @@ async def test_db_manager() -> AsyncGenerator[DatabaseManager, Any]:
 
     await test_db_mgr.create_all_tables(Base)
 
+    try:
+        async with test_db_mgr.get_neo4j_session() as session:
+            await session.run("MATCH (n) DETACH DELETE n")
+    except Exception as e:
+        print(f"Warning: Failed to clean Neo4j before test: {e}")
+
     yield test_db_mgr
 
     await test_db_mgr.drop_all_tables(Base)
+
+    try:
+        async with test_db_mgr.get_neo4j_session() as session:
+            await session.run("MATCH (n) DETACH DELETE n")
+    except Exception as e:
+        print(f"Warning: Failed to clean Neo4j after test: {e}")
+
     await test_db_mgr.close()
 
 
@@ -186,6 +201,21 @@ async def course_in_db(test_db: AsyncSession):
     await test_db.refresh(new_course_1)
     await test_db.refresh(new_course_2)
     return new_course_1, new_course_2
+
+
+@pytest_asyncio.fixture(scope="function")
+async def course_in_neo4j_db(
+        test_db_manager: DatabaseManager,
+) -> neo.Course:
+    course_obj = neo.Course(
+        course_id=COURSE_ID_ONE,
+        course_name=COURSE_NAME_ONE,
+    )
+
+    async with test_db_manager.neo4j_scoped_connection():
+        await asyncio.to_thread(course_obj.save)
+
+    yield course_obj
 
 
 @pytest_asyncio.fixture(scope="function")

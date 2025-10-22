@@ -17,7 +17,8 @@ import app.models.neo4j_model as neo
 
 from conftest import COURSE_ID_ONE, COURSE_ID_TWO, COURSE_NAME_ONE
 from tests.conftest import COURSE_NAME_TWO
-from app.worker.handlers import handle_neo4j_enroll_a_student_in_a_course, handle_neo4j_create_course
+from app.worker.handlers import (handle_neo4j_enroll_a_student_in_a_course,
+                                 handle_neo4j_create_course)
 
 
 class TestCreateCourse:
@@ -94,7 +95,6 @@ class TestCreateCourseWorker:
         payload = {
             "course_name": "a course without id",
         }
-
 
         with pytest.raises(ValueError) as exc_info:
             await handle_neo4j_create_course(payload, ctx)
@@ -260,38 +260,34 @@ class TestEnrollmentWorker:
     async def test_handle_enroll_a_course_successful(
             self,
             user_in_db: User,
-            course_in_db: Course,
+            course_in_neo4j_db: neo.Course,
             test_db_manager
 
     ):
         ctx = WorkerContext(test_db_manager)
 
-        course_one, _ = course_in_db
-        payload = {
-            "course_id": course_one.id,
-            "course_name": course_one.name,
-        }
-
-        await handle_neo4j_create_course(payload, ctx)
+        course_id = course_in_neo4j_db.course_id
+        user_in_db_id = str(user_in_db.id)
 
         payload = {
-            "user_id": str(user_in_db.id),
-            "user_name": user_in_db.name,
-            "course_id": course_one.id,
+            "course_id": course_id,
+            "user_id": user_in_db_id,
+            "user_name": user_in_db.name
         }
+
         await handle_neo4j_enroll_a_student_in_a_course(payload, ctx)
 
-        async with test_db_manager.get_neo4j_session() as session:
-            result = await session.run(
-                """
-                MATCH (u:User {id: $user_id})-[r:ENROLLED_IN]->(c:Course {id: $course_id})
-                RETURN u.name AS user_name, type(r) AS rel_type, c.id AS course_id
-                """,
-                user_id=str(user_in_db.id),
-                course_id=course_one.id,
+        async with ctx.neo4j_scoped_connection():
+            refreshed_user = await asyncio.to_thread(
+                neo.User.nodes.get,
+                user_id=user_in_db_id
             )
-            record = await result.single()
+            enrolled_course = await asyncio.to_thread(
+                refreshed_user.enrolled_course.get
+            )
+            assert enrolled_course is not None
+            assert enrolled_course.course_id == course_id
 
-            assert record is not None
 
-            # TODO: need to clean the neo4j test basebase
+
+            # TODO: need to clean the neo4j test database

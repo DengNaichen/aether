@@ -16,8 +16,8 @@ from app.schemas.knowledge_node import KnowledgeNodeCreate, RelationType, \
     KnowledgeRelationCreate
 
 from app.crud.crud import check_knowledge_node, check_course_exist
-from core.deps import get_current_admin_user
-from schemas.knowledge_node import KnowledgeNodeResponse
+from app.core.deps import get_current_admin_user
+from app.schemas.knowledge_node import KnowledgeNodeResponse
 
 router = APIRouter()
 

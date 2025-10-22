@@ -46,7 +46,7 @@ async def handle_neo4j_create_course(
         )
 
     try:
-        async with ctx.neo4j_scoped_connection() as connection:
+        async with ctx.neo4j_scoped_connection():
             course_node, created = await asyncio.to_thread(
                 _create_or_update_course_sync,
                 course_id,
@@ -68,25 +68,29 @@ def _enroll_user_in_course_sync(
         user_id: str,
         user_name: str,
         course_id: str,
-) -> bool:
+) -> tuple[neo.User, bool]:
 
     try:
         course_node = neo.Course.nodes.get(course_id=course_id)
     except DoesNotExist:
         raise ValueError(f" Course '{course_id}' does not exist.")
 
-    user_node, created = neo.User.nodes.get_or_create(
-        {"user_id": user_id},  # property for query
-        user_name=user_name
-    )
+    # check if user existing
+    try:
+        user_node = neo.User.nodes.get(user_id=user_id)
+        created = False
+    except DoesNotExist:
+        user_node = neo.User(user_id=user_id, user_name=user_name).save()
+        created = True
 
     if not created and user_node.name != user_name:
         # if the user already existed, will update the information
         user_node.user_name = user_name
+        user_node.save()
 
     user_node.enrolled_course.connect(course_node)
 
-    return True
+    return user_node, created
 
 
 @register_handler("handle_neo4j_enroll_a_student_in_a_course")
@@ -95,17 +99,16 @@ async def handle_neo4j_enroll_a_student_in_a_course(
         ctx: WorkerContext
 ):
     """
-
     """
     course_id = payload.get("course_id")
     user_id = payload.get("user_id")
     user_name = payload.get("user_name")
 
     if not all([course_id, user_id, user_name]):
-        print("❌, missing one or more parameters.")
+        raise ValueError("❌, 缺少必要的参数: course_id, user_id, 或 user_name。")
 
     try:
-        async with ctx.neo4j_scoped_connection() as connection:
+        async with ctx.neo4j_scoped_connection():
             await asyncio.to_thread(
                 _enroll_user_in_course_sync,
                 user_id,
