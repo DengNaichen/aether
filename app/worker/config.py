@@ -37,6 +37,11 @@ class WorkerContext:
         async with self.db_manager.get_sql_session() as session:
             yield session
 
+    @asynccontextmanager
+    async def neo4j_scoped_connection(self):
+        async with self.db_manager.neo4j_scoped_connection():
+            yield
+
 
 def register_handler(task_type: str):
     def decorator(func):

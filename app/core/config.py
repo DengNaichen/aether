@@ -36,6 +36,26 @@ class Settings(BaseSettings):
     def is_testing(self) -> bool:
         return self.ENVIRONMENT == "test"
 
+    @property
+    def NEOMODEL_NEO4J_URI(self) -> str:
+        from urllib.parse import urlparse, urlunparse
+
+        parsed_uri = urlparse(self.NEO4J_URI)
+
+        # 1. 构建 "user:pass@host:port" 部分
+        netloc_with_auth = f"{self.NEO4J_USER}:{self.NEO4J_PASSWORD}@{parsed_uri.hostname}"
+        if parsed_uri.port:
+            netloc_with_auth += f":{parsed_uri.port}"
+
+        # 2. 确保数据库名称也被包含在内 (neomodel 可以解析 /dbname)
+        # 优先使用 settings 里的数据库名，其次尝试从 URI path 中获取
+        db_name = self.NEO4J_DATABASE or parsed_uri.path.lstrip('/')
+        path = f"/{db_name}" if db_name else "/"
+
+        return urlunparse(
+            (parsed_uri.scheme, netloc_with_auth, path, "", "", "")
+        )
+
 
 settings = Settings()  # type: ignore
 import logging

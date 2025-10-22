@@ -1,28 +1,92 @@
+from neomodel import DoesNotExist
+
 from app.worker.config import WorkerContext, register_handler
+import asyncio
+from neomodel.exceptions import NeomodelException, RequiredProperty
+
+import app.models.neo4j_model as neo
+
+
+def _create_or_update_course_sync(
+        course_id: str,
+        course_name: str
+) -> tuple[neo.Course, bool]:
+
+    try:
+        course_node = neo.Course.nodes.get(course_id=course_id)
+        created = False
+        print(f"Node found: {course_id}")
+
+    except DoesNotExist:
+        print(f"Node not found, creating: {course_id}")  # 调试日志
+        course_node = neo.Course(course_id=course_id,
+                                 course_name=course_name).save()
+        created = True
+
+    if not created and not course_name != course_node.course_name:
+        print(f"Node found, updating name for: {course_id}")
+        course_node.course_name = course_name
+        course_node.save()
+
+    return course_node, created
 
 
 @register_handler("handle_neo4j_create_course")
-async def handle_neo4j_create_course(payload: dict, ctx: WorkerContext):
-    """
-
-    """
+async def handle_neo4j_create_course(
+        payload: dict,
+        ctx: WorkerContext,
+):
     course_id = payload.get("course_id")
     course_name = payload.get("course_name")
 
-    if not course_id:
-        raise ValueError(f"Missing course id: {course_id} "
-                         f"for graph database sync")
-
-    async with ctx.neo4j_session() as session:
-        # Use execute_write to ensure the transaction is committed.
-        await session.execute_write(
-            lambda tx: tx.run(
-                "MERGE (c: Course {id: $id, name: $name})",
-                id=course_id,
-                name=course_name,
-            )
+    if not all([course_id, course_name]):
+        raise ValueError(
+            f"Invalid payload: missing course_id or course_name. "
+            f"Payload: {payload}"
         )
-    print(f"✅ Course {course_id} synced to graph database")
+
+    try:
+        async with ctx.neo4j_scoped_connection() as connection:
+            course_node, created = await asyncio.to_thread(
+                _create_or_update_course_sync,
+                course_id,
+                course_name
+            )
+        status = "created" if created else "updated"
+        print(f"✅ Course '{course_node.course_name}' "
+              f"({course_node.course_id}) {status} in graph database")
+
+    except (RequiredProperty, NeomodelException) as e:
+        print(f"❌ Graph database operation failed for payload {payload}."
+              f" Error: {e}")
+    except Exception as e:
+        print(
+            f"❌ An unexpected error occurred for payload {payload}. Error: {e}")
+
+
+def _enroll_user_in_course_sync(
+        user_id: str,
+        user_name: str,
+        course_id: str,
+) -> bool:
+
+    try:
+        course_node = neo.Course.nodes.get(course_id=course_id)
+    except DoesNotExist:
+        raise ValueError(f" Course '{course_id}' does not exist.")
+
+    user_node, created = neo.User.nodes.get_or_create(
+        {"user_id": user_id},  # property for query
+        user_name=user_name
+    )
+
+    if not created and user_node.name != user_name:
+        # if the user already existed, will update the information
+        user_node.user_name = user_name
+
+    user_node.enrolled_course.connect(course_node)
+
+    return True
 
 
 @register_handler("handle_neo4j_enroll_a_student_in_a_course")
@@ -37,28 +101,25 @@ async def handle_neo4j_enroll_a_student_in_a_course(
     user_id = payload.get("user_id")
     user_name = payload.get("user_name")
 
-    if not course_id:
-        raise ValueError(f"Missing course id: {course_id} ")
-    if not user_id:
-        raise ValueError(f"Missing student id: {user_id} ")
-    if not user_name:
-        raise ValueError(f"Missing student name: {user_name} ")
+    if not all([course_id, user_id, user_name]):
+        print("❌, missing one or more parameters.")
 
-    async with ctx.neo4j_session() as session:
-        await session.execute_write(
-            lambda tx: tx.run(
-                """
-                MERGE (u: User {id: $user_id, name: $user_name})
-                MERGE (c: Course {id: $course_id})
-                MERGE(u)-[r:ENROLLED_IN]->(c)
-                RETURN count(r) > 0 AS success
-                """,
-                user_id=user_id,
-                user_name=user_name,
-                course_id=course_id,
+    try:
+        async with ctx.neo4j_scoped_connection() as connection:
+            await asyncio.to_thread(
+                _enroll_user_in_course_sync,
+                user_id,
+                user_name,
+                course_id,
             )
-        )
-    print("✅ Successfully enrolled student {student_id} in course {course_id} ")
+        print(f"✅ Successfully enrolled student {user_id} "
+              f"in course {course_id} ")
+
+    except ValueError as e:
+        print(f"❌, enrollment failed: {e}")
+
+    except Exception as e:
+        print(f"❌, unknown error when enrolling student {user_id} ")
 
 
 @register_handler("handle_neo4j_create_knowledge_node")
@@ -105,7 +166,7 @@ async def handle_neo4j_create_knowledge_relation(
         f"MATCH (tn:KnowledgeNode {{id: $tn_id}}) "
         f"MERGE (sn)-[r:{relation_type}]->(tn)"
     )
-    
+
     async with ctx.neo4j_session() as session:
         await session.execute_write(
             lambda tx: tx.run(
@@ -144,7 +205,6 @@ async def handle_neo4j_create_question(payload: dict, ctx: WorkerContext):
             ).consume()
         )
     print(f"✅ question {question_id} synced to graph database")
-
 
 # @register_handler("handle_neo4j_update_knowledge_node")
 # async def handle_neo4j_update_knowledge_node(payload: dict, ctx: WorkerContext):

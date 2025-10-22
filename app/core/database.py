@@ -3,6 +3,7 @@ from contextlib import asynccontextmanager
 from typing import AsyncGenerator, Optional
 
 from neo4j import AsyncGraphDatabase, AsyncDriver, AsyncSession as Neo4jAsyncSession
+from neomodel import db, config
 from redis.asyncio import Redis
 import redis.asyncio as aioredis
 from sqlalchemy import text
@@ -24,6 +25,7 @@ class DatabaseManager:
         self._neo4j_driver: Optional[AsyncDriver] = None
         self._session_local = None
         self._redis_client: Optional[Redis] = None
+        self._neomodel_lock = asyncio.Lock()
 
     # ==================== PostgreSQL ====================
     @property
@@ -98,29 +100,27 @@ class DatabaseManager:
         """
         neo4j_db_name = self.settings.NEO4J_DATABASE
         async with self.neo4j_driver.session(database=neo4j_db_name) as session:
-            try:
-                yield session
-            except Exception:
-                raise
+            yield session
 
-    # async def execute_neo4j_query(
-    #         self,
-    #         query: str,
-    #         parameters: dict = None,
-    #         database: str = "neo4j"
-    # ):
-    #     """
-    #     Execute Neo4j query and return results.
-    #     Arguments:
-    #         query: Cypher query string.
-    #         parameters: Optional parameters to pass to Neo4j.
-    #         database: Neo4j database name.
-    #     Returns:
-    #         List of results.
-    #     """
-    #     async with self.neo4j_driver.session(database=database) as session:
-    #         result = await session.run(query, parameters or {})
-    #         return result.data()
+    @asynccontextmanager
+    async def neo4j_scoped_connection(self) -> AsyncGenerator[None, None]:
+        async with self._neomodel_lock:
+            original_url = config.DATABASE_URL
+
+            try:
+                config.DATABASE_URL = self.settings.NEOMODEL_NEO4J_URI
+                if db.driver:
+                    db.driver = db.driver()
+                db.driver = None
+
+                yield
+
+            finally:
+                config.DATABASE_URL = original_url
+
+            if db.driver:
+                db.driver.close()
+            db.driver = None
 
     # ==================== Redis ====================
     @property

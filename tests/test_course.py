@@ -1,3 +1,4 @@
+import asyncio
 import json
 import pytest
 from httpx import AsyncClient
@@ -12,7 +13,7 @@ from app.models.course import Course
 from app.models.user import User
 from app.helper.course_helper import Grade, Subject
 from app.worker.config import WorkerContext
-from app.worker.handlers import handle_neo4j_create_course
+import app.models.neo4j_model as neo
 
 from conftest import COURSE_ID_ONE, COURSE_ID_TWO, COURSE_NAME_ONE
 from tests.conftest import COURSE_NAME_TWO
@@ -78,15 +79,13 @@ class TestCreateCourseWorker:
 
         await handle_neo4j_create_course(payload, ctx)
 
-        async with test_db_manager.get_neo4j_session() as session:
-            result = await session.run(
-                "MATCH (c: Course {id: $id}) RETURN c.name AS name",
-                id=course_id,
+        async with test_db_manager.neo4j_scoped_connection():
+            course_node = await asyncio.to_thread(
+                neo.Course.nodes.get, course_id=course_id
             )
-            record = await result.single()
-
-            assert record is not None
-            assert record["name"] == course_name
+            assert course_node is not None
+            assert course_node.course_name == course_name
+            assert course_node.course_id == course_id
 
     @pytest.mark.asyncio
     async def test_handle_neo4j_create_course_missing_id(self, test_db_manager):
@@ -96,10 +95,12 @@ class TestCreateCourseWorker:
             "course_name": "a course without id",
         }
 
+
         with pytest.raises(ValueError) as exc_info:
             await handle_neo4j_create_course(payload, ctx)
 
-        assert "Missing course id" in str(exc_info.value)
+        assert "Invalid payload" in str(exc_info.value)
+        assert "missing course_id or course_name" in str(exc_info.value)
 
 
 class TestFetchCourse:
