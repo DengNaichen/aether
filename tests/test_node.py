@@ -9,10 +9,10 @@ from app.schemas.knowledge_node import KnowledgeNodeCreate
 from app.helper.course_helper import Subject, Grade
 import app.models.neo4j_model as neo
 from app.core.database import DatabaseManager
+from app.schemas.knowledge_node import RelationType
 
 
 class TestNodeCreation:
-
     @pytest.mark.asyncio
     async def test_create_node_successfully(
             self,
@@ -56,7 +56,6 @@ class TestNodeCreation:
 
             assert db_course is not None
             assert db_course.course_id == parent_course_id
-
 
     @pytest.mark.asyncio
     async def test_create_node_failed_with_invalid_course(
@@ -110,12 +109,54 @@ class TestNodeCreation:
         assert response.status_code == 403
 
 
-class TestNodeCreationWorker:
-    pass
-
-
 class TestRelationCreation:
-    pass
+    @pytest.mark.asyncio
+    async def test_create_relation_successfully(
+            self,
+            authenticated_admin_client: AsyncClient,
+            course_in_neo4j_db: neo.Course,
+            nodes_in_neo4j_db,
+            test_db_manager: DatabaseManager,
+    ):
+        client = authenticated_admin_client
+        course_id = course_in_neo4j_db.course_id
+
+        target_node, source_node = nodes_in_neo4j_db
+
+        payload = {
+            "source_node_id": target_node.node_id,
+            "target_node_id": source_node.node_id,
+            "relation_type": RelationType.HAS_SUBTOPIC.value,
+
+        }
+        url = f"/courses/{course_id}/relationship"
+        response = await client.post(url, json=payload)
+
+        assert response.status_code == 201
+
+        response_data = response.json()
+
+        assert response_data["status"] == "success"
+        assert response_data["source"] == target_node.node_id
+        assert response_data["target"] == source_node.node_id
+        assert response_data["relation"] == RelationType.HAS_SUBTOPIC.value
+
+        async with test_db_manager.neo4j_scoped_connection():
+            db_target_node = await asyncio.to_thread(
+                neo.KnowledgeNode.nodes.get, node_id=target_node.node_id
+            )
+            db_source_node = await asyncio.to_thread(
+                neo.KnowledgeNode.nodes.get, node_id=source_node.node_id
+            )
+
+            parent = await asyncio.to_thread(db_source_node.parent_topic.get)
+
+            assert parent is not None
+            assert parent.node_id == db_target_node.node_id
+
+            subtopic = await asyncio.to_thread(db_target_node.subtopic.get)
+            assert subtopic is not None
+            assert subtopic.node_id == db_source_node.node_id
 
 
 class TestRelationCreationWorker:

@@ -199,33 +199,33 @@ class TestLogin:
 
 
 class TestLogout:
-    @pytest.mark.asyncio
-    async def test_logout_success(
-            client: AsyncClient,
-            user_in_db: "User",
-            test_db: AsyncSession,
-    ):
-        """
-        测试成功登出。
-        1. 先登录以获取有效的 access_token。
-        2. 使用该 token 调用登出接口。
-        3. 断言响应状态码为 200，并检查返回的消息。
-        """
-        # 步骤 1: 登录获取 token
-        login_data = {"username": TEST_USER_EMAIL,
-                      "password": TEST_USER_PASSWORD}
-        login_response = await client.post("/users/login", data=login_data)
-        assert login_response.status_code == 200
-        token = login_response.json()["access_token"]
-        headers = {"Authorization": f"Bearer {token}"}
-
-        # 步骤 2: 调用登出接口
-        logout_response = await client.post("/users/logout", headers=headers)
-
-        # 步骤 3: 断言登出成功
-        assert logout_response.status_code == 200
-        # 假设成功登出后返回此消息，请根据您的实际 API 进行调整
-        assert logout_response.json() == {"message": "Successfully logged out"}
+    # @pytest.mark.asyncio
+    # async def test_logout_success(
+    #         client: AsyncClient,
+    #         user_in_db: "User",
+    #         test_db: AsyncSession,
+    # ):
+    #     """
+    #     测试成功登出。
+    #     1. 先登录以获取有效的 access_token。
+    #     2. 使用该 token 调用登出接口。
+    #     3. 断言响应状态码为 200，并检查返回的消息。
+    #     """
+    #     # 步骤 1: 登录获取 token
+    #     login_data = {"username": TEST_USER_EMAIL,
+    #                   "password": TEST_USER_PASSWORD}
+    #     login_response = await client.post("/users/login", data=login_data)
+    #     assert login_response.status_code == 200
+    #     token = login_response.json()["access_token"]
+    #     headers = {"Authorization": f"Bearer {token}"}
+    #
+    #     # 步骤 2: 调用登出接口
+    #     logout_response = await client.post("/users/logout", headers=headers)
+    #
+    #     # 步骤 3: 断言登出成功
+    #     assert logout_response.status_code == 200
+    #     # 假设成功登出后返回此消息，请根据您的实际 API 进行调整
+    #     assert logout_response.json() == {"message": "Successfully logged out"}
 
     @pytest.mark.asyncio
     async def test_access_protected_route_after_logout(

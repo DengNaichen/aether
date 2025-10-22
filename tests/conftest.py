@@ -48,6 +48,7 @@ from app.models.course import Course
 from app.models.enrollment import Enrollment
 from app.models.user import User
 import app.models.neo4j_model as neo
+from app.schemas.knowledge_node import RelationType
 
 # --- 测试常量 ---
 TEST_USER_NAME = "test user conf"
@@ -60,6 +61,13 @@ COURSE_ID_ONE = "existing_course_one"
 COURSE_NAME_ONE = "Existing Course One"
 COURSE_ID_TWO = "existing_course_two"
 COURSE_NAME_TWO = "Existing Course Two"
+TARGET_KNOWLEDGE_NODE_ID = "target_test_node"
+TARGET_KNOWLEDGE_NODE_NAME = "target test node"
+TARGET_KNOWLEDGE_NODE_DESCRIPTION = "target test node description"
+SOURCE_KNOWLEDGE_NODE_ID = "source_test_node"
+SOURCE_KNOWLEDGE_NODE_NAME = "source test node"
+SOURCE_KNOWLEDGE_NODE_DESCRIPTION = "source test node description"
+TEST_RELATION = RelationType.HAS_SUBTOPIC
 
 
 # --- Fixtures ---
@@ -206,7 +214,7 @@ async def course_in_db(test_db: AsyncSession):
 @pytest_asyncio.fixture(scope="function")
 async def course_in_neo4j_db(
         test_db_manager: DatabaseManager,
-) -> neo.Course:
+) -> AsyncGenerator[Course, Any]:
     course_obj = neo.Course(
         course_id=COURSE_ID_ONE,
         course_name=COURSE_NAME_ONE,
@@ -216,6 +224,35 @@ async def course_in_neo4j_db(
         await asyncio.to_thread(course_obj.save)
 
     yield course_obj
+
+
+@pytest_asyncio.fixture(scope="function")
+async def nodes_in_neo4j_db(
+        test_db_manager: DatabaseManager,
+        course_in_neo4j_db: neo.Course,
+) -> AsyncGenerator[tuple[neo.KnowledgeNode, neo.KnowledgeNode], Any]:
+
+    target_node_obj = neo.KnowledgeNode(
+        node_id=TARGET_KNOWLEDGE_NODE_ID,
+        node_name=TARGET_KNOWLEDGE_NODE_NAME,
+    )
+
+    source_node_obj = neo.KnowledgeNode(
+        node_id=SOURCE_KNOWLEDGE_NODE_ID,
+        node_name=SOURCE_KNOWLEDGE_NODE_NAME,
+    )
+
+    async with test_db_manager.neo4j_scoped_connection():
+
+        await asyncio.to_thread(target_node_obj.save)
+        await asyncio.to_thread(source_node_obj.save)
+
+        await asyncio.to_thread(target_node_obj.course.connect,
+                                course_in_neo4j_db)
+        await asyncio.to_thread(source_node_obj.course.connect,
+                                course_in_neo4j_db)
+
+    yield target_node_obj, source_node_obj
 
 
 @pytest_asyncio.fixture(scope="function")

@@ -12,7 +12,7 @@ from redis.asyncio import Redis
 
 from app.core.deps import get_db, get_redis_client
 from app.models.user import User
-from app.models.knowledge_node import KnowledgeNode
+# from app.models.knowledge_node import KnowledgeNode
 from app.helper.course_helper import assemble_course_id
 from app.schemas.knowledge_node import KnowledgeNodeCreate, RelationType, \
     KnowledgeRelationCreate
@@ -51,7 +51,7 @@ async def _create_knowledge_node_sync(
     return new_node
 
 
-def _create_knowledge_relation_sync(
+async def _create_knowledge_relation_sync(
         relation: KnowledgeRelationCreate,
 ) -> dict:
     try:
@@ -153,11 +153,6 @@ async def create_knowledge_relation(
 ) -> dict:
     """ Create a new knowledge relation under a course
 
-    This endpoint validates that both nodes exist in SQL, then queues an
-    asynchronous task to create the relationship in the Neo4j graph database.
-    The relationship itself is only stored in Neo4j for efficient graph
-     traversal.
-
     Relationship Types:
         - HAS_PREREQUISITE: Source node requires target node as prerequisite
           (e.g., "Oxidation-Reduction" requires "Electron Transfer")
@@ -174,29 +169,11 @@ async def create_knowledge_relation(
 
         ctx: WorkerContext for task queuing
         admin: Admin user
-
-    Returns:
-        dict: Success message confirming the task was queued
-
-    Raises:
-        HTTPException: 400 if course doesn't exist
-        HTTPException: 400 if source node doesn't exist
-        HTTPException: 400 if target node doesn't exist
-        HTTPException: 500 if Redis task queuing fails
-
-    Note:
-        - Both nodes must exist in SQL before creating the relationship
-        - The actual Neo4j relationship creation is handled asynchronously
-        - Relationships are not stored in SQL, only in Neo4j
-        - Source data is maintained in CSV files for rebuild capability
     """
 
     try:
         async with ctx.neo4j_scoped_connection():
-            result = await asyncio.to_thread(
-                _create_knowledge_relation_sync,
-                relation,
-            )
+            result = await _create_knowledge_relation_sync(relation)
         return result
 
     except ValueError as e:
@@ -230,69 +207,69 @@ async def create_knowledge_relation(
 
 
 
-@router.post(
-    "/nodes/bulk",
-    status_code=status.HTTP_201_CREATED,
-    summary="Bulk create new knowledge node from a csv file",
-)
-async def bulk_nodes(
-        node_file: UploadFile = File(..., description="A CSV file of node"),
-        db: AsyncSession = Depends(get_db),
-):
-    if node_file.content_type != "text/csv":
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="File must be of type text/csv",
-        )
-    nodes_to_create = []
-    error = []
-    try:
-        contents = await node_file.read()
-        decoded_contents = contents.decode("utf-8")
-        csv_reader = csv.DictReader(decoded_contents)
-
-        for i, row in enumerate(csv_reader):
-            row_num = i + 2
-            try:
-                node_data = KnowledgeNodeCreate.parse_obj(row)
-                db_node = KnowledgeNode(**node_data.dict())
-                nodes_to_create.append(db_node)
-            except ValidationError as e:
-                error.append({"row": row_num, "message": str(e)})
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Failed to read or parse csv file: {e}")
-
-    if not nodes_to_create:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail={"message": "No nodes to create.", "errors": errors}
-        )
-
-    # TODO: finish the design of this function
-    try:
-        db.add_all(nodes_to_create)
-        await db.commit()
-    except Exception as e:
-        await db.rollback()
-
-
-
-@router.post(
-    "/relationships/bulk",
-    status_code=status.HTTP_201_CREATED,
-    summary="Bulk create new knowledge relation from a csv file",
-)
-async def bulk_relations(
-        rlt_file: UploadFile = File(..., description="A CSV file of node"),
-        db: AsyncSession = Depends(get_db),
-):
-    if rlt_file.content_type != "text/csv":
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="File must be of type text/csv",
-        )
-    nodes_to_create = []
-    error = []
-    # TODO: finish the design of this function
+# @router.post(
+#     "/nodes/bulk",
+#     status_code=status.HTTP_201_CREATED,
+#     summary="Bulk create new knowledge node from a csv file",
+# )
+# async def bulk_nodes(
+#         node_file: UploadFile = File(..., description="A CSV file of node"),
+#         db: AsyncSession = Depends(get_db),
+# ):
+#     if node_file.content_type != "text/csv":
+#         raise HTTPException(
+#             status_code=status.HTTP_400_BAD_REQUEST,
+#             detail="File must be of type text/csv",
+#         )
+#     nodes_to_create = []
+#     error = []
+#     try:
+#         contents = await node_file.read()
+#         decoded_contents = contents.decode("utf-8")
+#         csv_reader = csv.DictReader(decoded_contents)
+#
+#         for i, row in enumerate(csv_reader):
+#             row_num = i + 2
+#             try:
+#                 node_data = KnowledgeNodeCreate.parse_obj(row)
+#                 db_node = KnowledgeNode(**node_data.dict())
+#                 nodes_to_create.append(db_node)
+#             except ValidationError as e:
+#                 error.append({"row": row_num, "message": str(e)})
+#     except Exception as e:
+#         raise HTTPException(
+#             status_code=status.HTTP_400_BAD_REQUEST,
+#             detail=f"Failed to read or parse csv file: {e}")
+#
+#     if not nodes_to_create:
+#         raise HTTPException(
+#             status_code=status.HTTP_400_BAD_REQUEST,
+#             detail={"message": "No nodes to create.", "errors": errors}
+#         )
+#
+#     # TODO: finish the design of this function
+#     try:
+#         db.add_all(nodes_to_create)
+#         await db.commit()
+#     except Exception as e:
+#         await db.rollback()
+#
+#
+#
+# @router.post(
+#     "/relationships/bulk",
+#     status_code=status.HTTP_201_CREATED,
+#     summary="Bulk create new knowledge relation from a csv file",
+# )
+# async def bulk_relations(
+#         rlt_file: UploadFile = File(..., description="A CSV file of node"),
+#         db: AsyncSession = Depends(get_db),
+# ):
+#     if rlt_file.content_type != "text/csv":
+#         raise HTTPException(
+#             status_code=status.HTTP_400_BAD_REQUEST,
+#             detail="File must be of type text/csv",
+#         )
+#     nodes_to_create = []
+#     error = []
+#     # TODO: finish the design of this function
