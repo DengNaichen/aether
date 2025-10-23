@@ -43,7 +43,6 @@ class Question(StructuredNode):
     )
 
 
-
 class MultipleChoice(Question):
     options = ArrayProperty(StringProperty(), required=True)
     correct_answer = IntegerProperty(required=True)

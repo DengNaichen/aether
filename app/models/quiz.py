@@ -18,33 +18,17 @@ class QuizStatus(enum.Enum):
     ABORTED = "aborted"
 
 
-class Quiz(Base):
-    """
-    The quiz base model
+class QuizAttempt(Base):
+    __tablename__ = "quiz_submissions"
 
-    """
-    __tablename__ = "quizzes"
+    attempt_id = Column(UUID(as_uuid=True),
+                        primary_key=True,
+                        default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     course_id = Column(String, ForeignKey("courses.id"), nullable=False)
     question_num = Column(Integer, nullable=False)
 
-    course = relationship("Course",
-                          back_populates="quizzes")
-    submissions = relationship("QuizSubmission",
-                               back_populates="quiz")
-
-
-class QuizSubmission(Base):
-    __tablename__ = "quiz_submissions"
-
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
-    quiz_id = Column(UUID(as_uuid=True),
-                     ForeignKey("quizzes.id"),
-                     nullable=False)
-
-    # [修正] 使用 SQLAlchemy 的 Enum 类型
     status = Column(
         SQLAlchemyEnum(QuizStatus,
                        name="quiz_status_enum",
@@ -54,14 +38,13 @@ class QuizSubmission(Base):
     )
 
     score = Column(Integer, nullable=True)
-    started_at = Column(DateTime(timezone=True), server_default=func.now())
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
     submitted_at = Column(DateTime(timezone=True), nullable=True)
 
     user = relationship("User", back_populates="quiz_submissions")
-    quiz = relationship("Quiz", back_populates="submissions")
+    course = relationship("Course", back_populates="quizzes")
     answers = relationship(
-        "SubmissionAnswer",
-        back_populates="submission",
+        "SubmissionAnswer", back_populates="submission",
         cascade="all, delete-orphan"
     )
 
@@ -78,5 +61,4 @@ class SubmissionAnswer(Base):
 
     is_correct = Column(Boolean, nullable=True)
 
-    submission = relationship("QuizSubmission",
-                              back_populates="answers")
+    submission = relationship("QuizAttempt", back_populates="answers")
