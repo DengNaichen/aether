@@ -45,8 +45,6 @@ async def queue_bulk_import_task(
     finally:
         await file.close()
 
-    
-    # --- 2. Queue the task for the worker ----
     try:
         task_payload = {"file_path": str(file_path)}
         if extra_payload:
@@ -57,7 +55,7 @@ async def queue_bulk_import_task(
             "payload": task_payload
         }
     
-        await redis_client.lpush("general_task_queue", json.dumps(task))
+        await redis_client.lpush(queue_name, json.dumps(task))
 
         return file_path, task_payload
     

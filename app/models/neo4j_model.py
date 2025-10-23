@@ -1,7 +1,7 @@
 from neomodel import StructuredNode, StringProperty, ZeroOrOne, RelationshipTo, \
     One, RelationshipFrom, ArrayProperty, IntegerProperty
 
-from schemas.questions import QuestionDifficulty
+from app.schemas.questions import QuestionDifficulty
 
 
 class Course(StructuredNode):

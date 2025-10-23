@@ -53,11 +53,3 @@ async def test_create_question_successful(
                                           "to any KnowledgeNode")
 
         assert connected_kn.element_id == db_target_node.element_id
-
-
-
-
-
-
-
-

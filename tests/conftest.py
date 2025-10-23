@@ -12,31 +12,18 @@ from redis.asyncio import Redis
 ROOT_DIR = Path(__file__).parent.parent
 sys.path.insert(0, str(ROOT_DIR))
 
-
-# os.environ["ENVIRONMENT"] = "test"
-# os.environ["DATABASE_URL"] = (
-#     "sqlite+aiosqlite:///file:memdb?mode=memory&cache=shared&uri=true"
-# )
-# os.environ["SECRET_KEY"] = "test_secret_key_12345"
-# os.environ["ALGORITHM"] = "HS256"
-# os.environ["ACCESS_TOKEN_EXPIRE_MINUTES"] = "30"
-#
-# os.environ["NEO4J_URI"] = "bolt://localhost:7687"
-# os.environ["NEO4J_USER"] = "neo4j"
-# os.environ["NEO4J_PASSWORD"] = "d1997225"
-# os.environ["NEO4J_DATABASE"] = "g11physics"
-#
-# os.environ["REDIS_URL"] = "redis://localhost:6379/1"
-
 from typing import AsyncGenerator, Any, List
 
 # ============================================
 # 2. 导入应用和依赖
 # ============================================
 import pytest_asyncio
+import pytest
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 from neo4j import AsyncGraphDatabase, AsyncDriver
+from unittest.mock import MagicMock, AsyncMock
+from fastapi import UploadFile
 
 from app.core.config import Settings
 from app.core.database import DatabaseManager
@@ -256,6 +243,14 @@ async def nodes_in_neo4j_db(
 
 
 @pytest_asyncio.fixture(scope="function")
+async def questions_in_neo4j_db(
+        test_db_manager: DatabaseManager,
+        nodes_in_neo4j_db: neo.Course,
+):
+    pass
+
+
+@pytest_asyncio.fixture(scope="function")
 async def enrollment_in_db(
         test_db: AsyncSession,
         user_in_db: User
@@ -331,3 +326,41 @@ async def cleanup_test_db():
 
     if os.path.exists("./test_db.sqlite"):
         os.remove("./test_db.sqlite")
+
+
+# ==================================================================
+# === MOCK Fixtures for unit test ===
+# ==================================================================
+@pytest.fixture(scope="function")
+def mock_redis_client() -> MagicMock:
+    client = MagicMock(spec=Redis)
+    client.lpush = AsyncMock(return_value=1)
+    return client
+
+
+@pytest.fixture(scope="function")
+def mock_upload_file() -> MagicMock:
+    file_content = [b"header1, header2\n", b"value1, value2\n", b""]
+
+    file = MagicMock(spec=UploadFile)
+    file.content_type = "test/csv"
+    file.filename = "test.csv"
+    file.read = AsyncMock(side_effect=file_content)
+    file.close = AsyncMock()
+    return file
+
+
+@pytest.fixture(scope="function")
+def mock_aiofiles_open(mocker):
+    mock_file_handle = AsyncMock()
+    mock_file_handle.write = AsyncMock()
+
+    mock_content_manager = AsyncMock()
+    mock_file_handle.__aenter__.return_value = mock_file_handle
+
+    return mocker.patch("")  # TODO: problem here !!!
+
+
+
+
+

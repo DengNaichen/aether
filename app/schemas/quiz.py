@@ -41,7 +41,6 @@ class QuizRequest(QuizBase):
     """
     Quiz request schema
     """
-
     pass
 
 

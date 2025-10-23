@@ -25,7 +25,7 @@ def mock_data():
             "id": UUID("11111111-1111-1111-1111-111111111111"),
             "text": "What is the speed of light?",
             "difficulty": "easy",
-            "knowledge_point_id": "physics",
+            "knowledge_node_id": "physics",
             "question_type": "multiple_choice",
             "details": {
                 "options": [
@@ -41,7 +41,7 @@ def mock_data():
             "id": UUID("22222222-2222-2222-2222-222222222222"),
             "text": "What is Newton's second law?",
             "difficulty": "medium",
-            "knowledge_point_id": "physics",
+            "knowledge_node_id": "physics",
             "question_type": "multiple_choice",
             "details": {
                 "options": ["F = ma", "E = mc^2", "a^2 + b^2 = c^2", "PV = nRT"],
@@ -53,7 +53,7 @@ def mock_data():
 
 @router.post(
     "/{course_id}/quizzes",
-    response_model=QuizStartResponse,
+    response_model=QuizStartResponse, # TODO: change this name later
     status_code=status.HTTP_201_CREATED,
     summary="Start a new dynamic quiz",
 )
@@ -75,7 +75,7 @@ async def start_a_quiz(
     is_course_exist = await crud.check_course_exist(course_id, db)
     if not is_course_exist:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
+            status_code=status.HTTP_404_NOT_FOUND,
             detail="Course does not exist",
         )
     # await get_course_by_id(course_id=course_id, db=db)
