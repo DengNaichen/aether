@@ -1,7 +1,7 @@
 import enum
 import uuid
 
-from sqlalchemy import JSON, Boolean, Column, DateTime
+from sqlalchemy import JSON, Boolean, Column, DateTime, UniqueConstraint
 from sqlalchemy import Enum as SQLAlchemyEnum
 from sqlalchemy import ForeignKey, Integer, String, func
 from sqlalchemy.dialects.postgresql import UUID
@@ -11,7 +11,6 @@ from app.models import Base  # 或者 from .base import Base
 
 
 # --- Enums ---
-# 建议将 Enum 定义在 models.py 的顶部或单独的文件中
 class QuizStatus(enum.Enum):
     IN_PROGRESS = "in_progress"
     COMPLETED = "completed"
@@ -19,7 +18,7 @@ class QuizStatus(enum.Enum):
 
 
 class QuizAttempt(Base):
-    __tablename__ = "quiz_submissions"
+    __tablename__ = "quiz_attempts"
 
     attempt_id = Column(UUID(as_uuid=True),
                         primary_key=True,
@@ -41,10 +40,9 @@ class QuizAttempt(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     submitted_at = Column(DateTime(timezone=True), nullable=True)
 
-    user = relationship("User", back_populates="quiz_submissions")
-    course = relationship("Course", back_populates="quizzes")
+    user = relationship("User", back_populates="quiz_attempts")
     answers = relationship(
-        "SubmissionAnswer", back_populates="submission",
+        "SubmissionAnswer", back_populates="quiz_attempt",
         cascade="all, delete-orphan"
     )
 
@@ -54,11 +52,11 @@ class SubmissionAnswer(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     submission_id = Column(
-        UUID(as_uuid=True), ForeignKey("quiz_submissions.id"), nullable=False
+        UUID(as_uuid=True), ForeignKey("quiz_attempts.attempt_id"), nullable=False
     )
     question_id = Column(UUID(as_uuid=True), nullable=False)
     user_answer = Column(JSON, nullable=True)
 
     is_correct = Column(Boolean, nullable=True)
 
-    submission = relationship("QuizAttempt", back_populates="answers")
+    quiz_attempt = relationship("QuizAttempt", back_populates="answers")

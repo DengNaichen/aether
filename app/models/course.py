@@ -21,5 +21,3 @@ class Course(Base):
 
     grade = Grade
     subject = Subject
-
-    quizzes = relationship("Quiz", back_populates="course")

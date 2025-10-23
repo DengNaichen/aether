@@ -265,20 +265,6 @@ async def enrollment_in_db(
     return new_enrollment
 
 
-# @pytest_asyncio.fixture(scope="function")
-# async def active_quiz_in_db(test_db: AsyncSession) -> Quiz:
-#     # TODO: need to consider this fixture
-#     new_quiz = Quiz(
-#         user_id=TEST_USER_EMAIL,
-#         course_id=COURSE_ID,
-#         question_num=5
-#     )
-#     test_db.add(new_quiz)
-#     await test_db.commit()
-#     await test_db.refresh(new_quiz)
-#     return new_quiz
-
-
 @pytest_asyncio.fixture(scope="function")
 async def authenticated_client(
         client: AsyncClient,

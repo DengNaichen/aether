@@ -4,7 +4,7 @@ from uuid import UUID
 
 from pydantic import BaseModel
 
-from app.schemas.questions import AnyQuestion
+from app.schemas.questions import MultipleChoiceQuestion, FillInTheBlankQuestion, CalculationQuestion, AnyQuestion
 from app.models.quiz import QuizStatus
 
 
@@ -24,8 +24,11 @@ class QuizAttemptResponse(BaseModel):
     return i
     """
     attempt_id: UUID
-    course_id: UUID
+    user_id: UUID
+    course_id: str
+    question_num: int
     status: QuizStatus = QuizStatus.IN_PROGRESS
+    score: Optional[int] = None
     created_at: datetime
     questions: List[AnyQuestion]
 

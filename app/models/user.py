@@ -46,5 +46,4 @@ class User(Base):
     )
     refresh_token = Column(String, nullable=True, index=True)
 
-    quiz_submissions = relationship("QuizSubmission",
-                                    back_populates="user")
+    quiz_attempts = relationship("QuizAttempt", back_populates="user")
