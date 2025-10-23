@@ -26,6 +26,38 @@ class User(StructuredNode):
         return f"<User {self.user_name} ({self.user_id})>"
 
 
+class Question(StructuredNode):
+    __abstract_node__ = True
+
+    question_id = StringProperty(required=True, unique_index=True)
+    text = StringProperty(required=True)
+    difficulty = StringProperty(
+        required=True,
+        choices={d.value: d.name for d in QuestionDifficulty}
+    )
+
+    knowledge_node = RelationshipTo(
+        "KnowledgeNode",
+        "TESTS",
+        cardinality=One
+    )
+
+
+
+class MultipleChoice(Question):
+    options = ArrayProperty(StringProperty(), required=True)
+    correct_answer = IntegerProperty(required=True)
+
+
+class FillInBlank(Question):
+    expected_answer = ArrayProperty(StringProperty(), required=True)
+
+
+class Calculation(Question):
+    expected_answer = ArrayProperty(StringProperty(), required=True)
+    precision = IntegerProperty(default=2)
+
+
 class KnowledgeNode(StructuredNode):
 
     node_id = StringProperty(required=True, unique_index=True)
@@ -34,7 +66,7 @@ class KnowledgeNode(StructuredNode):
     description = StringProperty()
 
     course = RelationshipTo(
-        Course,
+        "Course",
         "BELONGS_TO",
         cardinality=One
     )
@@ -69,40 +101,10 @@ class KnowledgeNode(StructuredNode):
         "IS_EXAMPLE_OF"
     )
 
+    questions = RelationshipFrom(
+        "Question",
+        "TESTS"
+    )
+
     def __str__(self):
         return f"<KnowledgeNode {self.node_name} ({self.node_id})>"
-
-
-class Question(StructuredNode):
-    __abstract_node__ = True
-
-    question_id = StringProperty(required=True, unique_index=True)
-    text = StringProperty(required=True)
-    difficulty = StringProperty(
-        required=True,
-        choices={d.value: d.name for d in QuestionDifficulty}
-    )
-    KnowledgeNode = RelationshipTo(
-        "KnowledgeNode",
-        "TESTS",
-        cardinality=One
-    )
-
-    def save(self):
-        self.labels.add(self.difficulty)
-
-        return super.save()
-
-
-class MultipleChoice(Question):
-    options = ArrayProperty(StringProperty(), required=True)
-    correct_answer = IntegerProperty(required=True)
-
-
-class FillInBlank(Question):
-    expected_answer = ArrayProperty(StringProperty(), required=True)
-
-
-class Calculation(Question):
-    expected_answer = ArrayProperty(StringProperty(), required=True)
-    precision = IntegerProperty(default=2)

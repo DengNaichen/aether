@@ -142,6 +142,7 @@ class TestRelationCreation:
         assert response_data["relation"] == RelationType.HAS_SUBTOPIC.value
 
         async with test_db_manager.neo4j_scoped_connection():
+            # TODO: here we need to think about the thread problem !!
             db_target_node = await asyncio.to_thread(
                 neo.KnowledgeNode.nodes.get, node_id=target_node.node_id
             )

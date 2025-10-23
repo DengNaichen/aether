@@ -3,9 +3,9 @@ import json
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
 from redis.asyncio import Redis
+from neomodel import db, DoesNotExist
 
 from app.models.user import User
-from neomodel import db, DoesNotExist
 from app.schemas.questions import AnyQuestion, QuestionType, QuestionDifficulty
 from app.core.deps import get_redis_client
 from app.core.deps import get_current_admin_user
@@ -31,7 +31,7 @@ def pydantic_to_neomodel(question: AnyQuestion) -> neo.Question:
     common_data = {
         "question_id": question.question_id,
         "question_type": question.question_type,
-        "difficulty": question.difficulty,
+        "difficulty": question.difficulty.value,
         "knowledge_node_id": question.knowledge_node_id,
         "text": question.text,
         "details": question.details,
@@ -60,12 +60,13 @@ def pydantic_to_neomodel(question: AnyQuestion) -> neo.Question:
 
 def _create_question_sync(
         question_data: AnyQuestion,
-) -> neo.Question:
+):
     q_id = str(question_data.question_id)
-    existing_question = neo.Question.nodes.get_or_none(question_id=q_id)
-
-    if existing_question:
-        raise QuestionAlreadyExistsError(f"Question {q_id} already exists")
+    # TODO: this two line need to be reconsider
+    # existing_question = neo.Question.nodes.get_or_none(question_id=q_id)
+    #
+    # if existing_question:
+    #     raise QuestionAlreadyExistsError(f"Question {q_id} already exists")
 
     kn_id_to_find = str(question_data.knowledge_node_id)
     try:
@@ -82,30 +83,30 @@ def _create_question_sync(
 
     new_question = pydantic_to_neomodel(question_data)
 
-    new_question.KnowledgeNode.connect(knowledge_node_to_connect)
+    new_question.save()
+    new_question.knowledge_node.connect(knowledge_node_to_connect)
     new_question.save()
 
-    return new_question
+    # return new_question
 
 
 @router.post("/",
              status_code=status.HTTP_201_CREATED,
              summary="create a new question",
-             # response_model=AnyQuestion,
+             response_model=AnyQuestion,
              )
 async def create_question(
         question_data: AnyQuestion,
         ctx: WorkerContext = Depends(get_worker_context),
         admin: User = Depends(get_current_admin_user),
-):
+) -> AnyQuestion:
     try:
         async with (ctx.neo4j_scoped_connection()):
-            new_question = await asyncio.to_thread(
+            await asyncio.to_thread(
                 _create_question_sync,
                 question_data
             )
-
-        return new_question
+        return question_data
 
     except QuestionAlreadyExistsError as e:
         raise HTTPException(
