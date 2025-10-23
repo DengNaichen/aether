@@ -1,12 +1,29 @@
-# from uuid import UUID
 import uuid
-# from enum import Enum
+from enum import Enum
 from typing import List, Union, Literal, Annotated
 
 from pydantic import BaseModel, Field
 
-from app.models.question import QuestionDifficulty, QuestionType
+# from app.models.question import QuestionDifficulty, QuestionType
 from app.helper.course_helper import Grade, Subject
+
+
+class QuestionType(str, Enum):
+    """
+    Enum for question types.
+    """
+    MULTIPLE_CHOICE = "multiple_choice"
+    FILL_IN_THE_BLANK = "fill_in_the_blank"
+    CALCULATION = "calculation"
+
+
+class QuestionDifficulty(str, Enum):
+    """
+    Enum for question difficulty levels.
+    """
+    EASY = "easy"
+    MEDIUM = "medium"
+    HARD = "hard"
 
 
 class MultipleChoiceDetails(BaseModel):
@@ -51,14 +68,12 @@ QuestionDetails = Annotated[
 ]
 
 
-class QuestionRequest(BaseModel):
-    id: uuid.UUID
-    question_type: QuestionType
-    difficulty: QuestionDifficulty
-    grade: Grade
-    subject: Subject
-    text: str
-    details: QuestionDetails
+# class QuestionCreationRequest(BaseModel):
+#     question_id: uuid.UUID
+#     question_type: QuestionType
+#     difficulty: QuestionDifficulty
+#     text: str
+#     details: QuestionDetails
 
 
 class BaseQuestion(BaseModel):
@@ -71,10 +86,10 @@ class BaseQuestion(BaseModel):
         difficulty: the difficulty of the question
         knowledge_point_id: the knowledge point id the question belongs to
     """
-    id: uuid.UUID = Field(default_factory=uuid.uuid4)
+    question_id: uuid.UUID = Field(default_factory=uuid.uuid4)
     text: str
     difficulty: QuestionDifficulty
-    knowledge_point_id: str
+    knowledge_node_id: str
 
 
 class MultipleChoiceQuestion(BaseQuestion):

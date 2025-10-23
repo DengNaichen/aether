@@ -1,4 +1,7 @@
-from neomodel import StructuredNode, StringProperty, ZeroOrOne, RelationshipTo, One, RelationshipFrom
+from neomodel import StructuredNode, StringProperty, ZeroOrOne, RelationshipTo, \
+    One, RelationshipFrom, ArrayProperty, IntegerProperty
+
+from schemas.questions import QuestionDifficulty
 
 
 class Course(StructuredNode):
@@ -70,3 +73,36 @@ class KnowledgeNode(StructuredNode):
         return f"<KnowledgeNode {self.node_name} ({self.node_id})>"
 
 
+class Question(StructuredNode):
+    __abstract_node__ = True
+
+    question_id = StringProperty(required=True, unique_index=True)
+    text = StringProperty(required=True)
+    difficulty = StringProperty(
+        required=True,
+        choices={d.value: d.name for d in QuestionDifficulty}
+    )
+    KnowledgeNode = RelationshipTo(
+        "KnowledgeNode",
+        "TESTS",
+        cardinality=One
+    )
+
+    def save(self):
+        self.labels.add(self.difficulty)
+
+        return super.save()
+
+
+class MultipleChoice(Question):
+    options = ArrayProperty(StringProperty(), required=True)
+    correct_answer = IntegerProperty(required=True)
+
+
+class FillInBlank(Question):
+    expected_answer = ArrayProperty(StringProperty(), required=True)
+
+
+class Calculation(Question):
+    expected_answer = ArrayProperty(StringProperty(), required=True)
+    precision = IntegerProperty(default=2)

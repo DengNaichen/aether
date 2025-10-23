@@ -5,3 +5,6 @@ version = "0.1.0" # 或者任何你喜欢的版本号
 [build-system]
 requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["app"]
