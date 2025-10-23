@@ -1,6 +1,7 @@
 import asyncio
 import os
 import sys
+import uuid
 from pathlib import Path
 from dotenv import load_dotenv
 
@@ -36,6 +37,8 @@ from app.models.enrollment import Enrollment
 from app.models.user import User
 import app.models.neo4j_model as neo
 from app.schemas.knowledge_node import RelationType
+import app.schemas.questions as pydantic
+from app.worker.handlers import _enroll_user_in_course_sync
 
 # --- 测试常量 ---
 TEST_USER_NAME = "test user conf"
@@ -214,6 +217,33 @@ async def course_in_neo4j_db(
 
 
 @pytest_asyncio.fixture(scope="function")
+async def user_in_neo4j_db(
+    test_db_manager: DatabaseManager,
+    course_in_neo4j_db: neo.Course,
+    user_in_db: User,
+) -> AsyncGenerator[neo.User, Any]:
+
+    enrolled_course_id = course_in_neo4j_db.course_id
+    user_id = user_in_db.id
+    user_name = user_in_db.name
+
+    try:
+        async with test_db_manager.neo4j_scoped_connection():
+            user_node, create = await asyncio.to_thread(
+                _enroll_user_in_course_sync,
+                user_id=str(user_id),
+                user_name=user_name,
+                course_id=enrolled_course_id,
+            )
+        if user_node is None:
+            raise RuntimeError
+
+    except Exception as e:
+        print(f"❌ Error in user_in_neo4j_db fixture: {e}")
+    yield user_node
+
+
+@pytest_asyncio.fixture(scope="function")
 async def nodes_in_neo4j_db(
         test_db_manager: DatabaseManager,
         course_in_neo4j_db: neo.Course,
@@ -245,9 +275,33 @@ async def nodes_in_neo4j_db(
 @pytest_asyncio.fixture(scope="function")
 async def questions_in_neo4j_db(
         test_db_manager: DatabaseManager,
-        nodes_in_neo4j_db: neo.Course,
-):
-    pass
+        nodes_in_neo4j_db: tuple[neo.KnowledgeNode, neo.KnowledgeNode],
+) -> AsyncGenerator[
+    tuple[neo.MultipleChoice, neo.FillInBlank], Any
+]:
+    target_node, source_node = nodes_in_neo4j_db
+
+    mcq_obj = neo.MultipleChoice(
+        question_id=uuid.UUID("11111111-1111-1111-1111-111111111111"),
+        text="Which of these is a 'target' node?",
+        difficulty="easy",
+        options=["Target", "Source", "Neither"],
+        correct_answer=0,
+    )
+    fib_obj = neo.FillInBlank(
+        question_id="00011111-1111-1111-1111-111111111111",
+        text="The source node name is ____.",
+        difficulty="EASY",
+        expected_answer=[SOURCE_KNOWLEDGE_NODE_NAME],
+    )
+    async with test_db_manager.neo4j_scoped_connection():
+        await asyncio.to_thread(mcq_obj.save)
+        await asyncio.to_thread(fib_obj.save)
+
+        await asyncio.to_thread(mcq_obj.knowledge_node.connect, target_node)
+        await asyncio.to_thread(fib_obj.knowledge_node.connect, source_node)
+
+    yield mcq_obj, fib_obj
 
 
 @pytest_asyncio.fixture(scope="function")
@@ -317,34 +371,34 @@ async def cleanup_test_db():
 # ==================================================================
 # === MOCK Fixtures for unit test ===
 # ==================================================================
-@pytest.fixture(scope="function")
-def mock_redis_client() -> MagicMock:
-    client = MagicMock(spec=Redis)
-    client.lpush = AsyncMock(return_value=1)
-    return client
-
-
-@pytest.fixture(scope="function")
-def mock_upload_file() -> MagicMock:
-    file_content = [b"header1, header2\n", b"value1, value2\n", b""]
-
-    file = MagicMock(spec=UploadFile)
-    file.content_type = "test/csv"
-    file.filename = "test.csv"
-    file.read = AsyncMock(side_effect=file_content)
-    file.close = AsyncMock()
-    return file
-
-
-@pytest.fixture(scope="function")
-def mock_aiofiles_open(mocker):
-    mock_file_handle = AsyncMock()
-    mock_file_handle.write = AsyncMock()
-
-    mock_content_manager = AsyncMock()
-    mock_file_handle.__aenter__.return_value = mock_file_handle
-
-    return mocker.patch("")  # TODO: problem here !!!
+# @pytest.fixture(scope="function")
+# def mock_redis_client() -> MagicMock:
+#     client = MagicMock(spec=Redis)
+#     client.lpush = AsyncMock(return_value=1)
+#     return client
+#
+#
+# @pytest.fixture(scope="function")
+# def mock_upload_file() -> MagicMock:
+#     file_content = [b"header1, header2\n", b"value1, value2\n", b""]
+#
+#     file = MagicMock(spec=UploadFile)
+#     file.content_type = "test/csv"
+#     file.filename = "test.csv"
+#     file.read = AsyncMock(side_effect=file_content)
+#     file.close = AsyncMock()
+#     return file
+#
+#
+# @pytest.fixture(scope="function")
+# def mock_aiofiles_open(mocker):
+#     mock_file_handle = AsyncMock()
+#     mock_file_handle.write = AsyncMock()
+#
+#     mock_content_manager = AsyncMock()
+#     mock_file_handle.__aenter__.return_value = mock_file_handle
+#
+#     return mocker.patch("")  # TODO: problem here !!!
 
 
 
