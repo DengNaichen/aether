@@ -4,9 +4,6 @@ from typing import List, Union, Literal, Annotated
 
 from pydantic import BaseModel, Field
 
-# from app.models.question import QuestionDifficulty, QuestionType
-from app.helper.course_helper import Grade, Subject
-
 
 class QuestionType(str, Enum):
     """
@@ -68,14 +65,6 @@ QuestionDetails = Annotated[
 ]
 
 
-# class QuestionCreationRequest(BaseModel):
-#     question_id: uuid.UUID
-#     question_type: QuestionType
-#     difficulty: QuestionDifficulty
-#     text: str
-#     details: QuestionDetails
-
-
 class BaseQuestion(BaseModel):
     """
     Base model for questions.
@@ -115,6 +104,26 @@ class CalculationQuestion(BaseQuestion):
     question_type: Literal[QuestionType.CALCULATION] = QuestionType.CALCULATION
     details: CalculationDetails
 
+
+class MultipleChoiceAnswer(BaseModel):
+    question_type: Literal[QuestionType.MULTIPLE_CHOICE]
+    selected_option: int
+
+
+class FillInTheBlankAnswer(BaseModel):
+    question_type: Literal[QuestionType.FILL_IN_THE_BLANK]
+    text_answer: str
+
+
+class CalculationAnswer(BaseModel):
+    question_type: Literal[QuestionType.CALCULATION]
+    numeric_answer: int
+
+
+AnyAnswer = Annotated[
+    Union[MultipleChoiceAnswer, FillInTheBlankAnswer, CalculationAnswer],
+    Field(discriminator="question_type")
+]
 
 AnyQuestion = Annotated[
     Union[MultipleChoiceQuestion, FillInTheBlankQuestion, CalculationQuestion],

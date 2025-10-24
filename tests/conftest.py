@@ -39,6 +39,7 @@ import app.models.neo4j_model as neo
 from app.schemas.knowledge_node import RelationType
 import app.schemas.questions as pydantic
 from app.worker.handlers import _enroll_user_in_course_sync
+from app.models.quiz import QuizAttempt, QuizStatus
 
 # --- 测试常量 ---
 TEST_USER_NAME = "test user conf"
@@ -108,6 +109,9 @@ async def test_redis(
     provide a redis client for each test function, and clean after
     """
     redis_client = test_db_manager.redis_client
+
+    await redis_client.flushall()
+
     yield redis_client
 
     await redis_client.flushall()
@@ -199,6 +203,41 @@ async def course_in_db(test_db: AsyncSession):
     await test_db.refresh(new_course_1)
     await test_db.refresh(new_course_2)
     return new_course_1, new_course_2
+
+
+@pytest_asyncio.fixture(scope="function")
+async def enrollment_in_db(
+        test_db: AsyncSession,
+        user_in_db: User
+) -> Enrollment:
+    new_enrollment = Enrollment(
+        user_id=user_in_db.id,
+        course_id=COURSE_ID_ONE,
+    )
+    test_db.add(new_enrollment)
+    await test_db.commit()
+    await test_db.refresh(new_enrollment)
+    return new_enrollment
+
+
+# todo: write a Attempt in db
+@pytest_asyncio.fixture(scope="function")
+async def quiz_in_db(
+        test_db: AsyncSession,
+        user_in_db: User,
+        course_in_db: tuple[Course, Course],
+) -> QuizAttempt:
+    course_one, _ = course_in_db
+    new_attempt = QuizAttempt(
+        user_id=user_in_db.id,
+        course_id=course_one.id,
+        question_num=2,
+        status=QuizStatus.IN_PROGRESS
+    )
+    test_db.add(new_attempt)
+    await test_db.commit()
+    await test_db.refresh(new_attempt)
+    return new_attempt
 
 
 @pytest_asyncio.fixture(scope="function")
@@ -305,21 +344,6 @@ async def questions_in_neo4j_db(
         await asyncio.to_thread(fib_obj.knowledge_node.connect, source_node)
 
     yield mcq_obj, fib_obj
-
-
-@pytest_asyncio.fixture(scope="function")
-async def enrollment_in_db(
-        test_db: AsyncSession,
-        user_in_db: User
-) -> Enrollment:
-    new_enrollment = Enrollment(
-        user_id=user_in_db.id,
-        course_id=COURSE_ID_ONE,
-    )
-    test_db.add(new_enrollment)
-    await test_db.commit()
-    await test_db.refresh(new_enrollment)
-    return new_enrollment
 
 
 @pytest_asyncio.fixture(scope="function")
