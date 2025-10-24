@@ -19,18 +19,21 @@ class TestStartNewQuiz:
     """
     Test suite for the POST /courses/{course_id}/quizzes endpoint.
     """
-    async def test_start_quiz_success(
+    async def test_start_quiz_happy_path_with_real_question(
             self,
             enrolled_user_client: AsyncClient,
             test_db: AsyncSession,
-            user_in_db: User
+            user_in_db: User,
+            course_in_db: Course,
+            # neo4j fixtures
+            course_in_neo4j_db,
+            user_in_neo4j_db,
+            questions_in_neo4j_db,
     ):
         """
+        Happy path test for starting a quiz, fetching a real question from Neo4j.
         """
-        payload = {
-            "course_id": COURSE_ID_ONE,
-            "question_num": 2
-        }
+        payload = {"question_num": 1}
         url = f"/course/{COURSE_ID_ONE}/quizzes"
 
         # --- Make the API call ---
@@ -46,9 +49,17 @@ class TestStartNewQuiz:
         assert "questions" in data
         assert data["course_id"] == COURSE_ID_ONE
         assert data["question_num"] == payload["question_num"]
-        # Assuming your mock_data function returns 2 questions
-        assert len(data["questions"]) == 2
+        assert len(data["questions"]) == 1  # We requested one random question
 
+        # --- Assert question structure ---
+        question = data["questions"][0]
+        assert "question_id" in question
+        assert "text" in question
+        assert "difficulty" in question
+        assert "question_type" in question
+        assert "details" in question
+
+        # --- Assert database state ---
         submission_query = await test_db.execute(
             select(QuizAttempt).where(
                 QuizAttempt.attempt_id == UUID(data["attempt_id"])
@@ -56,10 +67,9 @@ class TestStartNewQuiz:
         )
         created_submission = submission_query.scalars().one_or_none()
         assert created_submission is not None
-        assert (created_submission.attempt_id == UUID(data["attempt_id"]))
         assert created_submission.user_id == user_in_db.id
         assert created_submission.status == QuizStatus.IN_PROGRESS
-        assert created_submission.score is None
+        assert created_submission.course_id == COURSE_ID_ONE
 
     # async def test_start_quiz_unauthenticated(self, client: AsyncClient):
     #     """

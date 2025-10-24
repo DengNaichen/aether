@@ -264,10 +264,13 @@ async def nodes_in_neo4j_db(
         await asyncio.to_thread(target_node_obj.save)
         await asyncio.to_thread(source_node_obj.save)
 
-        await asyncio.to_thread(target_node_obj.course.connect,
-                                course_in_neo4j_db)
-        await asyncio.to_thread(source_node_obj.course.connect,
-                                course_in_neo4j_db)
+        # connect course with BELONGS_TO relationship
+        await asyncio.to_thread(
+            target_node_obj.course.connect, course_in_neo4j_db
+        )
+        await asyncio.to_thread(
+            source_node_obj.course.connect, course_in_neo4j_db
+        )
 
     yield target_node_obj, source_node_obj
 
@@ -284,14 +287,14 @@ async def questions_in_neo4j_db(
     mcq_obj = neo.MultipleChoice(
         question_id=uuid.UUID("11111111-1111-1111-1111-111111111111"),
         text="Which of these is a 'target' node?",
-        difficulty="easy",
+        difficulty=pydantic.QuestionDifficulty.EASY.value,
         options=["Target", "Source", "Neither"],
         correct_answer=0,
     )
     fib_obj = neo.FillInBlank(
         question_id="00011111-1111-1111-1111-111111111111",
         text="The source node name is ____.",
-        difficulty="EASY",
+        difficulty=pydantic.QuestionDifficulty.EASY.value,
         expected_answer=[SOURCE_KNOWLEDGE_NODE_NAME],
     )
     async with test_db_manager.neo4j_scoped_connection():
@@ -399,6 +402,7 @@ async def cleanup_test_db():
 #     mock_file_handle.__aenter__.return_value = mock_file_handle
 #
 #     return mocker.patch("")  # TODO: problem here !!!
+
 
 
 
