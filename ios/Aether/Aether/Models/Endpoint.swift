@@ -77,14 +77,6 @@ struct EnrollCourseEndpoint: Endpoint {
 }
 
 
-struct QuizStartEndpoint: Endpoint {
-    let courseId: String
-    
-    var path: String { "/courses/\(courseId)/quizzes" }
-    var method: HTTPMethod { .POST }
-    var body: RequestBody? { .json(QuizStartRequest(questionNum: 2)) }
-    var requiredAuth: Bool { true }
-}
 
 //struct SubmitQuizEndpoint: Endpoint {
 //    let courseId: String

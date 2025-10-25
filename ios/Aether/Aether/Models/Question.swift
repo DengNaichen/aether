@@ -1,5 +1,6 @@
 import Foundation
 
+// MARK: - Network Layer
 enum QuestionType: String, Codable {
     case multipleChoice = "multiple_choice"
     case fillInTheBlank = "fill_in_the_blank"
@@ -117,4 +118,25 @@ enum AnyQuestion: Codable, Equatable {
         case .calculation: return .calculation
         }
     }
+}
+
+// MARK: - View and ViewModel layer
+struct MultipleChoiceDetailsDisplay: Equatable {
+    let options: [String]
+    let correctAnswer: Int
+}
+
+struct FillInTheBlankDetailsDisplay: Equatable {
+    let expectedAnswer: [String]
+}
+
+struct CalculationDetailsDisplay: Equatable {
+    let expectedAnswer: [String]
+    let precision: Int
+}
+
+enum QuestionDetailsDisplay: Equatable {
+    case multipleChoice(MultipleChoiceDetailsDisplay)
+    case fillInTheBlank(FillInTheBlankDetailsDisplay)
+    case calculation(CalculationDetailsDisplay)
 }

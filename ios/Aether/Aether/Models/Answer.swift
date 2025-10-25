@@ -1,24 +1,3 @@
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 enum AnyAnswer: Codable {
     case multipleChoice(selectedOption: Int)
     case fillInTheBlank(textAnswer: String)
