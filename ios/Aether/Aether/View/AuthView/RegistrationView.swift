@@ -7,8 +7,7 @@ struct RegisterView: View {
     @State private var email = ""
     @State private var password = ""
     
-    
-    private var isFormedValid: Bool {
+    private var isFormValid: Bool {
         !name.isEmpty && email.contains("@") && password.count >= 6
     }
 
@@ -18,21 +17,49 @@ struct RegisterView: View {
 
     var body: some View {
         ZStack {
-            NavigationStack {
-                Form {
-                    PersonalInfoSection(name: $name, email: $email)
-                    PasswordSection(password: $password)
-                    RegisterButtonSection(
-                        text: "Register",
-                        isEnable: !isFormedValid || viewModel.isLoading,
-                        action: registerButtonTapped
+            ScrollView {
+                VStack(spacing: 24) {
+                    AuthHeaderView(
+                        title: "Create Account",
+                        subtitle: "Start your personalized learning path today."
                     )
-                    LoginNavigationSection(
-                        text: "Already have an account? Login",
-                        action: viewModel.navigateToLogin)
+                    
+                    VStack(spacing: 16) {
+                        AuthTextField(placeholder: "Full Name", text: $name)
+                        AuthTextField(placeholder: "Email", text: $email)
+                        AuthTextField(placeholder: "Password", text: $password, isSecure: true)
+                    }
+                    
+                    AuthButton(
+                        title: "Sign Up",
+                        action: registerButtonTapped,
+                        isEnabled: isFormValid && !viewModel.isLoading
+                    )
+                    
+                    OrDivider()
+                    
+                    VStack(spacing: 16) {
+                        // Native Apple button
+                        AppleSignInButtonView(title: "Sign up with Apple", action: {
+                            // TODO: Implement Apple Sign-Up later
+                        })
+                        // Keep Google as your current custom button until SDK is added
+                        GoogleSignInButtonView(action: {
+                            // TODO: Implement Google Sign-Up later
+                        })
+                    }
+                    
+                    Spacer()
+                    
+                    AuthNavigationLink(
+                        prompt: "Already have an account?",
+                        actionText: "Login",
+                        action: viewModel.navigateToLogin
+                    )
                 }
-                .navigationTitle("Registration")
+                .padding()
             }
+            .navigationBarHidden(true)
             .disabled(viewModel.isLoading)
             
             if viewModel.isLoading {
@@ -40,27 +67,23 @@ struct RegisterView: View {
             }
         }
         .alert(item: $viewModel.alertItem) { alertItem in
-            Alert(title: Text(alertItem.title),
-                  message: Text(alertItem.message),
-                  dismissButton: .default(Text("OK"))
+            Alert(
+                title: Text(alertItem.title),
+                message: Text(alertItem.message),
+                dismissButton: .default(Text("OK"))
             )
         }
     }
+    
     private func registerButtonTapped() {
         Task {
             dismissKeyboard()
-            await viewModel.register(username: name,
-                                     email: email,
-                                     password: password)
+            await viewModel.register(username: name, email: email, password: password)
         }
     }
     
     private func dismissKeyboard() {
-        UIApplication.shared.sendAction(
-            #selector(UIResponder.resolveClassMethod(_:)),
-            to: nil,
-            from: nil,
-            for: nil)
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
     }
 }
 
@@ -77,5 +100,9 @@ struct RegisterView: View {
     mockViewModel.onLoginTapped = {
         print("Navigate to login (preview)")
     }
-    return RegisterView(viewModel: mockViewModel)
+    
+    return NavigationView {
+        RegisterView(viewModel: mockViewModel)
+    }
 }
+

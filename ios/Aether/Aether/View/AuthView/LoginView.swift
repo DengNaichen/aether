@@ -9,47 +9,66 @@ struct LoginView: View {
     init(viewModel: LoginViewModel) {
         self.viewModel = viewModel
     }
+    
+    private var isFormValid: Bool {
+        !email.isEmpty && email.contains("@") && !password.isEmpty
+    }
 
     var body: some View {
         ZStack {
-            NavigationStack {
-                Form {
-                    LoginInfoSection(email: $email)
-                    PasswordSection(password: $password)
-                    RegisterButtonSection(
-                        text: "Login",
-                        isEnable: email.isEmpty || password.isEmpty ||
-                        viewModel.isLoading,
-                        action: loginButtonTapped
+            ScrollView {
+                VStack(spacing: 24) {
+                    AuthHeaderView(
+                        title: "Welcome Back!",
+                        subtitle: "Sign in to continue your learning journey."
                     )
-                    Section {
-                        // Using a Button with a custom style for navigation
-                        Button(action: {
-                            viewModel.navigateToRegister()
-                        }) {
-                            Text("No account? Sign up")
-                                .frame(maxWidth: .infinity, alignment: .center)
-                        }
+                    
+                    VStack(spacing: 16) {
+                        AuthTextField(placeholder: "Email", text: $email)
+                        AuthTextField(placeholder: "Password", text: $password, isSecure: true)
                     }
-//                    LoginNavigationSection(
-//                        text: "No account? Sign up",
-//                        action: viewModel.navigateToRegister()
-//                    )
+                    
+                    AuthButton(
+                        title: "Login",
+                        action: loginButtonTapped,
+                        isEnabled: isFormValid && !viewModel.isLoading
+                    )
+                    
+                    OrDivider()
+                    
+                    VStack(spacing: 16) {
+                        // Native Apple button
+                        AppleSignInButtonView(title: "Continue with Apple", action: {
+                            // TODO: Implement Apple Sign-In later
+                        })
+                        // Keep Google as your current custom button until SDK is added
+                        GoogleSignInButtonView(action: {
+                            // TODO: Implement Google Sign-In later
+                        })
+                    }
+                    
+                    Spacer()
+                    
+                    AuthNavigationLink(
+                        prompt: "Don't have an account?",
+                        actionText: "Sign Up",
+                        action: viewModel.navigateToRegister
+                    )
                 }
-                .navigationTitle("Login")
+                .padding()
             }
+            .navigationBarHidden(true)
             .disabled(viewModel.isLoading)
             
-            // 根据 isLoading 状态显示加载动画
             if viewModel.isLoading {
-                LoadingOverlay(message: "Login...")
+                LoadingOverlay(message: "Logging in...")
             }
         }
         .alert(item: $viewModel.alertItem) { alertItem in
             Alert(
                 title: Text(alertItem.title),
                 message: Text(alertItem.message),
-                dismissButton: .default(Text("Ok"))
+                dismissButton: .default(Text("OK"))
             )
         }
     }
@@ -69,7 +88,11 @@ struct LoginView: View {
     }
     let mockViewModel = LoginViewModel(network: mockNet, onLoginSuccess: onSuccess)
     mockViewModel.onRegisterTapped = {
-        print("Navigate to register(preview)")
+        print("Navigate to register (preview)")
     }
-    return LoginView(viewModel: mockViewModel)
+    
+    return NavigationView {
+        LoginView(viewModel: mockViewModel)
+    }
 }
+

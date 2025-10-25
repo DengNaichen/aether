@@ -2,30 +2,67 @@ import Foundation
 import Combine
 
 @MainActor
-class QuizViewModel: ObservableObject {
-    // MARK: - Published Properties
-    let problems: [QuizProblem]
+class QuizViewModel: ObservableObject, NetworkViewModeling {
+    private let network: NetworkServicing
     
-    @Published var currentProblemIndex = 0
+    @Published var isLoading: Bool = false
+    @Published var alertItem: AlertItem?
+    @Published var questions: [mcqQuestion] = []
+    @Published var currentQuestionIndex = 0
     @Published var selectedOptionIndex: Int?
     @Published var isAnswerSubmitted = false
-    
     @Published var score = 0
     
-    init(problems: [QuizProblem]) {
-        self.problems = problems
+ 
+
+    init(network: NetworkService) {
+        self.network = network
     }
     
-    var currentQuestion: QuizProblem? {
-        guard currentProblemIndex < problems.count else { return nil }
-        return problems[currentProblemIndex]
+    
+    func startQuiz(courseId: String, questionNum: Int) async {
+        
+        self.questions = []
+        
+        let response = await performTask(errorTitle: "Quiz Start Failed") {
+            
+            let request = QuizStartRequest(questionNum: questionNum)
+            let endpoint = QuizStartEndpoint(courseId: courseId)
+            return try await network.request(
+                endpoint: endpoint, responseType: QuizStartResponse.self)
+        }
+        if let response {
+            self.questions = mapToUIQuestion(from: response.questions)
+        }
+    }
+    
+    private func mapToUIQuestion(from responseQuestions: [AnyQuestion])
+    -> [mcqQuestion] {
+        var uiQuestion: [mcqQuestion] = []
+        for responseQuestion in responseQuestions {
+            if case .multipleChoice(let mcq) = responseQuestion {
+                let question = mcqQuestion(
+                    id: mcq.id,
+                    text: mcq.text,
+                    options: mcq.details.options,
+                    correctAnswerIndex: mcq.details.correctAnswer
+                )
+                uiQuestion.append(question)
+            }
+        }
+        return uiQuestion
+    }
+    
+    var currentQuestion: mcqQuestion? {
+        guard currentQuestionIndex < questions.count else { return nil }
+        return questions[currentQuestionIndex]
     }
 
     var isQuizFinished: Bool {
-        return currentProblemIndex >= problems.count
+        return currentQuestionIndex >= questions.count
     }
-    
-    func submitAnswer() {
+
+    func submitQuestionAnswer() {
         guard let selectedIndex = self.selectedOptionIndex,
               let question = currentQuestion else{
             return
@@ -37,11 +74,11 @@ class QuizViewModel: ObservableObject {
     }
     
     func nextQuestion() {
-        if self.currentProblemIndex < problems.count - 1 {
-            self.currentProblemIndex += 1
+        if self.currentQuestionIndex < questions.count - 1 {
+            self.currentQuestionIndex += 1
             resetForNextQuesion()
         } else {
-            self.currentProblemIndex += 1
+            self.currentQuestionIndex += 1
         }
     }
     
@@ -50,9 +87,7 @@ class QuizViewModel: ObservableObject {
         isAnswerSubmitted = false
     }
     
-    func restartQuiz() {
-        score = 0
-        currentProblemIndex = 0
-        resetForNextQuesion()
+    func submissionQuiz() {
+        
     }
 }

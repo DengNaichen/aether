@@ -77,15 +77,12 @@ struct EnrollCourseEndpoint: Endpoint {
 }
 
 
-struct QuizEndpoint: Endpoint {
-//    let courseId: String
+struct QuizStartEndpoint: Endpoint {
+    let courseId: String
     
-    let startSessionRequest: SessionStartRequest
-    
-//    var path: String { "/courses/\(courseId)/quizzes" }
-    var path: String{"TODO"}
+    var path: String { "/courses/\(courseId)/quizzes" }
     var method: HTTPMethod { .POST }
-    var body: RequestBody? { .json(startSessionRequest) }
+    var body: RequestBody? { .json(QuizStartRequest(questionNum: 2)) }
     var requiredAuth: Bool { true }
 }
 

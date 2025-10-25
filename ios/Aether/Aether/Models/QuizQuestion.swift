@@ -1,10 +1,10 @@
 import Foundation
 
 struct QuizProblemSet {
-    let problems: [QuizProblem]
+    let problems: [mcqQuestion]
 }
 
-struct QuizProblem: Codable, Identifiable, Hashable {
+struct mcqQuestion: Codable, Identifiable, Hashable {
     let id: UUID
     let text: String
     let options: [String]

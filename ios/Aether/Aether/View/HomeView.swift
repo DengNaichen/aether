@@ -17,9 +17,9 @@ struct HomeView: View {
                     .font(.largeTitle)
               
                 Button("Start Test Session (G11 Physics)") {
-                    Task {
-                    await viewModel.startSession(courseId: "g11_phys", questionCount: 2)
-                    }
+//                    Task {
+//                    await viewModel.startSession(courseId: "g11_phys", questionCount: 2)
+//                    }
                 }
                 .padding()
                 .background(Color.purple)
@@ -41,9 +41,9 @@ struct HomeView: View {
             }
             .padding()
             .navigationTitle("Welcome")
-            .navigationDestination(item: $viewModel.quizProblemsForNavigation) { problems in
-                QuizView(problems: problems)
-            }
+//            .navigationDestination(item: $viewModel.quizProblemsForNavigation) { problems in
+//                QuizView(problems: problems)
+//            }
             .alert(item: $viewModel.alertItem) { alertItem in
                 Alert(title: Text(alertItem.title), message: Text(alertItem.message), dismissButton: .default(Text("OK")))
             }
