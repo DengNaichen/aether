@@ -21,9 +21,22 @@ class QuizViewModel: ObservableObject, NetworkViewModeling {
     @Published var isAnswerSubmitted: Bool = false
     
 
-    init(network: NetworkService, modelContext: ModelContext) {
+    init(network: NetworkServicing, modelContext: ModelContext) {
         self.network = network
         self.modelContext = modelContext
+    }
+    
+    var isQuizFinished: Bool {
+        activeAttempt?.status == .completed
+    }
+    
+    var currentQuestion: QuestionDisplay? {
+        guard !questions.isEmpty,
+              currentQuestionIndex >= 0,
+              currentQuestionIndex < questions.count else {
+            return nil
+        }
+        return nil
     }
     
     
@@ -155,6 +168,7 @@ class QuizViewModel: ObservableObject, NetworkViewModeling {
         if let response {
             return response
         }
+        return nil
     }
     
 
@@ -172,8 +186,6 @@ class QuizViewModel: ObservableObject, NetworkViewModeling {
             // to result page
         }
     }
-    
-    func submissionQuiz() {
-        
+    func submitQuiz() {
     }
 }

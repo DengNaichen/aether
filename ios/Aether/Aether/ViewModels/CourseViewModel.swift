@@ -95,7 +95,9 @@ class CourseViewModel: ObservableObject, NetworkViewModeling {
     @MainActor
     private func loadCoursesFromDB() {
         do {
-            let descriptor = FetchDescriptor<CourseModel>(sortBy: [SortDescriptor(\.courseName)])
+            let descriptor = FetchDescriptor<CourseModel>(
+                sortBy: [SortDescriptor(\.courseName)]
+            )
             let models = try modelContext.fetch(descriptor)
             self.courses = models.map{ ConvertCourseModelToCourse(model: $0)}
         } catch {
