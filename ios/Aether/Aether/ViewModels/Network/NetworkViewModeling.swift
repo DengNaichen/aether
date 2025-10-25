@@ -18,12 +18,12 @@ extension NetworkViewModeling {
         self.alertItem = AlertItem(title: title, message: errorMessage)
     }
     
-    func performTask<T>(errorTitle: String, operation: () async throws -> T) async -> T? {
+    func performTask<T>(errorTitle: String, task: () async throws -> T) async -> T? {
         isLoading = true
         defer { isLoading = false }
         alertItem = nil
         do {
-            return try await operation()
+            return try await task()
         } catch {
             handleError(error, withTitle: errorTitle)
             return nil

@@ -1,4 +1,6 @@
 import SwiftUI
+import AuthenticationServices
+import GoogleSignIn
 
 struct LoginView: View {
     @ObservedObject var viewModel: LoginViewModel
@@ -37,14 +39,25 @@ struct LoginView: View {
                     OrDivider()
                     
                     VStack(spacing: 16) {
-                        // Native Apple button
-                        AppleSignInButtonView(title: "Continue with Apple", action: {
-                            // TODO: Implement Apple Sign-In later
-                        })
-                        // Keep Google as your current custom button until SDK is added
+                        // Apple Sign-In Button
+                        SignInWithAppleButton(.signIn) { request in
+                            request.requestedScopes = [.fullName, .email]
+                        } onCompletion: { result in
+                            Task {
+                                await viewModel.handleAppleSignIn(result: result)
+                            }
+                        }
+                        .signInWithAppleButtonStyle(.black)
+                        .frame(height: 50)
+                        .cornerRadius(10)
+                        
+                        // Google Sign-In Button
                         GoogleSignInButtonView(action: {
-                            // TODO: Implement Google Sign-In later
+                            Task {
+                                await viewModel.handleGoogleSignIn()
+                            }
                         })
+                        .disabled(viewModel.isLoading)
                     }
                     
                     Spacer()
@@ -61,7 +74,7 @@ struct LoginView: View {
             .disabled(viewModel.isLoading)
             
             if viewModel.isLoading {
-                LoadingOverlay(message: "Logging in...")
+                LoadingOverlay(message: "Signing in...")
             }
         }
         .alert(item: $viewModel.alertItem) { alertItem in
@@ -71,12 +84,29 @@ struct LoginView: View {
                 dismissButton: .default(Text("OK"))
             )
         }
+        .onAppear {
+            // 配置Google Sign-In
+            configureGoogleSignIn()
+        }
     }
 
     private func loginButtonTapped() {
         Task {
             await viewModel.login(email: email, password: password)
         }
+    }
+    
+    private func configureGoogleSignIn() {
+        // 这里需要配置Google Sign-In
+        // 您需要在项目中添加GoogleService-Info.plist文件
+        guard let path = Bundle.main.path(forResource: "GoogleService-Info", ofType: "plist"),
+              let plist = NSDictionary(contentsOfFile: path),
+              let clientID = plist["CLIENT_ID"] as? String else {
+            print("⚠️ Google Sign-In configuration file not found")
+            return
+        }
+        
+        GIDSignIn.sharedInstance.configuration = GIDConfiguration(clientID: clientID)
     }
 }
 

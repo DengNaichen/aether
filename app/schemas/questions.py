@@ -40,7 +40,8 @@ class FillInTheBlankDetails(BaseModel):
     Details for fill in the blank questions.
     not implemented yet
     """
-    question_type: Literal[QuestionType.FILL_IN_THE_BLANK] = QuestionType.FILL_IN_THE_BLANK
+    question_type: Literal[QuestionType.FILL_IN_THE_BLANK] = (
+        QuestionType.FILL_IN_THE_BLANK)
     # TODO: need to do this problems
     expected_answer: List[str]
 

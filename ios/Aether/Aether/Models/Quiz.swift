@@ -46,6 +46,115 @@ struct QuizResponse: Codable {
     }
 }
 
+// MARK: - Quiz Submission Models (for API)
+
+enum AnyAnswer: Codable, Equatable {
+    case multipleChoice(MultipleChoiceAnswer)
+    case fillInTheBlank(FillInTheBlankAnswer)
+    case calculation(CalculationAnswer)
+    
+    private enum CodingKeys: String, CodingKey {
+        case questionType = "question_type"
+    }
+    
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let type = try container.decode(QuestionType.self, forKey: .questionType)
+        
+        switch type {
+        case .multipleChoice:
+            let answer = try MultipleChoiceAnswer(from: decoder)
+            self = .multipleChoice(answer)
+        case .fillInTheBlank:
+            let answer = try FillInTheBlankAnswer(from: decoder)
+            self = .fillInTheBlank(answer)
+        case .calculation:
+            let answer = try CalculationAnswer(from: decoder)
+            self = .calculation(answer)
+        }
+    }
+    
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        switch self {
+        case .multipleChoice(let answer):
+            try container.encode(QuestionType.multipleChoice, forKey: .questionType)
+            try answer.encode(to: encoder)
+        case .fillInTheBlank(let answer):
+            try container.encode(QuestionType.fillInTheBlank, forKey: .questionType)
+            try answer.encode(to: encoder)
+        case .calculation(let answer):
+            try container.encode(QuestionType.calculation, forKey: .questionType)
+            try answer.encode(to: encoder)
+        }
+    }
+}
+
+struct MultipleChoiceAnswer: Codable, Equatable {
+    let questionType: QuestionType = .multipleChoice
+    let selectedOption: Int
+    
+    enum CodingKeys: String, CodingKey {
+        case questionType = "question_type"
+        case selectedOption = "selected_option"
+    }
+}
+
+struct FillInTheBlankAnswer: Codable, Equatable {
+    let questionType: QuestionType = .fillInTheBlank
+    let textAnswer: String
+    
+    enum CodingKeys: String, CodingKey {
+        case questionType = "question_type"
+        case textAnswer = "text_answer"
+    }
+}
+
+struct CalculationAnswer: Codable, Equatable {
+    let questionType: QuestionType = .calculation
+    let numericAnswer: String // 发送为字符串以保持精度
+    
+    enum CodingKeys: String, CodingKey {
+        case questionType = "question_type"
+        case numericAnswer = "numeric_answer"
+    }
+}
+
+struct ClientAnswerInput: Codable, Equatable {
+    let questionId: UUID
+    let answer: AnyAnswer
+    
+    enum CodingKeys: String, CodingKey {
+        case questionId = "question_id"
+        case answer
+    }
+}
+
+struct QuizSubmissionRequest: Codable {
+    let answers: [ClientAnswerInput]
+}
+
+struct QuizSubmissionResponse: Codable {
+    let attemptId: UUID
+    let message: String
+    
+    enum CodingKeys: String, CodingKey {
+        case attemptId = "attempt_id"
+        case message
+    }
+}
+
+// MARK: - Submission Endpoint
+struct QuizSubmissionEndpoint: Endpoint {
+    let submissionId: UUID
+    let submissionRequest: QuizSubmissionRequest
+    
+    var path: String { "/submissions/\(submissionId)" }
+    var method: HTTPMethod { .POST }
+    var body: RequestBody? { .json(submissionRequest) }
+    var requiredAuth: Bool { true }
+}
+
 
 // MARK: - Data persistence layer
 @Model

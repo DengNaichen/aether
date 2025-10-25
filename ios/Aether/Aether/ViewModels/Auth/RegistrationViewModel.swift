@@ -3,11 +3,11 @@ import Foundation
 import Combine
 
 
-struct AlertItem: Identifiable {
-    let id = UUID()
-    let title: String
-    let message: String
-}
+//struct AlertItem: Identifiable {
+//    let id = UUID()
+//    let title: String
+//    let message: String
+//}
 
 @MainActor
 class RegisterViewModel: ObservableObject {

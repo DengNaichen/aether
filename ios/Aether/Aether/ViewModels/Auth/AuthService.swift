@@ -9,7 +9,7 @@ import Combine
 @MainActor
 class AuthService: ObservableObject {
     
-    @Published var isAuthenticated: Bool = true // TODO: IMPORTANT! this has to be changed later!!!!!
+    @Published var isAuthenticated: Bool = false
     @Published var currentUser: User?
     
     private let tokenManager = TokenManager.shared
@@ -23,7 +23,7 @@ class AuthService: ObservableObject {
         if let _ = tokenManager.getRefreshToken() {
             isAuthenticated = true
         } else {
-            isAuthenticated = true  // TODO: IMPORTANT! this has to be changed later!!!!!
+            isAuthenticated = false
         }
     }
 
@@ -31,7 +31,7 @@ class AuthService: ObservableObject {
         if let _ = tokenManager.getRefreshToken() {
             self.isAuthenticated = true
         } else {
-            self.isAuthenticated = true // TODO: IMPORTANT! this has to be changed later!!!!!
+            self.isAuthenticated = false
         }
     }
     

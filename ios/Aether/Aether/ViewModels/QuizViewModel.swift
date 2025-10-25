@@ -194,6 +194,104 @@ class QuizViewModel: ObservableObject, NetworkViewModeling {
             // to result page
         }
     }
-    func submitQuiz() {
+    func submitQuiz() async {
+        guard let attempt = activeAttempt else {
+            alertItem = AlertItem(
+                title: "提交失败",
+                message: "未找到有效的测验记录"
+            )
+            return
+        }
+        
+        // 确保测验状态为已完成
+        attempt.status = .completed
+        
+        isLoading = true
+        defer { isLoading = false }
+        
+        // 构建提交答案
+        let answers = buildSubmissionAnswers(from: attempt)
+        let submissionRequest = QuizSubmissionRequest(answers: answers)
+        
+        // 提交到服务器
+        let success = await submitToServer(
+            submissionId: attempt.attemptId,
+            request: submissionRequest
+        )
+        
+        if success {
+            // 保存到本地数据库，确保状态已更新
+            do {
+                try modelContext.save()
+                print("✅ 测验提交成功并保存到本地")
+            } catch {
+                print("❌ 保存到本地失败: \(error)")
+                alertItem = AlertItem(
+                    title: "保存失败",
+                    message: "测验已提交但本地保存失败"
+                )
+            }
+        } else {
+            // 如果提交失败，将状态改回进行中
+            attempt.status = .inProgress
+        }
+    }
+    
+    internal func buildSubmissionAnswers(from attempt: QuizAttempt) -> [ClientAnswerInput] {
+        return attempt.questions.compactMap { storedQuestion in
+            guard storedQuestion.isSubmitted else { return nil }
+            
+            let answer: AnyAnswer
+            
+            switch storedQuestion.questionType {
+            case .multipleChoice:
+                guard let selectedIndex = storedQuestion.selectedOptionIndex else {
+                    print("⚠️ 多选题没有选择答案: \(storedQuestion.id)")
+                    return nil
+                }
+                answer = .multipleChoice(MultipleChoiceAnswer(selectedOption: selectedIndex))
+                
+            case .fillInTheBlank:
+                guard let textAnswer = storedQuestion.userTextAnswer,
+                      !textAnswer.trimmingCharacters(in: .whitespaces).isEmpty else {
+                    print("⚠️ 填空题没有答案: \(storedQuestion.id)")
+                    return nil
+                }
+                answer = .fillInTheBlank(FillInTheBlankAnswer(textAnswer: textAnswer))
+                
+            case .calculation:
+                guard let textAnswer = storedQuestion.userTextAnswer,
+                      !textAnswer.trimmingCharacters(in: .whitespaces).isEmpty else {
+                    print("⚠️ 计算题没有答案: \(storedQuestion.id)")
+                    return nil
+                }
+                answer = .calculation(CalculationAnswer(numericAnswer: textAnswer))
+            }
+            
+            return ClientAnswerInput(questionId: storedQuestion.id, answer: answer)
+        }
+    }
+    
+    private func submitToServer(submissionId: UUID, request: QuizSubmissionRequest) async -> Bool {
+        let response = await performTask(
+            errorTitle: "提交失败",
+            task: {
+                let endpoint = QuizSubmissionEndpoint(
+                    submissionId: submissionId,
+                    submissionRequest: request
+                )
+                return try await network.request(
+                    endpoint: endpoint,
+                    responseType: QuizSubmissionResponse.self
+                )
+            }
+        )
+        
+        if let response = response {
+            print("✅ 测验提交成功: \(response.message)")
+            return true
+        } else {
+            return false
+        }
     }
 }

@@ -34,6 +34,24 @@ struct LoginEndpoint: Endpoint {
     var requiredAuth: Bool { false }
 }
 
+struct AppleSignInEndpoint: Endpoint {
+    let appleLoginRequest: AppleSignInRequest
+    
+    var path: String { "/auth/apple" }
+    var method: HTTPMethod { .POST }
+    var body: RequestBody? { .json(appleLoginRequest) }
+    var requiredAuth: Bool { false }
+}
+
+struct GoogleSignInEndpoint: Endpoint {
+    let googleLoginRequest: GoogleSignInRequest
+    
+    var path: String { "/auth/google" }
+    var method: HTTPMethod { .POST }
+    var body: RequestBody? { .json(googleLoginRequest) }
+    var requiredAuth: Bool { false }
+}
+
 struct LogoutEndpoint: Endpoint {
     var path: String { "/user/logout" }
     var method: HTTPMethod { .POST }

@@ -273,6 +273,14 @@ class MockNetworkService: NetworkServicing, ObservableObject {
             questions: selectedQuestions
         )
     }
+    
+    /// Configure mock to return submission response
+    func configureMockSubmission() {
+        self.mockResponse = QuizSubmissionResponse(
+            attemptId: UUID(),
+            message: "Your answers have been submitted and are pending grading"
+        )
+    }
 
     func request<T: Decodable>(
         endpoint: Endpoint,

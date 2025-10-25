@@ -31,22 +31,39 @@ struct QuizCompletionView: View {
                 }
                 
                 Button(action: {
-                    viewModel.submitQuiz()
+                    Task {
+                        await viewModel.submitQuiz()
+                    }
                 }) {
-                    Text("submit")
-                        .font(.headline)
-                        .fontWeight(.bold)
-                        .padding()
-                        .frame(maxWidth: .infinity)
-                        .background(.blue)
-                        .foregroundColor(.white)
-                        .cornerRadius(10)
+                    HStack {
+                        if viewModel.isLoading {
+                            ProgressView()
+                                .scaleEffect(0.8)
+                                .padding(.trailing, 5)
+                        }
+                        Text(viewModel.isLoading ? "提交中..." : "提交答案")
+                    }
+                    .font(.headline)
+                    .fontWeight(.bold)
+                    .padding()
+                    .frame(maxWidth: .infinity)
+                    .background(viewModel.isLoading ? .gray : .blue)
+                    .foregroundColor(.white)
+                    .cornerRadius(10)
                 }
+                .disabled(viewModel.isLoading)
             }
         }
         .onAppear {
             showConfetti = true
             triggerHapticFeedback()
+        }
+        .alert(item: $viewModel.alertItem) { alertItem in
+            Alert(
+                title: Text(alertItem.title),
+                message: Text(alertItem.message),
+                dismissButton: .default(Text("确定"))
+            )
         }
     }
 

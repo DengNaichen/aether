@@ -49,3 +49,36 @@ struct User: Codable {
     let name: String
     let email: String
 }
+
+// MARK: - Social Login Request Models
+struct AppleSignInRequest: Encodable {
+    let userID: String
+    let identityToken: String
+    let email: String
+    let firstName: String
+    let lastName: String
+    
+    enum CodingKeys: String, CodingKey {
+        case userID = "user_id"
+        case identityToken = "identity_token"
+        case email
+        case firstName = "first_name"
+        case lastName = "last_name"
+    }
+}
+
+struct GoogleSignInRequest: Encodable {
+    let userID: String
+    let idToken: String
+    let email: String
+    let firstName: String
+    let lastName: String
+    
+    enum CodingKeys: String, CodingKey {
+        case userID = "user_id"
+        case idToken = "id_token"
+        case email
+        case firstName = "first_name"
+        case lastName = "last_name"
+    }
+}

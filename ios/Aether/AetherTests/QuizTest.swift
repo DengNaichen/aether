@@ -185,7 +185,7 @@ struct StoredQuestionTests {
         #expect(question.text == "Test question")
         #expect(question.questionType == .multipleChoice)
         #expect(question.detailsJSON == "{}")
-        #expect(question.quizAttemp == nil)
+        #expect(question.quizAttempt == nil)
     }
 }
 

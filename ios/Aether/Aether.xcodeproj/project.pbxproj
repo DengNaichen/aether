@@ -38,6 +38,20 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		6D9A22832EACB4CD00607AB4 /* Exceptions for "AetherTests" folder in "Aether" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				QuizSubmissionTests.swift,
+			);
+			target = 6DCE3F562E8991EB00045B2B /* Aether */;
+		};
+		6D9A22842EACB4CD00607AB4 /* Exceptions for "AetherTests" folder in "AetherTests" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				QuizSubmissionTests.swift,
+			);
+			target = 6DCE3F652E8991EC00045B2B /* AetherTests */;
+		};
 		6DF366792E8F7ABD00D192CC /* Exceptions for "Aether" folder in "Aether" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
@@ -58,6 +72,10 @@
 		};
 		6DCE3F692E8991EC00045B2B /* AetherTests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				6D9A22832EACB4CD00607AB4 /* Exceptions for "AetherTests" folder in "Aether" target */,
+				6D9A22842EACB4CD00607AB4 /* Exceptions for "AetherTests" folder in "AetherTests" target */,
+			);
 			path = AetherTests;
 			sourceTree = "<group>";
 		};
