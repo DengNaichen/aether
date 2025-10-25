@@ -100,3 +100,111 @@ struct QuizView: View {
         }
     }
 }
+
+#if DEBUG
+import SwiftData
+
+@MainActor
+struct QuizView_Previews: PreviewProvider {
+    
+    // MARK: - Helper for creating ViewModel
+    
+    /// 一个辅助方法，用于创建配置好的 ViewModel 和 Container
+    static func createViewModel(for scenario: Scenario, courseId: String = "swiftui-101") -> (QuizViewModel, ModelContainer, MockNetworkService) {
+        // 1. 为预览创建一个临时的、只在内存中的数据库容器
+        let inMemoryContainer = try! ModelContainer(
+            for: QuizAttempt.self, StoredQuestion.self,
+            configurations: .init(isStoredInMemoryOnly: true)
+        )
+        
+        // 2. 创建 Mock 网络服务
+        let mockNetwork = MockNetworkService()
+        
+        // 3. 根据不同场景配置 Mock 服务
+        switch scenario {
+        case .loading:
+            // 为了静态预览加载状态，设置长延迟
+            mockNetwork.latency = 1000
+            mockNetwork.configureMockQuiz(for: courseId, questionNum: 5)
+        case .success:
+            // 配置成功的测验数据，确保足够的问题数量
+            mockNetwork.latency = 0.1 // 减少延迟以便预览
+            mockNetwork.configureMockQuiz(for: courseId, questionNum: 10)
+        case .empty:
+            // 返回一个空的测验（理论上不应该发生，但可以测试错误处理）
+            mockNetwork.mockResponse = QuizResponse(
+                attemptId: UUID(),
+                userId: UUID(),
+                courseId: courseId,
+                questionNum: 0,
+                status: .inProgress,
+                createdAt: Date(),
+                questions: []
+            )
+        case .failure:
+            // 模拟一个网络错误
+            mockNetwork.mockError = MockNetworkError.generalError
+        }
+        
+        let viewModel = QuizViewModel(
+            network: mockNetwork,
+            modelContext: inMemoryContainer.mainContext
+        )
+        
+        return (viewModel, inMemoryContainer, mockNetwork)
+    }
+    
+    enum Scenario {
+        case loading, success, empty, failure
+    }
+    
+    // MARK: - Previews
+    
+    static var previews: some View {
+        // --- 成功场景 ---
+        let (successVM, successContainer, successMockNetwork) = createViewModel(for: .success)
+        QuizView(
+            courseId: "swiftui-101",
+            network: successMockNetwork,
+            modelContext: successContainer.mainContext
+        )
+        .modelContainer(successContainer)
+        .previewDisplayName("Success State")
+        
+        // --- 加载中场景 ---
+        let (loadingVM, loadingContainer, loadingMockNetwork) = createViewModel(for: .loading)
+        // 手动设置 isLoading=true 可以更稳定地预览加载UI
+        let _ = loadingVM.isLoading = true
+        QuizView(
+            courseId: "swiftui-101",
+            network: loadingMockNetwork,
+            modelContext: loadingContainer.mainContext
+        )
+        .modelContainer(loadingContainer)
+        .previewDisplayName("Loading State")
+        
+        // --- 失败场景 ---
+        let (failureVM, failureContainer, failureMockNetwork) = createViewModel(for: .failure)
+        QuizView(
+            courseId: "swiftui-101",
+            network: failureMockNetwork,
+            modelContext: failureContainer.mainContext
+        )
+        .modelContainer(failureContainer)
+        .previewDisplayName("Failure State")
+        
+        // --- 预配置有问题的测验场景 ---
+        Group {
+            let (preConfiguredVM, preConfiguredContainer, mockNetwork) = createViewModel(for: .success)
+            
+            QuizView(
+                courseId: "swiftui-101",
+                network: mockNetwork,
+                modelContext: preConfiguredContainer.mainContext
+            )
+            .modelContainer(preConfiguredContainer)
+            .previewDisplayName("Quiz In Progress")
+        }
+    }
+}
+#endif

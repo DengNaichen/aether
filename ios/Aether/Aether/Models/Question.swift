@@ -92,6 +92,7 @@ enum AnyQuestion: Codable, Equatable {
             try question.encode(to: encoder)
         case .calculation(let question):
             try container.encode(QuestionType.calculation, forKey: .questionType)
+            try question.encode(to: encoder)
         }
     }
 

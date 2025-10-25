@@ -4,10 +4,11 @@ import SwiftData
 // MARK: - 1. Network layer (From Server)
 struct QuizStartEndpoint: Endpoint {
     let courseId: String
+    let questionNum: Int
     
     var path: String { "/courses/\(courseId)/quizzes" }
     var method: HTTPMethod { .POST }
-    var body: RequestBody? { .json(QuizRequest(questionNum: 2)) }
+    var body: RequestBody? { .json(QuizRequest(questionNum: questionNum)) }
     var requiredAuth: Bool { true }
 }
 

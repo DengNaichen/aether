@@ -36,7 +36,7 @@ class QuizViewModel: ObservableObject, NetworkViewModeling {
               currentQuestionIndex < questions.count else {
             return nil
         }
-        return nil
+        return questions[currentQuestionIndex]
     }
     
     
@@ -128,12 +128,21 @@ class QuizViewModel: ObservableObject, NetworkViewModeling {
     private func loadStateForCurrentQuestion() {
         guard let attempt = activeAttempt,
               !questions.isEmpty,
+              currentQuestionIndex >= 0,
               currentQuestionIndex < questions.count else {
+            // Reset state if we can't load
+            self.selectedOptionIndex = nil
+            self.userTextAnswer = ""
+            self.isAnswerSubmitted = false
             return
         }
+        
         let currentQuestion = questions[currentQuestionIndex]
         
+        // Load the saved state for this question
         self.isAnswerSubmitted = currentQuestion.isSubmitted
+        self.selectedOptionIndex = currentQuestion.selectedOptionIndex
+        self.userTextAnswer = currentQuestion.userTextAnswer ?? ""
     }
     
     private func fetchInProgressQuiz(courseId: String) -> QuizAttempt? {
@@ -160,8 +169,7 @@ class QuizViewModel: ObservableObject, NetworkViewModeling {
     -> QuizResponse? {
         let response = await performTask(errorTitle: "Quiz Start Failed") {
             
-            let request = QuizRequest(questionNum: questionNum)
-            let endpoint = QuizStartEndpoint(courseId: courseId)
+            let endpoint = QuizStartEndpoint(courseId: courseId, questionNum: questionNum)
             return try await network.request(
                 endpoint: endpoint, responseType: QuizResponse.self)
         }

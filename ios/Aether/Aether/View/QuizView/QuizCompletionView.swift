@@ -20,8 +20,15 @@ struct QuizCompletionView: View {
                 Text("Your Score:")
                     .font(.title2)
                 
-                Text("\(viewModel.score) / \(viewModel.questions.count)")
-                    .font(.system(size: 60, weight: .bold))
+                // Add safety check for empty questions array
+                if !viewModel.questions.isEmpty {
+                    Text("\(viewModel.score) / \(viewModel.questions.count)")
+                        .font(.system(size: 60, weight: .bold))
+                } else {
+                    Text("Score unavailable")
+                        .font(.title2)
+                        .foregroundColor(.secondary)
+                }
                 
                 Button(action: {
                     viewModel.submitQuiz()
@@ -44,35 +51,93 @@ struct QuizCompletionView: View {
     }
 
     private func triggerHapticFeedback() {
+        // Add error handling for haptic feedback
+        guard CHHapticEngine.capabilitiesForHardware().supportsHaptics else {
+            // Fallback to simple impact feedback
+            let generator = UIImpactFeedbackGenerator(style: .medium)
+            generator.impactOccurred()
+            return
+        }
+        
         let generator = UINotificationFeedbackGenerator()
         generator.notificationOccurred(.success)
     }
 }
 
 #if DEBUG
-//struct QuizCompletionView_Previews: PreviewProvider {
-//    static var previews: some View {
-//        // Create a mock QuizViewModel for the preview
-//        let viewModel = QuizViewModel(
-//            network: MockNetworkService(),
-//            modelContext: try! ModelContainer(for: Course.self, QuizAttempt.self).mainContext
-//        )
-//        viewModel.score = 8
-//        viewModel.questions = [
-//            QuestionDisplay(from: Question(id: "q1", text: "Q1", options: [], answer: "A", quizId: "1")),
-//            QuestionDisplay(from: Question(id: "q2", text: "Q2", options: [], answer: "B", quizId: "1")),
-//            QuestionDisplay(from: Question(id: "q3", text: "Q3", options: [], answer: "C", quizId: "1")),
-//            QuestionDisplay(from: Question(id: "q4", text: "Q4", options: [], answer: "D", quizId: "1")),
-//            QuestionDisplay(from: Question(id: "q5", text: "Q5", options: [], answer: "A", quizId: "1")),
-//            QuestionDisplay(from: Question(id: "q6", text: "Q6", options: [], answer: "B", quizId: "1")),
-//            QuestionDisplay(from: Question(id: "q7", text: "Q7", options: [], answer: "C", quizId: "1")),
-//            QuestionDisplay(from: Question(id: "q8", text: "Q8", options: [], answer: "D", quizId: "1")),
-//            QuestionDisplay(from: Question(id: "q9", text: "Q9", options: [], answer: "A", quizId: "1")),
-//            QuestionDisplay(from: Question(id: "q10", text: "Q10", options: [], answer: "B", quizId: "1")),
-//        ]
-//        
-//        return QuizCompletionView(viewModel: viewModel)
-//    }
-//}
+import SwiftData
+
+struct QuizCompletionView_Previews: PreviewProvider {
+    static var previews: some View {
+        // Create a mock setup for preview
+        let mockContainer = try! ModelContainer(
+            for: QuizAttempt.self, StoredQuestion.self,
+            configurations: .init(isStoredInMemoryOnly: true)
+        )
+        
+        let mockNetwork = MockNetworkService()
+        let viewModel = QuizViewModel(
+            network: mockNetwork,
+            modelContext: mockContainer.mainContext
+        )
+        
+        // Set up mock data for completed quiz
+        viewModel.score = 8
+        
+        // Create mock StoredQuestions first
+        let mockQuestion1 = StoredQuestion(
+            id: UUID(),
+            text: "Mock Question 1",
+            type: .multipleChoice,
+            detailsJSON: """
+            {
+                "options": ["A", "B", "C", "D"],
+                "correct_answer": 0
+            }
+            """,
+            isSubmitted: true,
+            selectedOptionIndex: 0,
+            userTextAnswer: nil
+        )
+        
+        let mockQuestion2 = StoredQuestion(
+            id: UUID(),
+            text: "Mock Question 2",
+            type: .multipleChoice,
+            detailsJSON: """
+            {
+                "options": ["A", "B", "C", "D"],
+                "correct_answer": 1
+            }
+            """,
+            isSubmitted: true,
+            selectedOptionIndex: 1,
+            userTextAnswer: nil
+        )
+        
+        // Insert mock questions into the model context
+        mockContainer.mainContext.insert(mockQuestion1)
+        mockContainer.mainContext.insert(mockQuestion2)
+        
+        // Create QuestionDisplay objects from StoredQuestions
+        viewModel.questions = [
+            QuestionDisplay(from: mockQuestion1),
+            QuestionDisplay(from: mockQuestion2)
+        ]
+        
+        return Group {
+            // Main preview with full quiz completion view
+            QuizCompletionView(viewModel: viewModel)
+                .modelContainer(mockContainer)
+                .previewDisplayName("Quiz Completion")
+            
+            // Confetti animation test
+            ConfettiView()
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(Color.black.opacity(0.1))
+                .previewDisplayName("Confetti Animation Test")
+        }
+    }
+}
 #endif
 

@@ -153,6 +153,126 @@ class MockNetworkService: NetworkServicing, ObservableObject {
             ]
         )
     }
+    
+    /// Configure mock to return quiz questions - MCQ only
+    func configureMockQuiz(for courseId: String, questionNum: Int = 10) {
+        // Create a pool of MCQ questions to avoid index out of bounds issues
+        let mockQuestions: [AnyQuestion] = [
+            .multipleChoice(MultipleChoiceQuestion(
+                id: UUID(),
+                text: "What is 2 + 2?",
+                details: MultipleChoiceDetails(options: ["3", "4", "5", "6"], correctAnswer: 1)
+            )),
+            .multipleChoice(MultipleChoiceQuestion(
+                id: UUID(),
+                text: "Which of the following is a SwiftUI view modifier?",
+                details: MultipleChoiceDetails(options: [".padding()", ".forEach()", ".map()", ".filter()"], correctAnswer: 0)
+            )),
+            .multipleChoice(MultipleChoiceQuestion(
+                id: UUID(),
+                text: "What does @State do in SwiftUI?",
+                details: MultipleChoiceDetails(options: ["Creates a constant value", "Manages view state", "Handles navigation", "Performs networking"], correctAnswer: 1)
+            )),
+            .multipleChoice(MultipleChoiceQuestion(
+                id: UUID(),
+                text: "Which is the correct way to create a VStack?",
+                details: MultipleChoiceDetails(options: ["VStack { }", "VStack()", "VStack[]", "VStack<>"], correctAnswer: 0)
+            )),
+            .multipleChoice(MultipleChoiceQuestion(
+                id: UUID(),
+                text: "What is the primary purpose of @ObservedObject?",
+                details: MultipleChoiceDetails(options: ["Store local state", "Observe external objects", "Handle user input", "Manage animations"], correctAnswer: 1)
+            )),
+            .multipleChoice(MultipleChoiceQuestion(
+                id: UUID(),
+                text: "Which navigation method is preferred in modern SwiftUI?",
+                details: MultipleChoiceDetails(options: ["NavigationView", "NavigationStack", "NavigationLink only", "TabView"], correctAnswer: 1)
+            )),
+            .multipleChoice(MultipleChoiceQuestion(
+                id: UUID(),
+                text: "What does the .task modifier do?",
+                details: MultipleChoiceDetails(options: ["Handles user taps", "Runs async code when view appears", "Creates animations", "Manages state"], correctAnswer: 1)
+            )),
+            .multipleChoice(MultipleChoiceQuestion(
+                id: UUID(),
+                text: "Which property wrapper is used for environment values?",
+                details: MultipleChoiceDetails(options: ["@State", "@Binding", "@Environment", "@Published"], correctAnswer: 2)
+            )),
+            .multipleChoice(MultipleChoiceQuestion(
+                id: UUID(),
+                text: "What is SwiftData used for?",
+                details: MultipleChoiceDetails(options: ["Networking", "Data persistence", "UI animations", "Image processing"], correctAnswer: 1)
+            )),
+            .multipleChoice(MultipleChoiceQuestion(
+                id: UUID(),
+                text: "Which is the correct way to handle optional values in Swift?",
+                details: MultipleChoiceDetails(options: ["Force unwrapping always", "Optional binding with if let", "Ignoring optionals", "Converting to strings"], correctAnswer: 1)
+            )),
+            .multipleChoice(MultipleChoiceQuestion(
+                id: UUID(),
+                text: "What is the purpose of @Published in SwiftUI?",
+                details: MultipleChoiceDetails(options: ["Publishes books", "Notifies views of changes", "Handles navigation", "Manages memory"], correctAnswer: 1)
+            )),
+            .multipleChoice(MultipleChoiceQuestion(
+                id: UUID(),
+                text: "Which SwiftUI container stacks views horizontally?",
+                details: MultipleChoiceDetails(options: ["VStack", "HStack", "ZStack", "LazyStack"], correctAnswer: 1)
+            )),
+            .multipleChoice(MultipleChoiceQuestion(
+                id: UUID(),
+                text: "What is the correct syntax for a SwiftUI Button?",
+                details: MultipleChoiceDetails(options: ["Button(action: {}) { Text(\"Tap\") }", "Button { Text(\"Tap\") }", "Button(\"Tap\") { }", "Button.create(\"Tap\")"], correctAnswer: 0)
+            )),
+            .multipleChoice(MultipleChoiceQuestion(
+                id: UUID(),
+                text: "Which modifier adds spacing around a view?",
+                details: MultipleChoiceDetails(options: [".margin()", ".padding()", ".spacing()", ".offset()"], correctAnswer: 1)
+            )),
+            .multipleChoice(MultipleChoiceQuestion(
+                id: UUID(),
+                text: "What does @Binding do in SwiftUI?",
+                details: MultipleChoiceDetails(options: ["Creates local state", "Creates two-way binding", "Handles networking", "Manages animations"], correctAnswer: 1)
+            ))
+        ]
+        
+        // Ensure we have enough questions, repeat if necessary
+        var selectedQuestions: [AnyQuestion] = []
+        let availableQuestions = mockQuestions.count
+        
+        for i in 0..<questionNum {
+            let questionIndex = i % availableQuestions
+            let originalQuestion = mockQuestions[questionIndex]
+            
+            // Create a new question with unique ID to avoid conflicts
+            let newQuestion: AnyQuestion
+            switch originalQuestion {
+            case .multipleChoice(let mcq):
+                newQuestion = .multipleChoice(MultipleChoiceQuestion(
+                    id: UUID(), // Always generate new UUID
+                    text: mcq.text,
+                    details: mcq.details
+                ))
+            default:
+                // Fallback to a simple MCQ if somehow a non-MCQ slips through
+                newQuestion = .multipleChoice(MultipleChoiceQuestion(
+                    id: UUID(),
+                    text: "Fallback question: What is SwiftUI?",
+                    details: MultipleChoiceDetails(options: ["A framework", "A language", "A tool", "A platform"], correctAnswer: 0)
+                ))
+            }
+            selectedQuestions.append(newQuestion)
+        }
+        
+        self.mockResponse = QuizResponse(
+            attemptId: UUID(),
+            userId: UUID(),
+            courseId: courseId,
+            questionNum: selectedQuestions.count,
+            status: .inProgress,
+            createdAt: Date(),
+            questions: selectedQuestions
+        )
+    }
 
     func request<T: Decodable>(
         endpoint: Endpoint,
