@@ -31,9 +31,6 @@ struct AetherApp: App {
             }
             .environmentObject(authService)
             .environmentObject(networkService)
-            .task {
-                await authService.checkAuthenticationStatus()
-            }
             .modelContainer(for: CourseModel.self)
         }
     }

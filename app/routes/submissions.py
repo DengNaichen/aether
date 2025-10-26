@@ -65,7 +65,7 @@ async def submit_quiz_answer(
             submission_id=submission_id,
             question_id=answer_input.question_id,
             user_answer=answer_input.answer.model_dump(),
-            is_correct=None  # type ignore
+            is_correct=None
         )
         new_answer_to_save.append(new_answer)
 
@@ -81,7 +81,8 @@ async def submit_quiz_answer(
         task = {
             "task_type": "handle_grade_submission",
             "payload": {
-                "attempt_id": str(submission_id)
+                "attempt_id": str(submission_id),
+                "user_id": str(current_user.id)
             }
         }
         await redis_client.lpush("general_task_queue", json.dumps(task))

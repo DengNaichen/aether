@@ -84,16 +84,26 @@ struct getCourseEndpoint: Endpoint {
 
 struct EnrollCourseEndpoint: Endpoint {
     let courseId: String
-    
+
     var path: String { "/courses/\(courseId))/enrollment" }
     var method: HTTPMethod { .POST }
     var body: RequestBody? {
         .json(EnrollmentRequest(courseId: courseId))
     }
-    
+
     var requiredAuth: Bool { true }
 }
 
+struct RefreshTokenEndpoint: Endpoint {
+    let refreshToken: String
+
+    var path: String { "/users/refresh" }
+    var method: HTTPMethod { .POST }
+    var body: RequestBody? {
+        .json(RefreshTokenRequest(refreshToken: refreshToken))
+    }
+    var requiredAuth: Bool { false }
+}
 
 
 //struct SubmitQuizEndpoint: Endpoint {

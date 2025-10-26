@@ -1,5 +1,5 @@
 from neomodel import StructuredNode, StringProperty, ZeroOrOne, RelationshipTo, \
-    One, RelationshipFrom, ArrayProperty, IntegerProperty
+    One, RelationshipFrom, ArrayProperty, IntegerProperty, StructuredRel, FloatProperty, DateTimeProperty
 
 from app.schemas.questions import QuestionDifficulty
 
@@ -12,6 +12,11 @@ class Course(StructuredNode):
         return f"<Course {self.course_name} ({self.course_id})>)"
 
 
+class HasMastery(StructuredRel):
+    score = FloatProperty(default=0.1)
+    last_updated = DateTimeProperty(default_now=True)
+
+
 class User(StructuredNode):
     user_id = StringProperty(required=True, unique_index=True)
     user_name = StringProperty(required=True, unique_index=True)
@@ -20,6 +25,12 @@ class User(StructuredNode):
         Course,
         "ENROLLED_IN",
         cardinality=ZeroOrOne
+    )
+
+    mastery = RelationshipTo(
+        "KnowledgeNode",
+        "HAS_MASTERY_ON",
+        model=HasMastery,
     )
 
     def __str__(self):

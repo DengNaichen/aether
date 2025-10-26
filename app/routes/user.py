@@ -86,7 +86,7 @@ async def login_for_access_token(
     }
 
 
-@router.post("/refresh", response_model=AccessToken)
+@router.post("/refresh", response_model=Token)
 async def refresh_access_token(
         db: AsyncSession = Depends(get_db),
         refresh_token: str = Body(..., embed=True)
@@ -140,7 +140,11 @@ async def refresh_access_token(
     user.refresh_token = new_refresh_token
     await db.commit()
 
-    return {"access_token": new_access_token, "token_type": "bearer"}
+    return {
+        "access_token": new_access_token,
+        "refresh_token": new_refresh_token,
+        "token_type": "bearer"
+    }
 
 
 @router.post("/logout")

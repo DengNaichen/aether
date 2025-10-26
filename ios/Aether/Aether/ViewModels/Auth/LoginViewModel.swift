@@ -20,9 +20,9 @@ class LoginViewModel: ObservableObject {
     }
     
     func login(email: String, password: String) async {
-        isLoading = true
-        defer { isLoading = false }
-        alertItem = nil
+        self.isLoading = true
+        defer { self.isLoading = false }
+        self.alertItem = nil
         
         let form_data = [
             "username": email,
@@ -31,7 +31,10 @@ class LoginViewModel: ObservableObject {
         
         do {
             let tokenResponseEndpoint = LoginEndpoint(loginData: form_data)
-            let tokenResponse: TokenResponse = try await network.request(endpoint: tokenResponseEndpoint, responseType: TokenResponse.self)
+            let tokenResponse: TokenResponse = try await network.request(
+                endpoint: tokenResponseEndpoint,
+                responseType: TokenResponse.self
+            )
             print("Successfully login, Token: \(tokenResponse.accessToken)")
             
             TokenManager.shared.saveTokens(
@@ -70,19 +73,16 @@ class LoginViewModel: ObservableObject {
                 return
             }
             
-            // 获取用户信息
             let userID = appleIDCredential.user
             let email = appleIDCredential.email
             let fullName = appleIDCredential.fullName
             
-            // 获取身份令牌
             guard let identityToken = appleIDCredential.identityToken,
                   let identityTokenString = String(data: identityToken, encoding: .utf8) else {
                 alertItem = AlertItem(title: "Apple Sign-In Failed", message: "Failed to get identity token")
                 return
             }
             
-            // 发送到服务器验证
             await authenticateWithApple(
                 userID: userID,
                 identityToken: identityTokenString,
@@ -120,7 +120,6 @@ class LoginViewModel: ObservableObject {
         fullName: PersonNameComponents?
     ) async {
         do {
-            // 创建Apple登录请求
             let appleRequest = AppleSignInRequest(
                 userID: userID,
                 identityToken: identityToken,
