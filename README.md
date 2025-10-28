@@ -5,21 +5,30 @@ An adaptive learning platform for Ontario high school students, powered by knowl
 ## Core Features
 
 ### 1. Knowledge Graph-Based Curriculum
-- Models Ontario curriculum (Physics SPH3U, Chemistry SCH3U, etc.) as an interconnected graph
+[The design detail of the knowledge node](/docs/knowledge_graph.md)
+- Models high school curriculum (Grade 11 Physics, Grade 12 Chemistry, etc.) as an interconnected graph
 - Tracks prerequisite relationships between concepts
-- Enables intelligent pathfinding for personalized learning sequences
+- Tracks subtopic for each concept node.
 
-### 2. Adaptive Question Recommendation
-- Analyzes student performance history
-- Recommends problems tailored to current proficiency level
-- Uses Neo4j graph traversal to find optimal next concepts
-
-### 3. Mastery Tracking with BKT
+### 2. Mastery Tracking with BKT
+[Definition of BKT](/docs/mastery_level.md)
 - Implements Bayesian Knowledge Tracing to model student understanding
 - Updates knowledge state after each answer
 - Predicts mastery probability for each concept node
 
+### 3. Updating Mastery Level:
+
+
+### 2. Adaptive Question Recommendation
+- [ ] 
+- Analyzes student performance history
+- Recommends problems tailored to current proficiency level
+- Uses Neo4j graph traversal to find optimal next concepts
+
+
+
 ### 4. Automated Multi-Format Grading
+- [ ]
 - **Multiple Choice**: Instant feedback with explanation
 - **Fill-in-Blank**: Case-insensitive with whitespace normalization
 - **Calculation**: Tolerance-based numeric comparison
@@ -151,4 +160,4 @@ MIT
 
 ---
 
-**Built for Ontario high school students**
+**Built for high school students**

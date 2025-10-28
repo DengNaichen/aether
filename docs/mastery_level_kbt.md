@@ -1,4 +1,4 @@
-# Updating Mastery Level
+# Mastery Level Based on Bayesian Knowledge Tracing (BKT) for single node.
 
 ## Bayes' Theorem
 
