@@ -1,7 +1,7 @@
 import uuid
 from typing import AsyncGenerator
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, status, Request
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
 from neo4j import AsyncNeo4jDriver
@@ -66,6 +66,7 @@ async def get_worker_context() -> AsyncGenerator[WorkerContext, None]:
 
 
 async def get_current_user(
+        request: Request,
         db: AsyncSession = Depends(get_db),
         token: str = Depends(oauth2_scheme)
 ) -> User:
@@ -90,29 +91,48 @@ async def get_current_user(
         HTTPException: If user does not exist or token is invalid.
         ValueError: If user ID is not a valid UUID
     """
+    # Debug: Log raw Authorization header
+    auth_header = request.headers.get("Authorization", "NOT FOUND")
+    print(f"🔍 [deps] Authorization header: {auth_header[:50] if len(auth_header) > 50 else auth_header}...")
+    print(f"🔍 [deps] get_current_user called!")
+
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
     try:
+        # Debug: Log token validation attempt
+        token_preview = token[:20] if len(token) > 20 else token
+        print(f"🔍 [deps] Validating token: {token_preview}...")
+
         payload = jwt.decode(
             token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM]
         )
+
+        # Debug: Log successful decode
         user_id: str = payload.get("sub")
+        print(f"✅ [deps] Token decoded successfully, user_id: {user_id}")
+
         if user_id is None:
+            print(f"❌ [deps] No user_id in token payload")
             raise credentials_exception
-    except JWTError:
+    except JWTError as e:
+        print(f"❌ [deps] JWT decode error: {e}")
         raise credentials_exception
 
     try:
         user_uuid = uuid.UUID(user_id)
-    except ValueError:
+    except ValueError as e:
+        print(f"❌ [deps] Invalid UUID format: {e}")
         raise credentials_exception
 
     user = await get_user_by_id(db=db, user_id=user_uuid)
     if user is None:
+        print(f"❌ [deps] User not found in database: {user_uuid}")
         raise credentials_exception
+
+    print(f"✅ [deps] User authenticated successfully: {user.email}")
     return user
 
 

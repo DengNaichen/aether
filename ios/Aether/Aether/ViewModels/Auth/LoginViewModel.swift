@@ -37,7 +37,7 @@ class LoginViewModel: ObservableObject {
             )
             print("Successfully login, Token: \(tokenResponse.accessToken)")
             
-            TokenManager.shared.saveTokens(
+            await TokenManager.shared.saveTokens(
                 accessToken: tokenResponse.accessToken,
                 refreshToken: tokenResponse.refreshToken
             )
@@ -136,7 +136,7 @@ class LoginViewModel: ObservableObject {
             
             print("Successfully authenticated with Apple, Token: \(tokenResponse.accessToken)")
             
-            TokenManager.shared.saveTokens(
+            await TokenManager.shared.saveTokens(
                 accessToken: tokenResponse.accessToken,
                 refreshToken: tokenResponse.refreshToken
             )
@@ -162,7 +162,7 @@ class LoginViewModel: ObservableObject {
         alertItem = nil
         
         // 获取当前的根视图控制器
-        guard let windowScene = await UIApplication.shared.connectedScenes
+        guard let windowScene = UIApplication.shared.connectedScenes
             .first(where: { $0.activationState == .foregroundActive }) as? UIWindowScene,
               let window = windowScene.windows.first(where: \.isKeyWindow),
               let presentingViewController = window.rootViewController else {
@@ -225,7 +225,7 @@ class LoginViewModel: ObservableObject {
             
             print("Successfully authenticated with Google, Token: \(tokenResponse.accessToken)")
             
-            TokenManager.shared.saveTokens(
+            await TokenManager.shared.saveTokens(
                 accessToken: tokenResponse.accessToken,
                 refreshToken: tokenResponse.refreshToken
             )

@@ -7,7 +7,7 @@ from sqlalchemy import select, func
 from app.models.user import User
 from app.models.course import Course
 from app.models.enrollment import Enrollment
-from app.models.knowledge_node import KnowledgeNode
+# from app.models.knowledge_node import KnowledgeNode
 
 
 async def check_course_exist(course_id: str, db: AsyncSession) -> bool:
@@ -18,15 +18,15 @@ async def check_course_exist(course_id: str, db: AsyncSession) -> bool:
     return existing_course is not None
 
 
-async def check_knowledge_node(
-        knowledge_node_id: str,
-        db: AsyncSession
-) -> bool:
-    stmt = select(KnowledgeNode).where(KnowledgeNode.id == knowledge_node_id)
-    result = await db.execute(stmt)
-    existing_knowledge_node = result.scalar_one_or_none()
-
-    return existing_knowledge_node is not None
+# async def check_knowledge_node(
+#         knowledge_node_id: str,
+#         db: AsyncSession
+# ) -> bool:
+#     stmt = select(KnowledgeNode).where(KnowledgeNode.id == knowledge_node_id)
+#     result = await db.execute(stmt)
+#     existing_knowledge_node = result.scalar_one_or_none()
+#
+#     return existing_knowledge_node is not None
 
 
 async def get_all_course(
@@ -73,51 +73,51 @@ async def get_user_enrollments_for_courses(
     return set(result.scalars().all())
 
 
-async def get_knowledge_node_counts_for_courses(
-        course_ids: List[str],
-        db: AsyncSession,
-):
-    """ Gets the number of knowledge nodes for a list of courses.
+# async def get_knowledge_node_counts_for_courses(
+#         course_ids: List[str],
+#         db: AsyncSession,
+# ):
+#     """ Gets the number of knowledge nodes for a list of courses.
+#
+#     This function count the number of knowledge nodes associated with each
+#     course in a given list. It used a SQL GROUP BY clause to aggregate the
+#     counts for all specified courses at once.
+#
+#     Args:
+#         course_ids: A list of course id for which to count knowledge nodes.
+#         db: AsyncSession
+#
+#     Returns:
+#         A dictionary mapping course ID to its corresponding count of knowledge
+#         nodes. Course with no knowledge nodes will be omitted from the result.
+#     """
+#     stmt = (
+#         select(KnowledgeNode.course_id, func.count(KnowledgeNode.id))
+#         .where(KnowledgeNode.course_id.in_(course_ids))
+#         .group_by(KnowledgeNode.course_id)
+#     )
+#     result = await db.execute(stmt)
+#     return dict((row[0], row[1]) for row in result)
 
-    This function count the number of knowledge nodes associated with each
-    course in a given list. It used a SQL GROUP BY clause to aggregate the
-    counts for all specified courses at once.
 
-    Args:
-        course_ids: A list of course id for which to count knowledge nodes.
-        db: AsyncSession
-
-    Returns:
-        A dictionary mapping course ID to its corresponding count of knowledge
-        nodes. Course with no knowledge nodes will be omitted from the result.
-    """
-    stmt = (
-        select(KnowledgeNode.course_id, func.count(KnowledgeNode.id))
-        .where(KnowledgeNode.course_id.in_(course_ids))
-        .group_by(KnowledgeNode.course_id)
-    )
-    result = await db.execute(stmt)
-    return dict((row[0], row[1]) for row in result)
-
-
-async def get_knowledge_node_num_of_a_course(
-        course_id: str,
-        db: AsyncSession
-) -> int:
-    """ Check knowledge node number of a course
-    Args:
-        course_id: the id of the course to check
-        db: the database session
-    Return:
-        The number of knowledge nodes this course has
-    """
-    stmt = (
-        select(func.count(KnowledgeNode.id))
-        .where(KnowledgeNode.course_id == course_id)
-    )
-    result = await db.execute(stmt)
-    count = result.scalar_one()
-    return count
+# async def get_knowledge_node_num_of_a_course(
+#         course_id: str,
+#         db: AsyncSession
+# ) -> int:
+#     """ Check knowledge node number of a course
+#     Args:
+#         course_id: the id of the course to check
+#         db: the database session
+#     Return:
+#         The number of knowledge nodes this course has
+#     """
+#     stmt = (
+#         select(func.count(KnowledgeNode.id))
+#         .where(KnowledgeNode.course_id == course_id)
+#     )
+#     result = await db.execute(stmt)
+#     count = result.scalar_one()
+#     return count
 
 
 async def check_enrollment(

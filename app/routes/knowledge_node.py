@@ -3,7 +3,7 @@ from fastapi.params import Depends
 from neomodel import DoesNotExist
 from redis.asyncio import Redis
 
-from app.core.deps import get_db, get_redis_client
+from app.core.deps import get_redis_client
 from app.models.user import User
 from app.helper.course_helper import assemble_course_id
 from app.schemas.knowledge_node import KnowledgeNodeCreate, RelationType, \
@@ -75,7 +75,9 @@ async def _create_knowledge_relation_sync(
     }
 
 
-router = APIRouter()
+router = APIRouter(
+    # TODO:
+)
 
 
 @router.post(

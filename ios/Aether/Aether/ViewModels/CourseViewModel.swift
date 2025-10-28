@@ -47,8 +47,9 @@ class CourseViewModel: ObservableObject, NetworkViewModeling {
             )
             // Keep the raw response if you want it elsewhere
             self.allCoursesResponse = response
-            
-            let courseModels = response.courses.map {convertResponseToCourseModel (response: $0)}
+
+            // response is now directly an array, not wrapped in .courses
+            let courseModels = response.map {convertResponseToCourseModel (response: $0)}
 
             try persist(courseModels: courseModels)
             

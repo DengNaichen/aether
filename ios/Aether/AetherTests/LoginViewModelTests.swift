@@ -295,7 +295,7 @@ final class MockAuthService: AuthService {
 // MARK: - Mock TokenManager
 
 @MainActor
-final class MockTokenManager: TokenManaging {
+final class TestTokenManager: TokenManaging {
     var accessToken: String?
     var refreshToken: String?
 
@@ -325,8 +325,8 @@ extension NetworkError {
         switch self {
         case .invalidURL:
             return "Invalid URL"
-        case .noData:
-            return "No data received"
+//        case .noData:
+//            return "No data received"
         case .decodingFailed:
             return "Failed to decode response"
         case .tokenNotFound:

@@ -18,7 +18,7 @@ protocol Endpoint {
 struct RegisterEndpoint: Endpoint {
     let registrationRequest: RegistrationRequest
     
-    var path: String { "/user/register" }
+    var path: String { "/users/register" }
     var method: HTTPMethod { .POST }
     var body: RequestBody? { .json(registrationRequest) }
     var requiredAuth: Bool { false }
@@ -27,7 +27,7 @@ struct RegisterEndpoint: Endpoint {
 struct LoginEndpoint: Endpoint {
     let loginData: [String: String]
     
-    var path: String { "/user/login" }
+    var path: String { "/users/login" }
     var method: HTTPMethod { .POST }
     var body: RequestBody? { .formUrlEncoded(loginData) }
     
@@ -67,7 +67,7 @@ struct GetUserInfoEndpoint: Endpoint {
 }
 
 struct GetAllCoursesEndpoint: Endpoint {
-    var path: String { "/courses" }
+    var path: String { "/courses/" }  // Added trailing slash to match FastAPI route
     var method: HTTPMethod { .GET }
     var body: RequestBody? { nil }
     var requiredAuth: Bool { true }
@@ -85,7 +85,7 @@ struct getCourseEndpoint: Endpoint {
 struct EnrollCourseEndpoint: Endpoint {
     let courseId: String
 
-    var path: String { "/courses/\(courseId))/enrollment" }
+    var path: String { "/courses/\(courseId)/enrollments" }
     var method: HTTPMethod { .POST }
     var body: RequestBody? {
         .json(EnrollmentRequest(courseId: courseId))

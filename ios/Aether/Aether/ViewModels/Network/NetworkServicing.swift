@@ -1,6 +1,47 @@
 import Foundation
 import Combine
+import OSLog
 
+
+enum LogLevel: String {
+    case debug = "🔍"
+    case info = "ℹ️"
+    case warning = "⚠️"
+    case error = "❌"
+    case success = "✅"
+}
+
+
+struct NetworkLogger {
+    private static let subsystem = Bundle.main.bundleIdentifier ?? "com." // TODO: what is this mean ?
+    private static let logger = Logger(subsystem: subsystem, category: "Network")
+    
+    static func log(_ message: String, level: LogLevel = .info, error: Error? = nil) {
+        let logMessage = "\(level.rawValue) [Network] \(message)"
+        switch level {
+        case .debug:
+            logger.debug("\(logMessage)")
+        case .info:
+            logger.info("\(logMessage)")
+        case .warning:
+            logger.warning("\(logMessage)")
+        case .error:
+            if let error = error {
+                logger.error("\(logMessage): \(error.localizedDescription)")
+            } else {
+                logger.error("\(logMessage)")
+            }
+        case .success:
+            logger.info("\(logMessage)")
+        }
+        #if DEBUG
+        print(logMessage)
+        if let error {
+            print("Error details: \(error)")
+        }
+        #endif
+    }
+}
 
 
 protocol NetworkServicing {
@@ -10,15 +51,50 @@ protocol NetworkServicing {
     ) async throws -> T
 }
 
-class NetworkService: NetworkServicing, ObservableObject {
-    private let baseURL: URL
-    private let session: URLSession
-    private let authService: AuthService
+
+struct NetworkConfiguration {
+    let baseURL: URL
+    let session: URLSession
+    let retryLimit: Int
+    let requestTimeout: TimeInterval
     
-    init(baseURL: URL, session: URLSession = .shared, authService: AuthService) {
+    init(
+        baseURL: URL,
+        session: URLSession = .shared,
+        retryLimit: Int = 3,
+        requestTimeout: TimeInterval = 30
+    ) {
         self.baseURL = baseURL
         self.session = session
+        self.retryLimit = retryLimit
+        self.requestTimeout = requestTimeout
+    }
+}
+
+class NetworkService: NetworkServicing {
+    private let configuration: NetworkConfiguration
+    private let authService: AuthService
+    private let decoder: JSONDecoder
+    
+    init(
+        configuration: NetworkConfiguration,
+        authService: AuthService
+    ) {
+        self.configuration = configuration
         self.authService = authService
+        self.decoder = JSONDecoder()
+        self.decoder.dateDecodingStrategy = .iso8601
+    }
+    
+    convenience init(
+        baseURL: URL,
+        session: URLSession = .shared,
+        authService: AuthService
+    ) {
+        self.init(
+            configuration: NetworkConfiguration(baseURL: baseURL, session: session),
+            authService: authService
+        )
     }
     
     // Conformance: exact signature required by the protocol
@@ -26,305 +102,245 @@ class NetworkService: NetworkServicing, ObservableObject {
         endpoint: Endpoint,
         responseType: T.Type
     ) async throws -> T {
-        try await request(endpoint: endpoint, responseType: responseType, isRetry: false)
+        try await performRequest(
+            endpoint: endpoint,
+            responseType: responseType,
+            attemptCount: 0)
     }
     
-    func request<T: Decodable>(
+    private func performRequest<T: Decodable>(
         endpoint: Endpoint,
         responseType: T.Type,
-        isRetry: Bool = false
+        attemptCount: Int
     ) async throws -> T {
-
-        guard let url = URL(string: endpoint.path, relativeTo: baseURL) else {
+        let urlRequest = try await buildURLREquest(for: endpoint)
+        
+        logRequest(urlRequest, endpoint: endpoint)
+        
+        let (data, response) = try await configuration.session.data(for: urlRequest)
+        
+        return try await handleResponse(
+            data: data,
+            response: response,
+            endpoint: endpoint,
+            responseType: responseType,
+            attemptCount: attemptCount
+        )
+    }
+    
+    
+    private func buildURLREquest(for endpoint: Endpoint) async throws -> URLRequest {
+        guard let url = URL(string: endpoint.path, relativeTo: configuration.baseURL) else {
+            NetworkLogger.log("Invalid URL for endpoint: \(endpoint.path)", level: .error)
             throw NetworkError.invalidURL
         }
-
         var urlRequest = URLRequest(url: url)
         urlRequest.httpMethod = endpoint.method.rawValue
-
+        urlRequest.timeoutInterval = configuration.requestTimeout
+        
         if endpoint.requiredAuth {
-            guard let token = authService.accessToken else {
+            guard let token = await authService.accessToken else {
+                NetworkLogger.log("Token not found for authenticated endpoint", level: .error)
                 throw NetworkError.tokenNotFound
             }
+            // Debug: Log the token being used (first 20 chars only for security)
+            let tokenPreview = String(token.prefix(20))
+            NetworkLogger.log("Using access token: \(tokenPreview)...", level: .debug)
             urlRequest.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        } else {
-            print("➡️ [NetworkService] Endpoint '\(endpoint.path)' does not require auth.")
         }
-
-        if let body = endpoint.body {
-            switch body {
-            case .json(let encodableData):
-                urlRequest.httpBody = try JSONEncoder().encode(encodableData)
-                urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
-
-            case .formUrlEncoded(let formData):
-                let bodyString = formData.map { key, value in
-                    "\(key.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "")=\(value.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "")"
-                }.joined(separator: "&")
-                urlRequest.httpBody = bodyString.data(using: .utf8)
-                urlRequest.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
-            }
-        }
-
-
-        let (data, response) = try await session.data(for: urlRequest)
         
+        if let body = endpoint.body {
+            try addBody(body, to: &urlRequest)
+        }
+        return urlRequest
+    }
+    
+    private func addBody(_ body: RequestBody, to urlRequest: inout URLRequest) throws {
+        // TODO why this RequestBody so important here
+        switch body {
+        case .json(let encodableData):
+            urlRequest.httpBody = try JSONEncoder().encode(encodableData)
+            urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            
+        case .formUrlEncoded(let formData):
+            let bodyString = formData.map { key, value in
+                let encodedKey = key.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
+                let encodedValue = value.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
+                return "\(encodedKey)=\(encodedValue)"
+            }.joined(separator: "&")
+            
+            urlRequest.httpBody = bodyString.data(using: .utf8)
+            urlRequest.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+        }
+    }
+        
+    private func handleResponse<T: Decodable>(
+        data: Data,
+        response: URLResponse,
+        endpoint: Endpoint,
+        responseType: T.Type,
+        attemptCount: Int
+    ) async throws -> T {
         guard let httpResponse = response as? HTTPURLResponse else {
+            NetworkLogger.log("Invalid response type", level: .error)
             throw NetworkError.unknownError
         }
+        
+        logResponse(httpResponse, data: data)
         
         switch httpResponse.statusCode {
         case 200...299:
-            do {
-                let decoder = JSONDecoder()
-                decoder.dateDecodingStrategy = .iso8601
-                return try decoder.decode(T.self, from: data)
-            } catch {
-                print("==================== 🐛DECODING ERROR ====================")
-                print("Failed to decode JSON. Server returned the following data:")
-                if let jsonString = String(data: data, encoding: .utf8) {
-                    print(jsonString)
-                } else {
-                    print("Could not convert data to a readable string.")
-                }
-                print("==========================================================")
-                throw NetworkError.decodingFailed
-            }
+            return try decodeResponse(data: data, responseType: responseType)
+            
         case 401:
-            if isRetry {
-                await MainActor.run {
-                    authService.logout()
-                }
-                throw NetworkError.tokenNotFound
-            }
-
-            // 尝试刷新 token
-            print("🔄 [NetworkService] Attempting to refresh token...")
-            do {
-                let refreshSuccess = try await authService.refreshTokens(networkService: self)
-
-                if refreshSuccess {
-                    // 刷新成功，重试原请求
-                    return try await request(
-                        endpoint: endpoint,
-                        responseType: responseType,
-                        isRetry: true  // 标记为重试，防止无限循环
-                    )
-                } else {
-                    await MainActor.run {
-                        authService.logout()
-                    }
-                    throw NetworkError.tokenNotFound
-                }
-            } catch {
-                print("❌ [NetworkService] Token refresh failed: \(error), logging out")
-                await MainActor.run {
-                    authService.logout()
-                }
-                throw NetworkError.tokenNotFound
-            }
+            return try await handleUnauthorized(
+                endpoint: endpoint,
+                responseType: responseType,
+                attemptCount: attemptCount
+            )
+            
         case 402...499:
-            if let errorDetail = try? JSONDecoder().decode(ErrorDetail.self, from: data) {
-                throw NetworkError.clientError(errorDetail.detail)
-            } else {
-                throw NetworkError.clientError("Failed to parse server info")
-            }
+            throw try handleClientError(data: data)
             
         case 500...599:
-            if let errorDetail = try? JSONDecoder().decode(ErrorDetail.self, from: data) {
-                throw NetworkError.serverError(errorDetail.detail)
-            } else {
-                throw NetworkError.serverError("Failed to parse server info")
-            }
+            throw try handleServerError(data: data)
+            
         default:
+            NetworkLogger.log("Unexpected status code: \(httpResponse.statusCode)", level: .error)
             throw NetworkError.unknownError
         }
     }
-}
-
-
-enum MockNetworkError: Error, LocalizedError {
-    case generalError
-    var errorDescription: String? {
-        "A mock network error occurred."
-    }
-}
-
-
-class MockNetworkService: NetworkServicing, ObservableObject {
-    
-    var mockResponse: Decodable?
-    
-    var mockError: Error?
-    
-    var latency: TimeInterval = 0.5
-    
-    init() {
-        self.mockResponse = FetchAllCoursesResponse(
-            courses: [
-                FetchCourseResponse(
-                    courseId: "swiftui-101",
-                    courseName: "SwiftUI 完全指南",
-                    courseDescription: "从入门到精通，构建漂亮的iOS应用。",
-                    isEnrolled: true,
-                    numOfKnowledgeNode: 35),
-                FetchCourseResponse(
-                    courseId: "swiftdata-201",
-                    courseName: "精通 SwiftData",
-                    courseDescription: "掌握现代化的数据持久化方案。",
-                    isEnrolled: false,
-                    numOfKnowledgeNode: 52),
-                FetchCourseResponse(
-                    courseId: "combine-301",
-                    courseName: "响应式编程与 Combine",
-                    courseDescription: "学习苹果官方的响应式编程框架。",
-                    isEnrolled: false, numOfKnowledgeNode: 48)
-                            
-            ]
-        )
-    }
-    
-    /// Configure mock to return quiz questions - MCQ only
-    func configureMockQuiz(for courseId: String, questionNum: Int = 10) {
-        // Create a pool of MCQ questions to avoid index out of bounds issues
-        let mockQuestions: [AnyQuestion] = [
-            .multipleChoice(MultipleChoiceQuestion(
-                id: UUID(),
-                text: "What is 2 + 2?",
-                details: MultipleChoiceDetails(options: ["3", "4", "5", "6"], correctAnswer: 1)
-            )),
-            .multipleChoice(MultipleChoiceQuestion(
-                id: UUID(),
-                text: "Which of the following is a SwiftUI view modifier?",
-                details: MultipleChoiceDetails(options: [".padding()", ".forEach()", ".map()", ".filter()"], correctAnswer: 0)
-            )),
-            .multipleChoice(MultipleChoiceQuestion(
-                id: UUID(),
-                text: "What does @State do in SwiftUI?",
-                details: MultipleChoiceDetails(options: ["Creates a constant value", "Manages view state", "Handles navigation", "Performs networking"], correctAnswer: 1)
-            )),
-            .multipleChoice(MultipleChoiceQuestion(
-                id: UUID(),
-                text: "Which is the correct way to create a VStack?",
-                details: MultipleChoiceDetails(options: ["VStack { }", "VStack()", "VStack[]", "VStack<>"], correctAnswer: 0)
-            )),
-            .multipleChoice(MultipleChoiceQuestion(
-                id: UUID(),
-                text: "What is the primary purpose of @ObservedObject?",
-                details: MultipleChoiceDetails(options: ["Store local state", "Observe external objects", "Handle user input", "Manage animations"], correctAnswer: 1)
-            )),
-            .multipleChoice(MultipleChoiceQuestion(
-                id: UUID(),
-                text: "Which navigation method is preferred in modern SwiftUI?",
-                details: MultipleChoiceDetails(options: ["NavigationView", "NavigationStack", "NavigationLink only", "TabView"], correctAnswer: 1)
-            )),
-            .multipleChoice(MultipleChoiceQuestion(
-                id: UUID(),
-                text: "What does the .task modifier do?",
-                details: MultipleChoiceDetails(options: ["Handles user taps", "Runs async code when view appears", "Creates animations", "Manages state"], correctAnswer: 1)
-            )),
-            .multipleChoice(MultipleChoiceQuestion(
-                id: UUID(),
-                text: "Which property wrapper is used for environment values?",
-                details: MultipleChoiceDetails(options: ["@State", "@Binding", "@Environment", "@Published"], correctAnswer: 2)
-            )),
-            .multipleChoice(MultipleChoiceQuestion(
-                id: UUID(),
-                text: "What is SwiftData used for?",
-                details: MultipleChoiceDetails(options: ["Networking", "Data persistence", "UI animations", "Image processing"], correctAnswer: 1)
-            )),
-            .multipleChoice(MultipleChoiceQuestion(
-                id: UUID(),
-                text: "Which is the correct way to handle optional values in Swift?",
-                details: MultipleChoiceDetails(options: ["Force unwrapping always", "Optional binding with if let", "Ignoring optionals", "Converting to strings"], correctAnswer: 1)
-            )),
-            .multipleChoice(MultipleChoiceQuestion(
-                id: UUID(),
-                text: "What is the purpose of @Published in SwiftUI?",
-                details: MultipleChoiceDetails(options: ["Publishes books", "Notifies views of changes", "Handles navigation", "Manages memory"], correctAnswer: 1)
-            )),
-            .multipleChoice(MultipleChoiceQuestion(
-                id: UUID(),
-                text: "Which SwiftUI container stacks views horizontally?",
-                details: MultipleChoiceDetails(options: ["VStack", "HStack", "ZStack", "LazyStack"], correctAnswer: 1)
-            )),
-            .multipleChoice(MultipleChoiceQuestion(
-                id: UUID(),
-                text: "What is the correct syntax for a SwiftUI Button?",
-                details: MultipleChoiceDetails(options: ["Button(action: {}) { Text(\"Tap\") }", "Button { Text(\"Tap\") }", "Button(\"Tap\") { }", "Button.create(\"Tap\")"], correctAnswer: 0)
-            )),
-            .multipleChoice(MultipleChoiceQuestion(
-                id: UUID(),
-                text: "Which modifier adds spacing around a view?",
-                details: MultipleChoiceDetails(options: [".margin()", ".padding()", ".spacing()", ".offset()"], correctAnswer: 1)
-            )),
-            .multipleChoice(MultipleChoiceQuestion(
-                id: UUID(),
-                text: "What does @Binding do in SwiftUI?",
-                details: MultipleChoiceDetails(options: ["Creates local state", "Creates two-way binding", "Handles networking", "Manages animations"], correctAnswer: 1)
-            ))
-        ]
         
-        // Ensure we have enough questions, repeat if necessary
-        var selectedQuestions: [AnyQuestion] = []
-        let availableQuestions = mockQuestions.count
-        
-        for i in 0..<questionNum {
-            let questionIndex = i % availableQuestions
-            let originalQuestion = mockQuestions[questionIndex]
-            
-            // Create a new question with unique ID to avoid conflicts
-            let newQuestion: AnyQuestion
-            switch originalQuestion {
-            case .multipleChoice(let mcq):
-                newQuestion = .multipleChoice(MultipleChoiceQuestion(
-                    id: UUID(), // Always generate new UUID
-                    text: mcq.text,
-                    details: mcq.details
-                ))
-            default:
-                // Fallback to a simple MCQ if somehow a non-MCQ slips through
-                newQuestion = .multipleChoice(MultipleChoiceQuestion(
-                    id: UUID(),
-                    text: "Fallback question: What is SwiftUI?",
-                    details: MultipleChoiceDetails(options: ["A framework", "A language", "A tool", "A platform"], correctAnswer: 0)
-                ))
-            }
-            selectedQuestions.append(newQuestion)
-        }
-        
-        self.mockResponse = QuizResponse(
-            attemptId: UUID(),
-            userId: UUID(),
-            courseId: courseId,
-            questionNum: selectedQuestions.count,
-            status: .inProgress,
-            createdAt: Date(),
-            questions: selectedQuestions
-        )
-    }
-    
-    /// Configure mock to return submission response
-    func configureMockSubmission() {
-        self.mockResponse = QuizSubmissionResponse(
-            attemptId: UUID(),
-            message: "Your answers have been submitted and are pending grading"
-        )
-    }
-
-    func request<T: Decodable>(
-        endpoint: Endpoint,
+    private func decodeResponse<T: Decodable>(
+        data: Data,
         responseType: T.Type
+    ) throws -> T {
+        do {
+            let decodedResponse = try decoder.decode(T.self, from: data)
+            NetworkLogger.log("Successfully decoded response", level: .success)
+            return decodedResponse
+        } catch {
+            logDecodingError(data: data, error: error)
+            throw NetworkError.decodingFailed
+        }
+    }
+        
+    private func handleUnauthorized<T: Decodable>(
+            endpoint: Endpoint,
+            responseType: T.Type,
+            attemptCount: Int
     ) async throws -> T {
-        try await Task.sleep(for: .seconds(latency))
-        
-        if let error = mockError {
-            throw error
+        // Check if this is a retry
+        guard attemptCount < configuration.retryLimit else {
+            NetworkLogger.log("Max retry attempts reached, logging out", level: .warning)
+            await MainActor.run {
+                Task {
+                    await authService.logout()
+                }
+            }
+            throw NetworkError.tokenNotFound
         }
         
-        guard let response = mockResponse as? T else {
-            throw MockNetworkError.generalError
+        NetworkLogger.log("Attempting to refresh token...", level: .info)
+        
+        do {
+            let refreshSuccess = try await authService.refreshTokens(networkService: self)
+
+            if refreshSuccess {
+                NetworkLogger.log("Token refreshed successfully, retrying request", level: .success)
+
+                // Debug: Check what token we'll use for retry
+                if let retryToken = await authService.accessToken {
+                    let retryTokenPreview = String(retryToken.prefix(20))
+                    NetworkLogger.log("About to retry with token: \(retryTokenPreview)...", level: .debug)
+                } else {
+                    NetworkLogger.log("WARNING: No access token available for retry!", level: .warning)
+                }
+
+                return try await performRequest(
+                    endpoint: endpoint,
+                    responseType: responseType,
+                    attemptCount: attemptCount + 1
+                )
+            } else {
+                NetworkLogger.log("Token refresh failed", level: .error)
+                await MainActor.run {
+                    Task {
+                        await authService.logout()
+                    }
+                }
+                throw NetworkError.tokenNotFound
+            }
+        } catch {
+            NetworkLogger.log("Token refresh error", level: .error, error: error)
+            await MainActor.run {
+                Task {
+                    await authService.logout()
+                }
+            }
+            throw NetworkError.tokenNotFound
         }
-        return response
+    }
+        
+    private func handleClientError(data: Data) throws -> Error {
+        if let errorDetail = try? decoder.decode(ErrorDetail.self, from: data) {
+            NetworkLogger.log("Client error: \(errorDetail.detail)", level: .error)
+            throw NetworkError.clientError(errorDetail.detail)
+        } else {
+            NetworkLogger.log("Client error: Unable to parse error details", level: .error)
+            throw NetworkError.clientError("Failed to parse server info")
+        }
+    }
+
+
+    private func handleServerError(data: Data) throws -> Error {
+        if let errorDetail = try? decoder.decode(ErrorDetail.self, from: data) {
+            NetworkLogger.log("Server error: \(errorDetail.detail)", level: .error)
+            throw NetworkError.serverError(errorDetail.detail)
+        } else {
+            NetworkLogger.log("Server error: Unable to parse error details", level: .error)
+            throw NetworkError.serverError("Failed to parse server info")
+        }
+    }
+
+        
+    // MARK: - Logging Helpers
+    
+    private func logRequest(_ request: URLRequest, endpoint: Endpoint) {
+        let method = request.httpMethod ?? "UNKNOWN"
+        let url = request.url?.absoluteString ?? "Invalid URL"
+        
+        NetworkLogger.log("\(method) \(url)", level: .info)
+        
+        #if DEBUG
+        if let body = request.httpBody,
+           let bodyString = String(data: body, encoding: .utf8) {
+            NetworkLogger.log("Request Body: \(bodyString)", level: .debug)
+        }
+        #endif
+    }
+        
+    private func logResponse(_ response: HTTPURLResponse, data: Data) {
+        let statusCode = response.statusCode
+        let url = response.url?.absoluteString ?? "Unknown URL"
+        
+        let level: LogLevel = (200...299).contains(statusCode) ? .success : .warning
+        NetworkLogger.log("Response [\(statusCode)] from \(url)", level: level)
+        
+        #if DEBUG
+        if let responseString = String(data: data, encoding: .utf8) {
+            NetworkLogger.log("Response Body: \(responseString)", level: .debug)
+        }
+        #endif
+    }
+        
+    private func logDecodingError(data: Data, error: Error) {
+        NetworkLogger.log("Decoding failed", level: .error, error: error)
+        
+        #if DEBUG
+        if let jsonString = String(data: data, encoding: .utf8) {
+            NetworkLogger.log("Raw JSON: \(jsonString)", level: .debug)
+        }
+        #endif
     }
 }

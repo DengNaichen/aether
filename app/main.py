@@ -1,6 +1,7 @@
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from starlette.middleware.base import BaseHTTPMiddleware
 
 import app.models as models
 from app.core.config import settings
@@ -8,24 +9,46 @@ from app.core.database import db_manager
 from app.routes import question, user, quiz, submissions, admin, courses, knowledge_node
 
 
+class DebugAuthMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        # Log Authorization header for debugging
+        auth_header = request.headers.get("Authorization", "NOT FOUND")
+        print(f"🔍 [Middleware] {request.method} {request.url.path} - Auth header: {auth_header[:50] if len(auth_header) > 50 else auth_header}...")
+        response = await call_next(request)
+        print(f"📤 [Middleware] Response status: {response.status_code}")
+        return response
+
+
 # define lifespan
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     print("🚀 Application starting up...")
 
-    await db_manager.initialize()
-    await db_manager.create_all_tables(models.Base)
-    print("✅ All databases initialized")
+    # Try to initialize databases, but don't fail if they're not available
+    try:
+        await db_manager.initialize()
+        await db_manager.create_all_tables(models.Base)
+        print("✅ All databases initialized")
+    except Exception as e:
+        print(f"⚠️  Warning: Database initialization failed: {e}")
+        print("⚠️  Application will start anyway (database endpoints may not work)")
 
     yield
     print("🌙 Application shutting down...")
 
-    await db_manager.close()
-    print("✅ All databases closed")
+    try:
+        await db_manager.close()
+        print("✅ All databases closed")
+    except Exception as e:
+        print(f"⚠️  Warning: Database close failed: {e}")
 
 
 # pass lifespan tp FastAPI
 app = FastAPI(lifespan=lifespan)
+
+# Add debug middleware
+app.add_middleware(DebugAuthMiddleware)
+
 app.include_router(user.router)
 app.include_router(question.router)
 # app.include_router(enrollment.router)

@@ -169,55 +169,55 @@ struct EnrolledCourseCard: View {
     }
 }
 
-#if DEBUG
-import SwiftData
-
-@MainActor
-struct HomeView_Previews: PreviewProvider {
-    
-    static func createMockData() -> (NetworkServicing, ModelContainer) {
-        let mockNetwork = MockNetworkService()
-        // 设置一些有enrolled课程的mock数据
-        mockNetwork.mockResponse = FetchAllCoursesResponse(courses: [
-            FetchCourseResponse(
-                courseId: "swift-101",
-                courseName: "Swift Programming 101",
-                courseDescription: "Learn Swift basics",
-                isEnrolled: true,
-                numOfKnowledgeNode: 25
-            ),
-            FetchCourseResponse(
-                courseId: "ios-dev",
-                courseName: "iOS Development",
-                courseDescription: "Build iOS apps",
-                isEnrolled: true,
-                numOfKnowledgeNode: 40
-            ),
-            FetchCourseResponse(
-                courseId: "advanced-swift",
-                courseName: "Advanced Swift",
-                courseDescription: "Advanced concepts",
-                isEnrolled: false,
-                numOfKnowledgeNode: 30
-            )
-        ])
-        
-        let container = try! ModelContainer(
-            for: CourseModel.self, QuizAttempt.self, StoredQuestion.self,
-            configurations: .init(isStoredInMemoryOnly: true)
-        )
-        
-        return (mockNetwork, container)
-    }
-    
-    static var previews: some View {
-        let (mockNetwork, container) = createMockData()
-        
-        HomeView(network: mockNetwork, modelContext: container.mainContext)
-            .modelContainer(container)
-            .previewDisplayName("Dashboard with Enrolled Courses")
-    }
-}
+//#if DEBUG
+//import SwiftData
+//
+//@MainActor
+//struct HomeView_Previews: PreviewProvider {
+//    
+//    static func createMockData() -> (NetworkServicing, ModelContainer) {
+//        let mockNetwork = MockNetworkService()
+//        // 设置一些有enrolled课程的mock数据
+//        mockNetwork.mockResponse = FetchAllCoursesResponse(courses: [
+//            FetchCourseResponse(
+//                courseId: "swift-101",
+//                courseName: "Swift Programming 101",
+//                courseDescription: "Learn Swift basics",
+//                isEnrolled: true,
+//                numOfKnowledgeNode: 25
+//            ),
+//            FetchCourseResponse(
+//                courseId: "ios-dev",
+//                courseName: "iOS Development",
+//                courseDescription: "Build iOS apps",
+//                isEnrolled: true,
+//                numOfKnowledgeNode: 40
+//            ),
+//            FetchCourseResponse(
+//                courseId: "advanced-swift",
+//                courseName: "Advanced Swift",
+//                courseDescription: "Advanced concepts",
+//                isEnrolled: false,
+//                numOfKnowledgeNode: 30
+//            )
+//        ])
+//        
+//        let container = try! ModelContainer(
+//            for: CourseModel.self, QuizAttempt.self, StoredQuestion.self,
+//            configurations: .init(isStoredInMemoryOnly: true)
+//        )
+//        
+//        return (mockNetwork, container)
+//    }
+//    
+//    static var previews: some View {
+//        let (mockNetwork, container) = createMockData()
+//        
+//        HomeView(network: mockNetwork, modelContext: container.mainContext)
+//            .modelContainer(container)
+//            .previewDisplayName("Dashboard with Enrolled Courses")
+//    }
+//}
 
 // MARK: - Learning Statistics Components
 
@@ -635,4 +635,4 @@ struct StatisticItem: View {
         }
     }
 }
-#endif
+//#endif

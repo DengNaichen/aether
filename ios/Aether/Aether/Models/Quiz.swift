@@ -6,7 +6,7 @@ struct QuizStartEndpoint: Endpoint {
     let courseId: String
     let questionNum: Int
     
-    var path: String { "/courses/\(courseId)/quizzes" }
+    var path: String { "/course/\(courseId)/quizzes" }
     var method: HTTPMethod { .POST }
     var body: RequestBody? { .json(QuizRequest(questionNum: questionNum)) }
     var requiredAuth: Bool { true }

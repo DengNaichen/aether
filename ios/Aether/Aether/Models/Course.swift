@@ -56,13 +56,13 @@ struct FetchCourseResponse: Codable, Equatable {
     var courseDescription: String
     var isEnrolled: Bool
     var numOfKnowledgeNode: Int
-    
+
     enum CodingKeys: String, CodingKey {
         case courseId = "course_id"
         case courseName = "course_name"
         case courseDescription = "course_description"
         case isEnrolled = "is_enrolled"
-        case numOfKnowledgeNode = "num_of_knowledge_nodes"
+        case numOfKnowledgeNode = "num_of_knowledge"  // Backend uses "num_of_knowledge" not "num_of_knowledge_nodes"
     }
 }
 
@@ -70,9 +70,8 @@ struct FetchAllCoursesRequest: Codable, Equatable {
     // TODO: Seems I don't need it, but I will just keep it for a while
 }
 
-struct FetchAllCoursesResponse: Codable, Equatable {
-    var courses: [FetchCourseResponse]
-}
+// Response is directly an array, not wrapped in an object
+typealias FetchAllCoursesResponse = [FetchCourseResponse]
 
 struct EnrollmentRequest: Encodable, Equatable {
     let courseId: String

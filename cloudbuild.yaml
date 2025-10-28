@@ -1,0 +1,40 @@
+# Google Cloud Build configuration for Aether project
+# Builds and pushes Docker images to Artifact Registry
+
+options:
+  machineType: 'E2_HIGHCPU_8'
+  logging: CLOUD_LOGGING_ONLY
+
+substitutions:
+  _REGION: 'northamerica-northeast2'
+  _REPOSITORY: 'aether'
+  _IMAGE_BASE: '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}'
+
+steps:
+  # Build the main application image (used for both web and worker)
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-t'
+      - '${_IMAGE_BASE}/aether-app:${SHORT_SHA}'
+      - '-t'
+      - '${_IMAGE_BASE}/aether-app:latest'
+      - '--platform'
+      - 'linux/amd64'
+      - '.'
+    id: 'build-app'
+
+  # Push images to Artifact Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - '--all-tags'
+      - '${_IMAGE_BASE}/aether-app'
+    id: 'push-app'
+    waitFor: ['build-app']
+
+images:
+  - '${_IMAGE_BASE}/aether-app:${SHORT_SHA}'
+  - '${_IMAGE_BASE}/aether-app:latest'
+
+timeout: '1200s'

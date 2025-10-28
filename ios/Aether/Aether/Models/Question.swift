@@ -9,7 +9,7 @@ enum QuestionType: String, Codable {
 
 protocol QuestionDetails: Codable, Equatable {}
 
-struct MultipleChoiceDetails: QuestionDetails {
+struct MultipleChoiceDetails: @MainActor QuestionDetails {
     let options: [String]
     let correctAnswer: Int
     
@@ -19,7 +19,7 @@ struct MultipleChoiceDetails: QuestionDetails {
     }
 }
 
-struct FillInTheBlankDetails: QuestionDetails {
+struct FillInTheBlankDetails: @MainActor QuestionDetails {
     // TODO: this is same as backend, but we wont use it for this version
     let expectedAnswer: [String]
     enum CodingKeys: String, CodingKey {
@@ -27,7 +27,7 @@ struct FillInTheBlankDetails: QuestionDetails {
     }
 }
 
-struct CalculationDetails: QuestionDetails {
+struct CalculationDetails: @MainActor QuestionDetails {
     // TODO: this is same as backend, but we wont use it for this version
     let expectedAnswer: [String]
     let precision: Int

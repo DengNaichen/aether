@@ -13,6 +13,8 @@ from datetime import datetime, timezone
 import app.models.neo4j_model as neo
 from app.models.quiz import QuizAttempt, QuizStatus
 
+# Import bulk import handlers to register them
+import app.worker.bulk_import_handlers
 
 
 def _create_or_update_course_sync(

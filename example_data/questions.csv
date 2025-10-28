@@ -1,0 +1,5 @@
+question_id,text,difficulty,knowledge_node_id,options,correct_answer
+6621a28c-e27f-4df4-b536-3b4fcff280d7,A car travels 100 meters in 10 seconds. What is its average speed?,easy,node_speed_velocity,"[""5 m/s"",""10 m/s"",""15 m/s"",""20 m/s""]",1
+3704da1c-46f4-4a14-b030-3befaea8b0b0,Which of the following is a vector quantity?,medium,node_speed_velocity,"[""Speed"",""Mass"",""Velocity"",""Temperature""]",2
+db913ddc-ee23-447c-9a5b-c9d8ff3f375a,Calculate the net force on a 5kg object accelerating at 3m/s²,hard,node_force_mass,"[""8 N"",""15 N"",""18 N"",""2 N""]",1
+aa3e38b3-4f7c-4aba-b32f-46ea3de3a018,What is the atomic number of an element?,easy,node_atoms_basics,"[""Number of electrons"",""Number of protons"",""Number of neutrons"",""Total particles""]",1

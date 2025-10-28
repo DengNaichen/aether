@@ -30,7 +30,7 @@ class LoginViewModelRefactored: ObservableObject {
     init(
         network: NetworkServicing,
         authService: AuthService,
-        viewControllerProvider: @escaping () -> UIViewController? = Self.defaultViewControllerProvider,
+        viewControllerProvider: @escaping () -> UIViewController? = { LoginViewModelRefactored.defaultViewControllerProvider() },
         onLoginSuccess: @escaping () -> Void
     ) {
         self.network = network
@@ -175,7 +175,7 @@ class LoginViewModelRefactored: ObservableObject {
             )
 
             // Save tokens through AuthService
-            authService.saveTokens(
+            await authService.saveTokens(
                 accessToken: tokenResponse.accessToken,
                 refreshToken: tokenResponse.refreshToken
             )
@@ -210,6 +210,7 @@ class LoginViewModelRefactored: ObservableObject {
     }
 
     /// Default view controller provider
+    @MainActor
     static func defaultViewControllerProvider() -> UIViewController? {
         guard let windowScene = UIApplication.shared.connectedScenes
             .first(where: { $0.activationState == .foregroundActive }) as? UIWindowScene,

@@ -13,6 +13,8 @@ from app.worker.config import (
     MAX_RETRIES
 )
 
+import app.worker.handlers 
+
 
 async def move_to_dlq(
         redis_client,
@@ -165,3 +167,21 @@ class AsyncWorker:
         self.stats.print_stats()
         await db_manager.close()
         print("✅ Worker shutdown complete\n")
+
+
+async def main():
+    """Main entry point for the worker."""
+    worker = AsyncWorker(db_manager)
+    await worker.start()
+
+
+# Auto-start the worker when this module is run
+if __name__ == "__main__":
+    asyncio.run(main())
+else:
+    # When run as a module (python -m app.worker.worker), also start
+    import sys
+    if 'app.worker.worker' in sys.modules:
+        # Check if we're being run as the main module
+        if sys.argv[0].endswith('worker.py') or sys.argv[0].endswith('-m'):
+            asyncio.run(main())

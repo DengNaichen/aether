@@ -7,16 +7,16 @@ import KeychainAccess
 /// Protocol for token management, allowing dependency injection and testing
 protocol TokenManaging {
     /// Saves both access and refresh tokens securely
-    func saveTokens(accessToken: String, refreshToken: String)
+    func saveTokens(accessToken: String, refreshToken: String) async
 
     /// Retrieves the stored access token
-    func getAccessToken() -> String?
+    func getAccessToken() async -> String?
 
     /// Retrieves the stored refresh token
-    func getRefreshToken() -> String?
+    func getRefreshToken() async -> String?
 
     /// Clears all stored tokens
-    func clearToken()
+    func clearToken() async
 }
 
 // MARK: - Token Manager Implementation
@@ -25,8 +25,8 @@ protocol TokenManaging {
 ///
 /// This class uses a singleton pattern to ensure a single source of truth for tokens
 /// across the application. It leverages the KeychainAccess library for secure storage.
-@MainActor
-class TokenManager: TokenManaging {
+/// NOTE: The tokenManager shouldn't be part of main actor
+actor TokenManager: TokenManaging {
     static let shared = TokenManager()
 
     private let keychain = Keychain(service: Bundle.main.bundleIdentifier ?? "com.example.yourapp")
@@ -70,6 +70,8 @@ class TokenManager: TokenManaging {
 /// - User session management
 /// - Observable state for SwiftUI integration
 @MainActor
+/// NOTE: HERE this is a main actor, as the auth service also a part of the
+/// UI control, so it should be on the main actor
 class AuthService: ObservableObject {
 
     // MARK: - Published Properties
@@ -88,7 +90,9 @@ class AuthService: ObservableObject {
 
     /// Returns the current access token, if available
     var accessToken: String? {
-        return tokenManager.getAccessToken()
+        get async {
+            await tokenManager.getAccessToken()
+        }
     }
 
     // MARK: - Initialization
@@ -97,14 +101,16 @@ class AuthService: ObservableObject {
     /// - Parameter tokenManager: The token manager to use (defaults to shared instance)
     init(tokenManager: TokenManaging = TokenManager.shared) {
         self.tokenManager = tokenManager
-        self.updateAuthenticationStatus()
+        Task {
+            await self.updateAuthenticationStatus()
+        }
     }
 
     // MARK: - Public Methods
 
     /// Updates the authentication status based on the presence of a refresh token
-    func updateAuthenticationStatus() {
-        isAuthenticated = tokenManager.getRefreshToken() != nil
+    func updateAuthenticationStatus() async {
+        isAuthenticated = await tokenManager.getRefreshToken() != nil
     }
 
     /// Sets the authenticated user and updates authentication status
@@ -118,9 +124,9 @@ class AuthService: ObservableObject {
     /// - Parameters:
     ///   - accessToken: The access token to save
     ///   - refreshToken: The refresh token to save
-    func saveTokens(accessToken: String, refreshToken: String) {
-        tokenManager.saveTokens(accessToken: accessToken, refreshToken: refreshToken)
-        updateAuthenticationStatus()
+    func saveTokens(accessToken: String, refreshToken: String) async {
+        await tokenManager.saveTokens(accessToken: accessToken, refreshToken: refreshToken)
+        await updateAuthenticationStatus()
     }
 
     /// Refreshes access and refresh tokens using the stored refresh token
@@ -130,9 +136,9 @@ class AuthService: ObservableObject {
     /// - Throws: NetworkError if the refresh request fails
     func refreshTokens(networkService: NetworkServicing) async throws -> Bool {
         // Check if we have a refresh token
-        guard let currentRefreshToken = tokenManager.getRefreshToken() else {
+        guard let currentRefreshToken = await tokenManager.getRefreshToken() else {
             print("⚠️ [AuthService] No refresh token available")
-            logout()
+            await logout()
             return false
         }
 
@@ -150,19 +156,28 @@ class AuthService: ObservableObject {
 
             print("✅ [AuthService] Tokens refreshed successfully")
 
+            // Debug: Log token preview before saving
+            let newTokenPreview = String(response.accessToken.prefix(20))
+            print("🔄 [AuthService] Saving new access token: \(newTokenPreview)...")
+
             // Save the new tokens
-            tokenManager.saveTokens(
+            await tokenManager.saveTokens(
                 accessToken: response.accessToken,
                 refreshToken: response.refreshToken
             )
 
-            updateAuthenticationStatus()
+            // Debug: Verify token was saved
+            let savedToken = await tokenManager.getAccessToken()
+            let savedTokenPreview = String(savedToken?.prefix(20) ?? "nil")
+            print("✅ [AuthService] Token saved and verified: \(savedTokenPreview)...")
+
+            await updateAuthenticationStatus()
 
             return true
         } catch {
             print("❌ [AuthService] Token refresh failed: \(error)")
             // Clear tokens on refresh failure to force re-authentication
-            logout()
+            await logout()
             throw error
         }
     }
@@ -180,8 +195,8 @@ class AuthService: ObservableObject {
     }
 
     /// Logs out the current user and clears all authentication data
-    func logout() {
-        tokenManager.clearToken()
+    func logout() async {
+        await tokenManager.clearToken()
         isAuthenticated = false
         currentUser = nil
         print("🚪 [AuthService] User logged out")

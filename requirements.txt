@@ -50,6 +50,7 @@ mistune
 neo4j==5.28.2
 overrides
 packaging
+pandas>=2.0.0
 pandocfilters
 parso
 passlib==1.7.4
@@ -113,3 +114,5 @@ websocket-client
 websockets==15.0.1
 wheel==0.45.1
 redis >= 5.0.0
+neomodel
+aiofiles

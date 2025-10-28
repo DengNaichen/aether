@@ -1,0 +1,16 @@
+node_id,name,description,course_id
+node_mechanics_basics,Mechanics Basics,Introduction to mechanics and motion,g10_phys
+node_speed_velocity,Speed and Velocity,Understanding the difference between speed and velocity,g10_phys
+node_acceleration,Acceleration,Rate of change of velocity,g10_phys
+node_newtons_laws,Newton's Laws of Motion,Three fundamental laws of classical mechanics,g10_phys
+node_force_mass,Force and Mass,Relationship between force and mass,g10_phys
+node_energy_basics,Energy Fundamentals,Introduction to energy concepts,g10_phys
+node_kinetic_energy,Kinetic Energy,Energy of motion,g10_phys
+node_potential_energy,Potential Energy,Stored energy,g10_phys
+node_work_power,Work and Power,Work done and power,g10_phys
+node_atoms_basics,Atomic Structure,Introduction to atoms and atomic structure,g10_chem
+node_periodic_table,Periodic Table,Organization of elements,g10_chem
+node_chemical_bonding,Chemical Bonding,How atoms bond together,g10_chem
+node_ionic_bonds,Ionic Bonds,Electron transfer bonding,g10_chem
+node_covalent_bonds,Covalent Bonds,Electron sharing bonding,g10_chem
+node_acids_bases,Acids and Bases,Introduction to pH and acidity,g10_chem

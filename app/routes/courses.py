@@ -1,6 +1,6 @@
 import asyncio
 import json
-from typing import List, Any, Coroutine, Sequence
+from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -15,6 +15,7 @@ from app.schemas.courses import CourseCreate, CourseCreateResponse, CourseRespon
 from app.crud.crud import check_course_exist
 from app.models.enrollment import Enrollment
 from app.schemas.enrollment import EnrollmentResponse
+import app.models.neo4j_model as neo
 
 router = APIRouter(
     prefix="/courses",
@@ -82,6 +83,26 @@ async def create_course(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to create course {course_id}: {e}"
+        )
+
+
+def fetch_neo4j_knowledge_node_num(course_id):
+    # check if the course is in the neo4j
+    try:
+        # Verify course exists
+        neo.Course.nodes.get(course_id=course_id)
+        # Count knowledge nodes that belong to this course
+        from neomodel import db
+        query = """
+        MATCH (c:Course {course_id: $course_id})<-[:BELONGS_TO]-(k:KnowledgeNode)
+        RETURN COUNT(k) AS count
+        """
+        results, _ = db.cypher_query(query, {"course_id": course_id})
+        return results[0][0] if results else 0
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Course {course_id} not found"
         )
 
 
@@ -191,13 +212,21 @@ async def fetch_course(
         course_name=course.name,
         course_description=course.description,
         is_enrolled=await crud.check_enrollment(course.id, current_user, db),
-        num_of_knowledge=await crud.get_knowledge_node_num_of_a_course(
-            course.id,
-            db
-        )
+        # TODO: I need to read it from neo4j
+        num_of_knowledge=fetch_neo4j_knowledge_node_num(course.id)
     )
     return response
 
+
+def fetch_neo4j_knowledge_node_num_bulk(course_ids: list[str]) -> dict[str, int]:
+    from neomodel import db
+    query = """
+    MATCH (c:Course)<-[:BELONGS_TO]-(k:KnowledgeNode)
+    WHERE c.course_id IN $course_ids
+    RETURN c.course_id AS course_id, COUNT(k) AS knowledge_count
+    """
+    results, _ = db.cypher_query(query, {"course_ids": course_ids})
+    return {row[0]: row[1] for row in results}
 
 @router.get(
     "/",
@@ -226,11 +255,10 @@ async def fetch_all_courses(
         current_user.id,
     )
 
-    knowledge_counts_task = crud.get_knowledge_node_counts_for_courses(
-        courses_ids,
-        db
+    # TODO: this part need to be changed, not query from sql but neo4j
+    knowledge_counts_task = asyncio.to_thread(
+        fetch_neo4j_knowledge_node_num_bulk, courses_ids
     )
-
     enrolled_course_ids, knowledge_node_map = await asyncio.gather(
         enrollment_task,
         knowledge_counts_task,
@@ -248,10 +276,3 @@ async def fetch_all_courses(
         response_list.append(response)
 
     return response_list
-
-
-
-# TODO: withdrawal a course
-# @router.post("/{course_id}/withdrawal", )
-
-

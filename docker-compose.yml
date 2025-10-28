@@ -3,9 +3,9 @@ services:
   web:
     build:
       context: .
-    # use .env.dev file to set the environment parameter
+    # use .env.docker file to set the environment parameter
     env_file:
-      - .env.dev
+      - .env.docker
     ports:
       - "8000:8000"
     volumes:
@@ -19,6 +19,8 @@ services:
 
   db:
     image: postgres:15-alpine
+    env_file:
+      - .env.docker
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -26,7 +28,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-aether_user} -d ${POSTGRES_DB:-aether_db}"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -34,8 +36,9 @@ services:
   redis:
     image: redis:7-alpine
     container_name: aether-redis
-    ports:
-      - "6379:6379"
+    # 不暴露端口到宿主机，只在 Docker 网络内部使用
+    # ports:
+    #   - "6379:6379"
     volumes:
       - redis_data:/data
     healthcheck:
@@ -43,6 +46,23 @@ services:
       interval: 5s
       timeout: 3s
       retries: 5
+    restart: unless-stopped
+
+  worker:
+    build:
+      context: .
+    env_file:
+      - .env.docker
+    environment:
+      - PYTHONUNBUFFERED=1
+    command: python -u -m app.worker
+    volumes:
+      - .:/app
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     restart: unless-stopped
 
 

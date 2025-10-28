@@ -5,18 +5,18 @@ import SwiftData
 struct AetherApp: App {
     
     @StateObject private var authService: AuthService
-    @StateObject private var networkService: NetworkService
+    @State var networkService: NetworkService
     
     init() {
         let auth = AuthService()
-        let ipAddress = "192.168.2.13"
-        guard let baseURL = URL(string: "http://\(ipAddress):8000") else {
+        let testDevUrl = "https://aether-web-372668020909.northamerica-northeast2.run.app"
+        
+        guard let baseURL = URL(string: testDevUrl) else {
             fatalError("Invalid base URL provided.")
         }
         
         _authService = StateObject(wrappedValue: auth)
-        _networkService = StateObject(
-            wrappedValue: NetworkService(baseURL: baseURL, authService: auth))
+        _networkService = State(initialValue: NetworkService(baseURL: baseURL, authService: auth))
     }
     
     var body: some Scene {
@@ -30,7 +30,6 @@ struct AetherApp: App {
                 }
             }
             .environmentObject(authService)
-            .environmentObject(networkService)
             .modelContainer(for: CourseModel.self)
         }
     }
