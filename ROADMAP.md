@@ -67,7 +67,8 @@ The implementation right now is A.
 ## Phase 1: Design a small but high quality knowledge graph.
 Will use [KGC] as keyword for knowledge graph construction.
 
-- [ ] [KGC#1] Design a small knowledge graph schema based on the [updated documentation](/docs/knowledge_graph.md)
+
+- [ ] [KGC#1] Design knowledge graph schema(model) based on the [updated documentation](/docs/knowledge_graph.md)
 - [ ] [KGC#2] Build a sample knowledge graph for a high school course (or a few selected chapters)
 - [ ] [KGC#3] Create a script to import CSV data into [Neo4j Aura](https://neo4j.com/product/auradb/) for testing and shared use
 
