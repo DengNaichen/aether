@@ -50,6 +50,7 @@ This update propagates inferences about dependent skills.
         2. **Action:** Flag `Node_A` for the **recommendation engine**. The system's next move should be to test `Node_A` directly to resolve the ambiguity.
 
 **B. Forward Propagation (Updating future readiness)**
+TODO:
 
 - **Inference:** Mastering a prerequisite (`Node_L`) means Chloe is now prepared to learn the post-requisite (`Node_B`).
 - **Algorithm:**
