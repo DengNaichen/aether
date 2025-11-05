@@ -19,6 +19,7 @@ help:
 	@echo "  logs-worker  - View worker logs only"
 	@echo ""
 	@echo "Database:"
+	@echo "  init-data    - Initialize development data (course + knowledge graph)"
 	@echo "  db-shell     - Open PostgreSQL shell"
 	@echo "  redis-shell  - Open Redis CLI"
 	@echo ""
@@ -38,9 +39,9 @@ setup:
 		cp .env.example .env.local; \
 		echo "✓ Created .env.local from template"; \
 		echo ""; \
-		echo "⚠️  IMPORTANT: Edit .env.local and add your team's Neo4j Aura credentials!"; \
-		echo "   - NEO4J_URI"; \
-		echo "   - NEO4J_PASSWORD"; \
+		echo "Next steps:"; \
+		echo "  1. Run 'make up-d' to start all services"; \
+		echo "  2. Run 'make init-data' to load sample course data"; \
 		echo ""; \
 	else \
 		echo "✓ .env.local already exists"; \
@@ -120,10 +121,17 @@ test-cov:
 	@echo ""
 	@echo "Coverage report generated: htmlcov/index.html"
 
+# Initialize development data
+init-data:
+	@echo "📦 Loading development course data..."
+	docker-compose exec web uv run python scripts/setup_dev_course.py
+	@echo ""
+	@echo "✓ Development data loaded"
+	@echo "  Visit http://localhost:7474 to explore Neo4j graph"
+
 # Clean everything (WARNING: deletes volumes!)
 clean:
 	@echo "⚠️  WARNING: This will delete all local database data!"
-	@echo "   (Neo4j Aura data is safe)"
 	@read -p "Are you sure? [y/N] " -n 1 -r; \
 	echo; \
 	if [[ $$REPLY =~ ^[Yy]$$ ]]; then \

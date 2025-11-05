@@ -7,6 +7,7 @@ import app.models as models
 from app.core.config import settings
 from app.core.database import db_manager
 from app.routes import question, user, quiz, submissions, admin, courses, knowledge_node
+from fastapi.middleware.cors import CORSMiddleware
 
 
 class DebugAuthMiddleware(BaseHTTPMiddleware):
@@ -23,6 +24,11 @@ class DebugAuthMiddleware(BaseHTTPMiddleware):
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     print("🚀 Application starting up...")
+
+    # Initialize neomodel configuration for synchronous queries
+    from neomodel import config as neomodel_config
+    neomodel_config.DATABASE_URL = settings.NEOMODEL_NEO4J_URI
+    print(f"🔧 Neomodel configured with URI: {settings.NEO4J_URI}")
 
     # Try to initialize databases, but don't fail if they're not available
     try:
@@ -45,6 +51,15 @@ async def lifespan(app: FastAPI):
 
 # pass lifespan tp FastAPI
 app = FastAPI(lifespan=lifespan)
+
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Add debug middleware
 app.add_middleware(DebugAuthMiddleware)

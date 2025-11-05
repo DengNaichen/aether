@@ -62,7 +62,6 @@ FastAPI Server
 
 ### Prerequisites
 - [Docker Desktop](https://www.docker.com/products/docker-desktop/) installed and running
-- Access to team's Neo4j Aura instance (get credentials from your team lead)
 
 ### Setup (First Time)
 
@@ -73,10 +72,12 @@ cd aetherreload
 
 # 2. Configure environment variables
 cp .env.example .env.local
-# Edit .env.local and add Neo4j Aura credentials
 
-# 3. Start all services (PostgreSQL, Redis, API, Worker)
-docker-compose up
+# 3. Start all services (PostgreSQL, Redis, Neo4j, API, Worker)
+docker-compose up -d
+
+# 4. Initialize development data (course, knowledge graph, questions)
+docker-compose exec web uv run python scripts/setup_dev_course.py
 ```
 
 - **API docs**: http://localhost:8000/docs

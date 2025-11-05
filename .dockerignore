@@ -1,25 +1,21 @@
 # .dockerignore
 
 # --- Version Control ---
-# 忽略整个 Git 目录和相关文件
 .git
 .gitignore
 .gitattributes
 
 # --- Python Specific ---
-# 忽略 Python 字节码和缓存
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
 
-# 忽略 Python 虚拟环境文件夹 (非常重要!)
 .venv
 venv
 env
 ENV
 
-# 忽略包安装和测试相关文件
 *.egg-info/
 .pytest_cache/
 .coverage
@@ -27,38 +23,31 @@ htmlcov/
 pip-wheel-metadata/
 
 # --- Frontend / Node.js Specific ---
-# 忽略本地安装的依赖包 (非常重要!)
+
 node_modules
 
-# 忽略构建输出的文件夹
 build
 dist
 .next
 
-# 忽略日志文件
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
 # --- IDE & Editor Specific ---
-# 忽略 VSCode 的配置文件夹
 .vscode/
 
-# 忽略 PyCharm 的配置文件夹
 .idea/
 
 # --- macOS Specific ---
-# 忽略 macOS 自动生成的元数据文件
 .DS_Store
 
 # --- Secrets & Environment ---
-# 忽略本地环境变量文件 (极其重要!)
 .env.dev
 .env.*
 .env.dev
 
 # --- Docker Specific ---
-# 忽略 Docker 相关文件，它们不需要被复制到镜像里
 Dockerfile
 docker-compose.yml
 .dockerignore
