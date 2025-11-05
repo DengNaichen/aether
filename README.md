@@ -48,7 +48,7 @@ An adaptive learning platform for Ontario high school students, powered by knowl
 ## Architecture
 
 ```
-iOS App
+iOS App/Frontend
    ↓ REST API
 FastAPI Server
    ├─→ PostgreSQL (user data, quizzes)
@@ -60,12 +60,54 @@ FastAPI Server
 
 ## Quick Start
 
+### Prerequisites
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/) installed and running
+- Access to team's Neo4j Aura instance (get credentials from your team lead)
+
+### Setup (First Time)
+
+```bash
+# 1. Clone the repository
+git clone <repository-url>
+cd aetherreload
+
+# 2. Configure environment variables
+cp .env.example .env.local
+# Edit .env.local and add Neo4j Aura credentials
+
+# 3. Start all services (PostgreSQL, Redis, API, Worker)
+docker-compose up
+```
+
+- **API docs**: http://localhost:8000/docs
+- **API endpoint**: http://localhost:8000
+
+### Daily Development
+
+```bash
+# Start services
+docker-compose up
+
+# Stop services (Ctrl+C, then)
+docker-compose down
+
+# View logs
+docker-compose logs -f
+
+# Rebuild after dependency changes
+docker-compose up --build
+```
+
+### Alternative: Local Development (Without Docker)
+
+If you prefer running the app locally:
+
 ```bash
 # 1. Install uv
 curl -LsSf https://astral.sh/uv/install.sh | sh
 
-# 2. Start databases
-docker-compose up -d
+# 2. Start only databases
+docker-compose up -d db redis
 
 # 3. Install dependencies
 uv sync
@@ -74,21 +116,9 @@ uv sync
 uv run uvicorn app.main:app --reload
 
 # 5. Run worker (separate terminal)
-uv run python -m app.worker.worker
+uv run python -m app.worker
 ```
 
-API docs: http://localhost:8000/docs
-
-## Key Endpoints
-
-```
-POST /users/register          # Sign up
-POST /users/login             # Get JWT token
-GET  /questions/random        # Get adaptive question
-POST /submissions             # Submit answer (async graded)
-GET  /courses/{id}            # Course with knowledge graph
-POST /courses/{id}/enroll     # Enroll and initialize mastery
-```
 
 ## How Adaptive Learning Works
 
@@ -102,26 +132,6 @@ POST /courses/{id}/enroll     # Enroll and initialize mastery
    - Historical performance in PostgreSQL
 4. **Next question** → Repeats with updated knowledge state
 
-## Bulk Import
-
-Import curriculum via CSV:
-
-```bash
-# Knowledge nodes
-curl -X POST http://localhost:8000/knowledge-nodes/bulk-import \
-  -F "file=@nodes.csv" -F "course_code=SPH3U"
-
-# Questions
-curl -X POST http://localhost:8000/questions/bulk-import \
-  -F "file=@questions.csv"
-
-# Concept relationships
-curl -X POST http://localhost:8000/relations/bulk-import \
-  -F "file=@relations.csv"
-```
-
-See `example_data/` for CSV formats.
-
 ## Testing
 
 ```bash
@@ -130,34 +140,6 @@ uv run pytest -v          # Verbose mode
 uv run pytest -x          # Stop on first failure
 ```
 
-**138 tests, 97% pass rate**
-
-## Project Structure
-
-```
-app/
-├── core/          # Config, database, security
-├── models/        # SQLAlchemy + Neo4j models
-├── routes/        # API endpoints
-├── worker/        # Async task handlers
-│   ├── worker.py           # Main worker loop
-│   ├── handlers.py         # Grading logic
-│   └── bulk_import_handlers.py
-└── main.py        # FastAPI app
-```
-
-## Why This Stack?
-
-- **Neo4j**: Perfect for modeling curriculum graphs and traversing concept relationships
-- **PostgreSQL**: Battle-tested for transactional data (users, submissions)
-- **Redis**: Lightweight queue, no need for RabbitMQ complexity
-- **uv**: 460x faster than conda (0.13s vs 60s for dependencies)
-- **FastAPI**: Modern async Python, auto-generated docs
-
 ## License
 
 MIT
-
----
-
-**Built for high school students**
