@@ -31,7 +31,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U aether_user -d aether_db"]
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-aether_user} -d $${POSTGRES_DB:-aether_db}"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -52,7 +52,7 @@ services:
     image: neo4j:5.15-community
     container_name: aether-neo4j
     environment:
-      - NEO4J_AUTH=neo4j/neo4j_password
+      - NEO4J_AUTH=${NEO4J_USER:-neo4j}/${NEO4J_PASSWORD:-neo4j_password}
       - NEO4J_dbms_memory_pagecache_size=512M
       - NEO4J_dbms_memory_heap_initial__size=512M
       - NEO4J_dbms_memory_heap_max__size=1G
