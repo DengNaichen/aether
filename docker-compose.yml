@@ -3,9 +3,10 @@ services:
   web:
     build:
       context: .
-    # use .env.docker file to set the environment parameter
+    # Use .env.local for local development configuration
+    # Copy .env.example to .env.local and fill in your team's values
     env_file:
-      - .env.docker
+      - .env.local
     ports:
       - "8000:8000"
     volumes:
@@ -16,19 +17,21 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      neo4j:
+        condition: service_healthy
 
   db:
     image: postgres:15-alpine
     env_file:
-      - .env.docker
+      - .env.local
     environment:
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER:-aether_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-aether_password}
+      POSTGRES_DB: ${POSTGRES_DB:-aether_db}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-aether_user} -d ${POSTGRES_DB:-aether_db}"]
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-aether_user} -d $${POSTGRES_DB:-aether_db}"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -36,9 +39,6 @@ services:
   redis:
     image: redis:7-alpine
     container_name: aether-redis
-    # 不暴露端口到宿主机，只在 Docker 网络内部使用
-    # ports:
-    #   - "6379:6379"
     volumes:
       - redis_data:/data
     healthcheck:
@@ -48,14 +48,36 @@ services:
       retries: 5
     restart: unless-stopped
 
+  neo4j:
+    image: neo4j:5.15-community
+    container_name: aether-neo4j
+    environment:
+      - NEO4J_AUTH=${NEO4J_USER:-neo4j}/${NEO4J_PASSWORD:-neo4j_password}
+      - NEO4J_dbms_memory_pagecache_size=512M
+      - NEO4J_dbms_memory_heap_initial__size=512M
+      - NEO4J_dbms_memory_heap_max__size=1G
+    ports:
+      - "7474:7474"  # HTTP
+      - "7687:7687"  # Bolt
+    volumes:
+      - neo4j_data:/data
+      - neo4j_logs:/logs
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider localhost:7474 || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
   worker:
     build:
       context: .
     env_file:
-      - .env.docker
+      - .env.local
     environment:
       - PYTHONUNBUFFERED=1
-    command: python -u -m app.worker
+    command: ["sh", "-c", "uv run python -u -m app.worker"]
     volumes:
       - .:/app
     depends_on:
@@ -63,9 +85,13 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      neo4j:
+        condition: service_healthy
     restart: unless-stopped
 
 
 volumes:
   postgres_data:
   redis_data:
+  neo4j_data:
+  neo4j_logs:

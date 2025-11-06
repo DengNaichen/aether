@@ -99,16 +99,6 @@ e5f6a7b8-8c9d-4e4e-8a76-2c3d4e5f6a7b,kp_vector_add_algebra,SAMPLE for 'Vector Ad
 f6a7b8c9-9d0e-4f5f-8b87-3d4e5f6a7b8c,kp_vector_add_algebra,SAMPLE for 'Vector Addition (Algebraic)': [Your question text here],"[""Option A"", ""Option B"", ""Option C"", ""Option D""]",0,medium,0.1
 a7b8c9d0-0e1f-4a6a-8c98-4e5f6a7b8c9d,kp_vector_add_algebra,SAMPLE for 'Vector Addition (Algebraic)': [Your question text here],"[""Option A"", ""Option B"", ""Option C"", ""Option D""]",0,medium,0.1
 b8c9d0e1-1f2a-4b7b-8da9-5f6a7b8c9d0e,kp_vector_add_algebra,SAMPLE for 'Vector Addition (Algebraic)': [Your question text here],"[""Option A"", ""Option B"", ""Option C"", ""Option D""]",0,medium,0.1
-c9d0e1f2-2a3b-4c8c-8eba-6a7b8c9d0e1f,kp_vector_components,SAMPLE for 'Vector Components': [Your question text here],"[""Option A"", ""Option B"", ""Option C"", ""Option D""]",0,medium,0.1
-d0e1f2a3-3b4c-4d9d-8fcb-7b8c9d0e1f2a,kp_vector_components,SAMPLE for 'Vector Components': [Your question text here],"[""Option A"", ""Option B"", ""Option C"", ""Option D""]",0,medium,0.1
-e1f2a3b4-4c5d-4e0e-8fdc-8c9d0e1f2a3b,kp_vector_components,SAMPLE for 'Vector Components': [Your question text here],"[""Option A"", ""Option B"", ""Option C"", ""Option D""]",0,medium,0.1
-f2a3b4c5-5d6e-4f1f-8aed-9d0e1f2a3b4c,kp_vector_components,SAMPLE for 'Vector Components': [Your question text here],"[""Option A"", ""Option B"", ""Option C"", ""Option D""]",0,medium,0.1
-a3b4c5d6-6e7f-4a2a-8bfe-0e1f2a3b4c5d,kp_vector_components,SAMPLE for 'Vector Components': [Your question text here],"[""Option A"", ""Option B"", ""Option C"", ""Option D""]",0,medium,0.1
-b4c5d6e7-7f8a-4b3b-8c0f-1f2a3b4c5d6e,kp_vector_add_comp,SAMPLE for 'Vector Addition (Components)': [Your question text here],"[""Option A"", ""Option B"", ""Option C"", ""Option D""]",0,medium,0.1
-c5d6e7f8-8a9b-4c4c-8d10-2a3b4c5d6e7f,kp_vector_add_comp,SAMPLE for 'Vector Addition (Components)': [Your question text here],"[""Option A"", ""Option B"", ""Option C"", ""Option D""]",0,medium,0.1
-d6e7f8a9-9b0c-4d5d-8e21-3b4c5d6e7f8a,kp_vector_add_comp,SAMPLE for 'Vector Addition (Components)': [Your question text here],"[""Option A"", ""Option B"", ""Option C"", ""Option D""]",0,medium,0.1
-e7f8a9b0-0c1d-4e6e-8f32-4c5d6e7f8a9b,kp_vector_add_comp,SAMPLE for 'Vector Addition (Components)': [Your question text here],"[""Option A"", ""Option B"", ""Option C"", ""Option D""]",0,medium,0.1
-f8a9b0c1-1d2e-4f7f-8a43-5d6e7f8a9b0c,kp_vector_add_comp,SAMPLE for 'Vector Addition (Components)': [Your question text here],"[""Option A"", ""Option B"", ""Option C"", ""Option D""]",0,medium,0.1
 a9b0c1d2-2e3f-4a8a-8b54-6e7f8a9b0c1d,kp_avg_velocity_2d,SAMPLE for 'Average Velocity (2D)': [Your question text here],"[""Option A"", ""Option B"", ""Option C"", ""Option D""]",0,medium,0.1
 b0c1d2e3-3f4a-4b9b-8c65-7f8a9b0c1d2e,kp_avg_velocity_2d,SAMPLE for 'Average Velocity (2D)': [Your question text here],"[""Option A"", ""Option B"", ""Option C"", ""Option D""]",0,medium,0.1
 c1d2e3f4-4a5b-4cac-8d76-8a9b0c1d2e3f,kp_avg_velocity_2d,SAMPLE for 'Average Velocity (2D)': [Your question text here],"[""Option A"", ""Option B"", ""Option C"", ""Option D""]",0,medium,0.1

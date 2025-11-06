@@ -86,7 +86,7 @@ class DatabaseManager:
         if self._neo4j_driver is None:
             self._neo4j_driver = AsyncGraphDatabase.driver(
                 self.settings.NEO4J_URI,
-                auth=(self.settings.NEO4J_USER, self.settings.NEO4J_PASSWORD),
+                auth=(self.settings.NEO4J_USER, self.settings.NEO4J_PASSWORD)
             )
         return self._neo4j_driver
 
