@@ -1,5 +1,6 @@
 import asyncio
 import json
+import logging
 from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -16,6 +17,8 @@ from app.crud.crud import check_course_exist
 from app.models.enrollment import Enrollment
 from app.schemas.enrollment import EnrollmentResponse
 import app.models.neo4j_model as neo
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(
     prefix="/courses",
@@ -35,14 +38,36 @@ async def create_course(
         redis_client: Redis = Depends(get_redis_client),
         admin: User = Depends(get_current_admin_user)
 ) -> Course:
-    """
-    Create a new course by admin
+    """Creates a new course in the database and queues a task for Neo4j.
+
+    This endpoint allows an authenticated admin user to create a new course.
+    It first checks if a course with the assembled ID (based on grade and
+    subject) already exists. If not, it creates the course in the
+    PostgreSQL database.
+
+    Upon successful creation in PostgreSQL, it queues a background task in
+    Redis for the course to be added to the Neo4j graph database.
+
     Args:
-        course_data (CourseCreate): Course data
-        db (AsyncSession): Database session
-        redis_client (Redis): Redis client
-        admin (User): Admin user
+    course_data (CourseCreate): The data for the new course, including
+    name, description, grade, and subject.
+    db (AsyncSession): The database session dependency.
+    redis_client (Redis): The Redis client dependency.
+    admin (User): The authenticated admin user dependency, ensuring only
+    admins can access this endpoint.
+
+    Raises:
+    HTTPException (status.HTTP_409_CONFLICT): If a course with the
+    generated ID (from grade and subject) already exists in PostgreSQL.
+    HTTPException (status.HTTP_500_INTERNAL_SERVER_ERROR): If the
+    database commit fails or any other unexpected error occurs
+    during creation.
+
+    Returns:
+    Course: The newly created course object from the database,
+    including its generated ID.
     """
+    # TODO: not sure if I should remove the enum.
     course_id = assemble_course_id(course_data.grade,
                                    course_data.subject)
 
@@ -74,7 +99,7 @@ async def create_course(
         }
 
         await redis_client.lpush("general_task_queue", json.dumps(task))
-        print(f"📤 Task queued for course {course_id}")
+        logger.info(f"📤 Task queued for course {course_id}")
 
         return new_course
 

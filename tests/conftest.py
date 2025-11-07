@@ -5,8 +5,13 @@ import uuid
 from pathlib import Path
 from dotenv import load_dotenv
 
+# Set ENVIRONMENT to 'test' BEFORE loading .env file
+# This ensures Settings will load .env.test
+os.environ["ENVIRONMENT"] = "test"
+
 # Load test environment variables at the very beginning
-load_dotenv(dotenv_path=Path(__file__).parent.parent / ".env.test")
+# Use override=True to ensure test settings override any existing env vars
+load_dotenv(dotenv_path=Path(__file__).parent.parent / ".env.test", override=True)
 
 from redis.asyncio import Redis
 
@@ -26,10 +31,17 @@ from neo4j import AsyncGraphDatabase, AsyncDriver
 from unittest.mock import MagicMock, AsyncMock
 from fastapi import UploadFile
 
-from app.core.config import Settings
+from app.core.config import Settings, settings
 from app.core.database import DatabaseManager
 from app.core.deps import get_db, get_redis_client, get_neo4j_driver
 from app.core.security import create_access_token, get_password_hash
+
+# Configure neomodel BEFORE importing app.main (which triggers lifespan)
+# This ensures neomodel uses test database URL
+from neomodel import config as neomodel_config
+neomodel_config.DATABASE_URL = settings.NEOMODEL_NEO4J_URI
+print(f"🧪 Test neomodel configured with URI: {settings.NEO4J_URI}")
+
 from app.main import app
 from app.models.base import Base
 from app.models.course import Course
@@ -324,14 +336,14 @@ async def questions_in_neo4j_db(
     target_node, source_node = nodes_in_neo4j_db
 
     mcq_obj = neo.MultipleChoice(
-        question_id=uuid.UUID("11111111-1111-1111-1111-111111111111"),
+        question_id=uuid.UUID("7c9e6679-7425-40de-944b-e07fc1f90ae7"),
         text="Which of these is a 'target' node?",
         difficulty=pydantic.QuestionDifficulty.EASY.value,
         options=["Target", "Source", "Neither"],
         correct_answer=0,
     )
     fib_obj = neo.FillInBlank(
-        question_id="00011111-1111-1111-1111-111111111111",
+        question_id="8f14e45f-ceea-467a-9af0-fd3c2a1234ab",
         text="The source node name is ____.",
         difficulty=pydantic.QuestionDifficulty.EASY.value,
         expected_answer=[SOURCE_KNOWLEDGE_NODE_NAME],
@@ -344,6 +356,105 @@ async def questions_in_neo4j_db(
         await asyncio.to_thread(fib_obj.knowledge_node.connect, source_node)
 
     yield mcq_obj, fib_obj
+
+
+@pytest_asyncio.fixture(scope="function")
+async def knowledge_graph_in_neo4j_db(
+        test_db_manager: DatabaseManager,
+        course_in_neo4j_db: neo.Course,
+) -> AsyncGenerator[dict, Any]:
+    """
+    Create a complete knowledge graph with hierarchical relationships.
+
+    Structure:
+        Parent Topic (parent_topic)
+        ├── Subtopic A (subtopic_a) [weight: 0.6]
+        │   └── Question: MCQ about Subtopic A (correct answer: 0)
+        └── Subtopic B (subtopic_b) [weight: 0.4]
+            └── Question: MCQ about Subtopic B (correct answer: 1)
+
+    Prerequisites:
+        Subtopic A is prerequisite for Subtopic B
+
+    Returns:
+        dict with nodes and questions for easy access
+    """
+    # Create parent topic node
+    parent_node = neo.KnowledgeNode(
+        node_id="parent_topic",
+        node_name="Parent Topic",
+    )
+
+    # Create subtopic nodes
+    subtopic_a = neo.KnowledgeNode(
+        node_id="subtopic_a",
+        node_name="Subtopic A",
+    )
+
+    subtopic_b = neo.KnowledgeNode(
+        node_id="subtopic_b",
+        node_name="Subtopic B",
+    )
+
+    # Create MCQ questions
+    mcq_a = neo.MultipleChoice(
+        question_id=uuid.UUID("7c9e6679-7425-40de-944b-e07fc1f90ae7"),
+        text="Which answer is correct for Subtopic A?",
+        difficulty=pydantic.QuestionDifficulty.EASY.value,
+        options=["Answer A (Correct)", "Answer B", "Answer C"],
+        correct_answer=0,  # First option is correct
+    )
+
+    mcq_b = neo.MultipleChoice(
+        question_id=uuid.UUID("8f14e45f-ceea-467a-9af0-fd3c2a1234ab"),
+        text="Which answer is correct for Subtopic B?",
+        difficulty=pydantic.QuestionDifficulty.EASY.value,
+        options=["Answer A", "Answer B (Correct)", "Answer C"],
+        correct_answer=1,  # Second option is correct
+    )
+
+    async with test_db_manager.neo4j_scoped_connection():
+        # Save all nodes
+        await asyncio.to_thread(parent_node.save)
+        await asyncio.to_thread(subtopic_a.save)
+        await asyncio.to_thread(subtopic_b.save)
+        await asyncio.to_thread(mcq_a.save)
+        await asyncio.to_thread(mcq_b.save)
+
+        # Connect nodes to course
+        await asyncio.to_thread(parent_node.course.connect, course_in_neo4j_db)
+        await asyncio.to_thread(subtopic_a.course.connect, course_in_neo4j_db)
+        await asyncio.to_thread(subtopic_b.course.connect, course_in_neo4j_db)
+
+        # Create HAS_SUBTOPIC relationships (parent -> children)
+        await asyncio.to_thread(
+            parent_node.subtopic.connect,
+            subtopic_a,
+            {'weight': 0.6}  # Subtopic A weight
+        )
+        await asyncio.to_thread(
+            parent_node.subtopic.connect,
+            subtopic_b,
+            {'weight': 0.4}  # Subtopic B weight
+        )
+
+        # Create IS_PREREQUISITE_FOR relationship
+        await asyncio.to_thread(
+            subtopic_a.is_prerequisite_for.connect,
+            subtopic_b
+        )
+
+        # Connect questions to knowledge nodes (TESTS relationship)
+        await asyncio.to_thread(mcq_a.knowledge_node.connect, subtopic_a)
+        await asyncio.to_thread(mcq_b.knowledge_node.connect, subtopic_b)
+
+    yield {
+        'parent_node': parent_node,
+        'subtopic_a': subtopic_a,
+        'subtopic_b': subtopic_b,
+        'mcq_a': mcq_a,  # Question for subtopic A
+        'mcq_b': mcq_b,  # Question for subtopic B
+    }
 
 
 @pytest_asyncio.fixture(scope="function")

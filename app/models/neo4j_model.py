@@ -19,7 +19,7 @@ Mastery tracking uses Bayesian Knowledge Tracing (BKT) with parameters:
 """
 
 from neomodel import StructuredNode, StringProperty, ZeroOrOne, RelationshipTo, \
-    One, RelationshipFrom, ArrayProperty, IntegerProperty, StructuredRel, FloatProperty, DateTimeProperty
+    One, RelationshipFrom, ArrayProperty, IntegerProperty, StructuredRel, FloatProperty, DateTimeProperty, JSONProperty
 
 from app.schemas.questions import QuestionDifficulty
 
@@ -69,7 +69,7 @@ class HasMastery(StructuredRel):
 
     Attributes:
         score: Current mastery probability (0.0 to 1.0), representing P(L_t)
-        p_l0: Prior knowledge probability (0.0 to 1.0) - initial mastery before any practice
+        p_l0: Prior knowledge prob. (0.0 to 1.0) - initial mastery before any practice # TODO: this parameter can be used to do more
         p_t: Transition probability (0.0 to 1.0) - chance of learning from practice
         last_updated: Timestamp of last mastery update (for forgetting curve)
 
@@ -79,14 +79,22 @@ class HasMastery(StructuredRel):
     Note:
         - p_g (guess) and p_s (slip) are stored on Question, not here
         - p_l0 should be dynamically calculated from prerequisites
-        - score decays over time using forgetting curve: P_new = P_old * e^(-0.099 * days)
+            
     """
-    score = FloatProperty(default=0.1, validator=validate_probability)
+    # three states: learning, reviewing, relearning.
+    state = StringProperty(default="learning", index=True)
+    last_updated = DateTimeProperty(default_now=True)
 
+    # ------------ BKT Parameters (for learning and relearning) -----------
+    score = FloatProperty(default=0.1, validator=validate_probability)
     p_l0 = FloatProperty(default=0.2, validator=validate_probability)
     p_t = FloatProperty(default=0.2, validator=validate_probability)
 
-    last_updated = DateTimeProperty(default_now=True)
+    # ------------ FSRS Parameters (for reviewing) --------------
+    fsrs_stability = FloatProperty(default=0.0)
+    fsrs_difficulty = FloatProperty(default=0.0)
+    due_data = DateTimeProperty(index=True)
+    review_log = JSONProperty()
 
 
 class User(StructuredNode):
@@ -135,7 +143,8 @@ class Question(StructuredNode):
         question_id: Unique identifier for the question
         text: The question prompt text
         difficulty: Question difficulty level (easy, medium, hard)
-        p_s: Slip probability (0.0 to 1.0) - chance of careless error despite knowing the material
+        p_s: Slip probability (0.0 to 1.0) - chance of careless error despite 
+            knowing the material
 
     Relationships:
         knowledge_node: The leaf knowledge node this question tests
@@ -319,8 +328,11 @@ class KnowledgeNode(StructuredNode):
     """
     node_id = StringProperty(required=True, unique_index=True)
     node_name = StringProperty(required=True)
-
     description = StringProperty()
+
+    level = IntegerProperty(index=True, default=-1)
+    dependents_count = IntegerProperty(index=True, default=0)
+
 
     course = RelationshipTo(
         "Course",

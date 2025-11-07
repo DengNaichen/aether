@@ -9,6 +9,8 @@ from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
 from datetime import datetime, timezone
 
+from app.worker.grading_service import GradingService
+from app.worker.mastery_service import MasteryService
 
 import app.models.neo4j_model as neo
 from app.models.quiz import QuizAttempt, QuizStatus
@@ -27,7 +29,7 @@ def _create_or_update_course_sync(
         print(f"Node found: {course_id}")
 
     except DoesNotExist:
-        print(f"Node not found, creating: {course_id}")  # 调试日志
+        print(f"Node not found, creating: {course_id}")
         course_node = neo.Course(course_id=course_id,
                                  course_name=course_name).save()
         created = True
@@ -91,7 +93,7 @@ def _enroll_user_in_course_sync(
         user_node = neo.User(user_id=user_id, user_name=user_name).save()
         created = True
 
-    if not created and user_node.name != user_name:
+    if not created and user_node.user_name != user_name:
         # if the user already existed, will update the information
         user_node.user_name = user_name
         user_node.save()
@@ -113,7 +115,8 @@ async def handle_neo4j_enroll_a_student_in_a_course(
     user_name = payload.get("user_name")
 
     if not all([course_id, user_id, user_name]):
-        raise ValueError("❌, 缺少必要的参数: course_id, user_id, 或 user_name。")
+        raise ValueError("❌,Lack necessary parameters: course_id, user_id, "
+                         "or user_name。")
 
     try:
         async with ctx.neo4j_scoped_connection():
@@ -128,98 +131,13 @@ async def handle_neo4j_enroll_a_student_in_a_course(
 
     except ValueError as e:
         print(f"❌, enrollment failed: {e}")
+        raise
 
     except Exception as e:
-        print(f"❌, unknown error when enrolling student {user_id} ")
-
-
-def _grade_multiple_choice(user_answer: int, correct_answer: int) -> bool:
-    """Grade a multiple choice question.
-
-    Args:
-        user_answer: The user's selected answer
-        correct_answer: The correct answer
-
-    Returns:
-        True if the answer is correct, False otherwise
-    """
-    return user_answer == correct_answer
-
-
-def _grade_fill_in_blank(user_answer: str, expected_answers: list[str]) -> bool:
-    """Grade a fill-in-the-blank question.
-
-    Args:
-        user_answer: The user's answer
-        expected_answers: List of acceptable answers
-
-    Returns:
-        True if the user's answer matches any expected answer (case-insensitive)
-    """
-    normalized_user_answer = user_answer.lower().strip()
-    normalized_expected_answers = [ea.lower().strip() for ea in expected_answers]
-    return normalized_user_answer in normalized_expected_answers
-
-
-def _grade_calculation(user_answer: str, expected_answer: str, precision: int) -> bool:
-    """Grade a calculation question with precision tolerance.
-
-    Args:
-        user_answer: The user's numerical answer
-        expected_answer: The expected numerical answer
-        precision: Number of decimal places for precision
-
-    Returns:
-        True if the answer is within tolerance, False otherwise
-
-    Raises:
-        ValueError: If the answers cannot be converted to float
-    """
-    precision_tolerance = 10 ** -precision
-    expected_val = float(expected_answer)
-    user_val = float(user_answer)
-    return abs(user_val - expected_val) < precision_tolerance
-
-
-def grade_answer(question_node: neo.Question, user_answer_json: dict) -> bool:
-    """Grade a single answer based on the question type.
-
-    This function delegates to specific grading functions based on question type.
-
-    Args:
-        question_node: The question node from Neo4j
-        user_answer_json: Dictionary containing the user's answer with key 'user_answer'
-
-    Returns:
-        True if the answer is correct, False otherwise
-    """
-    try:
-        user_ans = user_answer_json.get("user_answer")
-
-        if user_ans is None:
-            return False
-
-        if isinstance(question_node, neo.MultipleChoice):
-            return _grade_multiple_choice(user_ans, question_node.correct_answer)
-
-        if isinstance(question_node, neo.FillInBlank):
-            return _grade_fill_in_blank(user_ans, question_node.expected_answer)
-
-        if isinstance(question_node, neo.Calculation):
-            return _grade_calculation(
-                user_ans,
-                question_node.expected_answer[0],
-                question_node.precision
-            )
-
-        logging.warning(f"Unknown question type for question {question_node.question_id}")
-        return False
-
-    except (TypeError, ValueError, AttributeError) as e:
-        logging.warning(
-            f"Grading error for question {question_node.question_id}: {e}"
-        )
-        return False
+        print(f"❌, unknown error when enrolling student {user_id}: {e}")
+        import traceback
+        traceback.print_exc()
+        raise
 
 
 def _validate_grading_payload(payload: dict) -> tuple[UUID, str] | tuple[None, None]:
@@ -240,75 +158,6 @@ def _validate_grading_payload(payload: dict) -> tuple[UUID, str] | tuple[None, N
             f"Invalid payload for handle_grade_submission: {e} | Payload {payload}"
         )
         return None, None
-
-
-def _update_mastery_level(
-    neo_user: neo.User,
-    knode: neo.KnowledgeNode,
-    is_correct: bool,
-    user_id_str: str
-) -> None:
-    """Update the mastery relationship between user and knowledge node.
-
-    Args:
-        neo_user: The user node from Neo4j
-        knode: The knowledge node to update mastery for
-        is_correct: Whether the answer was correct
-        user_id_str: User ID string for logging
-    """
-    rel = neo_user.mastery.relationship(knode)
-
-    if not rel:
-        logging.info(
-            f"Creating mastery relationship between user {user_id_str} "
-            f"and node {knode.node_id}"
-        )
-        rel = neo_user.mastery.connect(knode)
-
-    rel.score = 0.9 if is_correct else 0.2
-    rel.last_update = datetime.now(timezone.utc)
-    rel.save()
-
-
-def _grade_single_answer(
-    answer,
-    neo_user: neo.User,
-    user_id_str: str
-) -> bool:
-    """Grade a single answer and update mastery level.
-
-    Args:
-        answer: SubmissionAnswer object
-        neo_user: User node from Neo4j
-        user_id_str: User ID string for logging
-
-    Returns:
-        True if the answer is correct, False otherwise
-    """
-    question_node = neo.Question.nodes.get_or_none(
-        question_id=str(answer.question_id)
-    )
-
-    if not question_node:
-        logging.warning(
-            f"Question {answer.question_id} not found in Neo4j database, "
-            f"skipping answer"
-        )
-        answer.is_correct = False
-        return False
-
-    is_correct = grade_answer(question_node, answer.user_answer)
-    answer.is_correct = is_correct
-
-    knode = question_node.knowledge_node.get()
-    if not knode:
-        logging.warning(
-            f"Question {answer.question_id} not related to any knowledge node"
-        )
-        return is_correct
-
-    _update_mastery_level(neo_user, knode, is_correct, user_id_str)
-    return is_correct
 
 
 def _calculate_final_score(correct_count: int, total_questions: int) -> int:
@@ -389,8 +238,32 @@ async def handle_grade_submission(
                                                           "in graph"}
 
                 for answer in quiz_attempt.answers:
-                    if _grade_single_answer(answer, neo_user, user_id_str):
+                    grade_service = GradingService()
+                    grading_result = grade_service.fetch_and_grade(
+                        str(answer.question_id),
+                        answer.user_answer
+                    )
+                    question_id = grading_result.question_id
+                    is_correct = grading_result.is_correct
+                    if is_correct:
                         correct_count += 1
+
+                    # then here we do the update mastery level update
+                    # and propagate the levels
+                    mastery_service = MasteryService()
+                    knowledge_node = mastery_service.update_mastery_from_grading(
+                        neo_user,
+                        question_id,
+                        grading_result
+                    )
+
+                    # Propagate mastery updates through the knowledge graph
+                    if knowledge_node:
+                        mastery_service.propagate_mastery(
+                            neo_user,
+                            knowledge_node,
+                            is_correct
+                        )
 
             quiz_attempt.status = QuizStatus.COMPLETED
             quiz_attempt.submitted_at = datetime.now(timezone.utc)
