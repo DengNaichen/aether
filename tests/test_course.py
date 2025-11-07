@@ -287,3 +287,161 @@ class TestEnrollmentWorker:
             )
             assert enrolled_course is not None
             assert enrolled_course.course_id == course_id
+
+
+class TestFetchKnowledgeGraph:
+    @pytest.mark.asyncio
+    async def test_fetch_knowledge_graph_without_mastery(
+            self,
+            test_db_manager,
+            knowledge_graph_in_neo4j_db: dict,
+            course_in_neo4j_db: neo.Course,
+            user_in_neo4j_db: neo.User,
+    ):
+        """
+        Test fetching knowledge graph for a user without any mastery relationships.
+        All nodes should have default mastery score of 0.2.
+        """
+        from app.routes.courses import fetch_neo4j_knowledge_graph
+
+        async with test_db_manager.neo4j_scoped_connection():
+            result = await asyncio.to_thread(
+                fetch_neo4j_knowledge_graph,
+                course_in_neo4j_db.course_id,
+                user_in_neo4j_db.user_id
+            )
+
+        # Verify we got all 3 nodes
+        assert len(result.nodes) == 3
+        node_ids = {node.id for node in result.nodes}
+        assert node_ids == {"parent_topic", "subtopic_a", "subtopic_b"}
+
+        # Verify all nodes have default mastery score of 0.2
+        for node in result.nodes:
+            assert node.mastery_score == 0.2
+
+        # Verify we have both types of edges
+        assert len(result.edges) == 3  # 2 HAS_SUBTOPIC + 1 IS_PREREQUISITE_FOR
+
+        # Check HAS_SUBTOPIC edges
+        has_subtopic_edges = [e for e in result.edges if e.type == "HAS_SUBTOPIC"]
+        assert len(has_subtopic_edges) == 2
+        subtopic_targets = {e.target for e in has_subtopic_edges}
+        assert subtopic_targets == {"subtopic_a", "subtopic_b"}
+        for edge in has_subtopic_edges:
+            assert edge.source == "parent_topic"
+
+        # Check IS_PREREQUISITE_FOR edge
+        prereq_edges = [e for e in result.edges if e.type == "IS_PREREQUISITE_FOR"]
+        assert len(prereq_edges) == 1
+        assert prereq_edges[0].source == "subtopic_a"
+        assert prereq_edges[0].target == "subtopic_b"
+
+    @pytest.mark.asyncio
+    async def test_fetch_knowledge_graph_with_mastery(
+            self,
+            test_db_manager,
+            knowledge_graph_in_neo4j_db: dict,
+            course_in_neo4j_db: neo.Course,
+            user_in_neo4j_db: neo.User,
+    ):
+        """
+        Test fetching knowledge graph for a user with mastery relationships.
+        Nodes with mastery should show actual scores, others should default to 0.2.
+        """
+        from app.routes.courses import fetch_neo4j_knowledge_graph
+
+        # Create mastery relationship for subtopic_a
+        subtopic_a = knowledge_graph_in_neo4j_db['subtopic_a']
+        async with test_db_manager.neo4j_scoped_connection():
+            await asyncio.to_thread(
+                user_in_neo4j_db.mastery.connect,
+                subtopic_a,
+                {'score': 0.75, 'p_l0': 0.2, 'p_t': 0.3}
+            )
+
+            result = await asyncio.to_thread(
+                fetch_neo4j_knowledge_graph,
+                course_in_neo4j_db.course_id,
+                user_in_neo4j_db.user_id
+            )
+
+        # Verify we got all 3 nodes
+        assert len(result.nodes) == 3
+
+        # Find specific nodes and check their mastery scores
+        node_dict = {node.id: node for node in result.nodes}
+
+        # subtopic_a should have mastery score of 0.75
+        assert node_dict["subtopic_a"].mastery_score == 0.75
+
+        # Other nodes should have default score of 0.2
+        assert node_dict["parent_topic"].mastery_score == 0.2
+        assert node_dict["subtopic_b"].mastery_score == 0.2
+
+        # Verify edges are still correct
+        assert len(result.edges) == 3
+
+    @pytest.mark.asyncio
+    async def test_fetch_knowledge_graph_api_endpoint(
+            self,
+            authenticated_client: AsyncClient,
+            course_in_db,
+            knowledge_graph_in_neo4j_db: dict,
+            course_in_neo4j_db: neo.Course,
+            user_in_neo4j_db: neo.User,
+    ):
+        """
+        Test the API endpoint for fetching knowledge graph.
+        """
+        course_one, _ = course_in_db
+
+        # Make API request
+        response = await authenticated_client.get(
+            f"/courses/{course_one.id}/knowledge_graph"
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+
+        # Verify response structure
+        assert "nodes" in data
+        assert "edges" in data
+        assert isinstance(data["nodes"], list)
+        assert isinstance(data["edges"], list)
+
+        # Verify nodes
+        assert len(data["nodes"]) == 3
+        node_ids = {node["id"] for node in data["nodes"]}
+        assert node_ids == {"parent_topic", "subtopic_a", "subtopic_b"}
+
+        # Verify all nodes have mastery_score field
+        for node in data["nodes"]:
+            assert "id" in node
+            assert "name" in node
+            assert "description" in node
+            assert "mastery_score" in node
+            assert 0.0 <= node["mastery_score"] <= 1.0
+
+        # Verify edges
+        assert len(data["edges"]) == 3
+        for edge in data["edges"]:
+            assert "source" in edge
+            assert "target" in edge
+            assert "type" in edge
+            assert edge["type"] in ["IS_PREREQUISITE_FOR", "HAS_SUBTOPIC"]
+
+    @pytest.mark.asyncio
+    async def test_fetch_knowledge_graph_api_course_not_exist(
+            self,
+            authenticated_client: AsyncClient,
+    ):
+        """
+        Test API endpoint returns 404 for non-existent course.
+        """
+        response = await authenticated_client.get(
+            "/courses/non_existent_course/knowledge_graph"
+        )
+
+        assert response.status_code == 404
+        assert response.json()["detail"] == "Course does not exist"
