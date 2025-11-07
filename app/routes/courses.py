@@ -16,6 +16,7 @@ from app.schemas.courses import CourseCreate, CourseCreateResponse, CourseRespon
 from app.crud.crud import check_course_exist
 from app.models.enrollment import Enrollment
 from app.schemas.enrollment import EnrollmentResponse
+from app.schemas.knowledge_node import KnowledgeGraphVisualization
 import app.models.neo4j_model as neo
 
 logger = logging.getLogger(__name__)
@@ -301,3 +302,122 @@ async def fetch_all_courses(
         response_list.append(response)
 
     return response_list
+
+def fetch_neo4j_knowledge_graph(course_id: str, user_id: str):
+    """
+    Fetch the knowledge graph for a course with user mastery scores.
+
+    Returns a graph visualization with:
+    - All knowledge nodes belonging to the course
+    - All relationships (IS_PREREQUISITE_FOR and HAS_SUBTOPIC)
+    - User mastery scores (default 0.2 if no mastery relationship exists)
+
+    Args:
+        course_id: The course identifier
+        user_id: The user identifier
+
+    Returns:
+        KnowledgeGraphVisualization with nodes and edges
+    """
+    from neomodel import db
+    from app.schemas.knowledge_node import KnowledgeGraphVisualization, GraphNode, GraphEdge
+
+    # Fetch all knowledge nodes belonging to the course with user mastery scores
+    nodes_query = """
+    MATCH (c:Course {course_id: $course_id})<-[:BELONGS_TO]-(k:KnowledgeNode)
+    OPTIONAL MATCH (u:User {user_id: $user_id})-[m:HAS_MASTERY_ON]->(k)
+    RETURN k.node_id AS id,
+           k.node_name AS name,
+           k.description AS description,
+           COALESCE(m.score, 0.2) AS mastery_score
+    """
+
+    # Fetch all relationships between knowledge nodes in this course
+    edges_query = """
+    MATCH (c:Course {course_id: $course_id})<-[:BELONGS_TO]-(source:KnowledgeNode)
+    MATCH (c)<-[:BELONGS_TO]-(target:KnowledgeNode)
+    MATCH (source)-[r]->(target)
+    WHERE type(r) IN ['IS_PREREQUISITE_FOR', 'HAS_SUBTOPIC']
+    RETURN source.node_id AS source,
+           target.node_id AS target,
+           type(r) AS type
+    """
+
+    # Execute queries
+    nodes_results, _ = db.cypher_query(
+        nodes_query,
+        {"course_id": course_id, "user_id": user_id}
+    )
+    edges_results, _ = db.cypher_query(
+        edges_query,
+        {"course_id": course_id}
+    )
+
+    # Build nodes list
+    nodes = [
+        GraphNode(
+            id=row[0],
+            name=row[1],
+            description=row[2] or "",
+            mastery_score=row[3]
+        )
+        for row in nodes_results
+    ]
+
+    # Build edges list
+    edges = [
+        GraphEdge(
+            source=row[0],
+            target=row[1],
+            type=row[2]
+        )
+        for row in edges_results
+    ]
+
+    return KnowledgeGraphVisualization(nodes=nodes, edges=edges)
+
+
+@router.get(
+    "/{course_id}/knowledge_graph",
+    summary="retrieve knowledge graph",
+    response_model=KnowledgeGraphVisualization,
+)
+async def fetch_knowledge_graph(
+        course_id: str,
+        db: AsyncSession = Depends(get_db),
+        current_user: User = Depends(get_current_active_user),
+):
+    """
+    Retrieve the knowledge graph for a course with user mastery scores.
+
+    Returns all knowledge nodes belonging to the course along with their
+    relationships (IS_PREREQUISITE_FOR and HAS_SUBTOPIC) and the current
+    user's mastery scores for each node.
+
+    Args:
+        course_id: The course identifier
+        db: Database session
+        current_user: The authenticated user
+
+    Returns:
+        KnowledgeGraphVisualization: Graph structure with nodes and edges
+
+    Raises:
+        HTTPException 404: If the course does not exist
+    """
+    # Check if course exists in PostgreSQL
+    is_course_exist = await check_course_exist(course_id, db)
+    if not is_course_exist:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Course does not exist",
+        )
+
+    # Fetch the knowledge graph from Neo4j
+    result = await asyncio.to_thread(
+        fetch_neo4j_knowledge_graph,
+        course_id,
+        str(current_user.id)
+    )
+
+    return result
