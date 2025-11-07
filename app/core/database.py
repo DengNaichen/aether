@@ -109,8 +109,9 @@ class DatabaseManager:
 
             try:
                 config.DATABASE_URL = self.settings.NEOMODEL_NEO4J_URI
+                # Close existing driver if any before setting to None
                 if db.driver:
-                    db.driver = db.driver()
+                    db.driver.close()
                 db.driver = None
 
                 yield
@@ -234,6 +235,7 @@ class DatabaseManager:
         print(f"✅ All SQL tables Dropped.")
 
     async def create_neo4j_constraints(self):
+        # TODO: 
         """
         Create Neo4j constraints and indexes.
         You should customize this based on your schema.

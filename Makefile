@@ -24,9 +24,13 @@ help:
 	@echo "  redis-shell  - Open Redis CLI"
 	@echo ""
 	@echo "Testing:"
-	@echo "  test         - Run all tests"
+	@echo "  test-up      - Start isolated test database services"
+	@echo "  test-down    - Stop test database services"
+	@echo "  test         - Run all tests (requires test-up first)"
 	@echo "  test-v       - Run tests (verbose)"
 	@echo "  test-cov     - Run tests with coverage report"
+	@echo "  test-all     - Start test services, run tests, then stop"
+	@echo "  test-shell   - Connect to test database shells"
 	@echo ""
 	@echo "Utilities:"
 	@echo "  shell        - Open bash shell in web container"
@@ -109,17 +113,86 @@ redis-shell:
 shell:
 	docker-compose exec web bash
 
-# Run tests
+# ================================
+# Testing Commands
+# ================================
+
+# Start test database services
+test-up:
+	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+	@echo "🧪 Starting isolated test database services..."
+	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+	docker-compose -f docker-compose.test.yml up -d
+	@echo ""
+	@echo "✓ Test services started:"
+	@echo "  • PostgreSQL:  localhost:5433"
+	@echo "  • Redis:       localhost:6380"
+	@echo "  • Neo4j HTTP:  localhost:7475"
+	@echo "  • Neo4j Bolt:  localhost:7688"
+	@echo ""
+	@echo "Waiting for services to be healthy..."
+	@sleep 5
+	@echo ""
+	@echo "✓ Ready to run tests with: make test"
+
+# Stop test database services
+test-down:
+	@echo "🛑 Stopping test database services..."
+	docker-compose -f docker-compose.test.yml down
+	@echo "✓ Test services stopped"
+
+# Run tests (requires test services to be running)
 test:
-	docker-compose exec web uv run pytest
+	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+	@echo "🧪 Running tests..."
+	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+	uv run pytest
+	@echo ""
+	@echo "✓ Tests completed"
 
 test-v:
-	docker-compose exec web uv run pytest -v
+	@echo "🧪 Running tests (verbose)..."
+	uv run pytest -v
 
 test-cov:
-	docker-compose exec web uv run pytest --cov=app --cov-report=html
+	@echo "🧪 Running tests with coverage..."
+	uv run pytest --cov=app --cov-report=html --cov-report=term
 	@echo ""
-	@echo "Coverage report generated: htmlcov/index.html"
+	@echo "✓ Coverage report generated: htmlcov/index.html"
+
+# Run complete test cycle (up -> test -> down)
+test-all:
+	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+	@echo "🧪 Running complete test cycle..."
+	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+	@make test-up
+	@echo ""
+	@make test
+	@echo ""
+	@make test-down
+	@echo ""
+	@echo "✓ Test cycle completed"
+
+# Connect to test databases
+test-db-shell:
+	@echo "🔌 Connecting to test PostgreSQL..."
+	docker-compose -f docker-compose.test.yml exec test-db psql -U aether_user -d aether_test_db
+
+test-redis-shell:
+	@echo "🔌 Connecting to test Redis..."
+	docker-compose -f docker-compose.test.yml exec test-redis redis-cli
+
+# Clean test volumes (WARNING: deletes test data!)
+test-clean:
+	@echo "⚠️  WARNING: This will delete all test database data!"
+	@read -p "Are you sure? [y/N] " -n 1 -r; \
+	echo; \
+	if [[ $$REPLY =~ ^[Yy]$$ ]]; then \
+		docker-compose -f docker-compose.test.yml down -v; \
+		echo "✓ Test data cleaned up"; \
+	else \
+		echo "Cancelled"; \
+	fi
 
 # Initialize development data
 init-data:
@@ -145,3 +218,19 @@ clean:
 health:
 	@echo "Checking service health..."
 	@curl -s http://localhost:8000/health | python3 -m json.tool || echo "❌ Service not responding"
+
+# Show status of all database containers
+status:
+	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+	@echo "📊 Database Services Status"
+	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+	@echo ""
+	@echo "🔧 Development Databases:"
+	@docker-compose ps --format "table {{.Name}}\t{{.Status}}\t{{.Ports}}" 2>/dev/null | grep -E "db|redis|neo4j" || echo "  No development databases running"
+	@echo ""
+	@echo "🧪 Test Databases:"
+	@docker-compose -f docker-compose.test.yml ps --format "table {{.Name}}\t{{.Status}}\t{{.Ports}}" 2>/dev/null || echo "  No test databases running"
+	@echo ""
+	@echo "💡 Quick Reference:"
+	@echo "   Development: localhost:5432 (PostgreSQL), localhost:6379 (Redis), localhost:7474/7687 (Neo4j)"
+	@echo "   Test:        localhost:5433 (PostgreSQL), localhost:6380 (Redis), localhost:7475/7688 (Neo4j)"

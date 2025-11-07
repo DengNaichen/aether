@@ -3,8 +3,7 @@ import uuid
 
 from sqlalchemy import JSON, Boolean, Column, DateTime, UniqueConstraint
 from sqlalchemy import Enum as SQLAlchemyEnum
-from sqlalchemy import ForeignKey, Integer, String, func
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import ForeignKey, Integer, String, func, UUID
 from sqlalchemy.orm import relationship
 
 from app.models import Base  # 或者 from .base import Base

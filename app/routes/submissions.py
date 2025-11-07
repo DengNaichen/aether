@@ -81,7 +81,7 @@ async def submit_quiz_answer(
         task = {
             "task_type": "handle_grade_submission",
             "payload": {
-                "attempt_id": str(submission_id),
+                "submission_id": str(submission_id),
                 "user_id": str(current_user.id)
             }
         }

@@ -160,21 +160,23 @@ def _build_question_dict(
     return question_dict
 
 
-async def get_random_question_for_user(
+async def get_random_questions_for_user(
     neo_driver: AsyncDriver,
     user_id: str,
     course_id: str,
-) -> Dict[str, Any]:
+    num_questions: int = 1,
+) -> list[Dict[str, Any]]:
     """
-    Fetch a random question for a user from Neo4j.
+    Fetch random questions for a user from Neo4j.
 
     Args:
         neo_driver: Neo4j async driver instance
         user_id: The user's unique identifier
         course_id: The course's unique identifier
+        num_questions: Number of questions to fetch (default: 1)
 
     Returns:
-        Formatted question dictionary
+        List of formatted question dictionaries
 
     Raises:
         UserNotFoundInNeo4j: If user doesn't exist
@@ -188,7 +190,7 @@ async def get_random_question_for_user(
         course_id=course_id,
     )
 
-    # Fetch random question from Neo4j
+    # Fetch random questions from Neo4j
     random_question_query = """
         MATCH (:Course {course_id: $course_id})<-[:BELONGS_TO]-(kn:KnowledgeNode)
         MATCH (kn)<-[:TESTS]-(q)
@@ -196,25 +198,26 @@ async def get_random_question_for_user(
                kn.node_id as knowledge_node_id,
                labels(q) as q_labels
         ORDER BY rand()
-        LIMIT 1
+        LIMIT $num_questions
     """
     records, _, _ = await neo_driver.execute_query(  # type: ignore
         random_question_query,
-        {"course_id": course_id},
+        {"course_id": course_id, "num_questions": num_questions},
         database_="neo4j"
     )
 
     if not records:
         raise NoQuestionFoundInNeo4j(course_id=course_id)
 
-    # Extract data from Neo4j record
-    record = records[0]
-    flat_props = record.data()['q_props']
-    kn_id = record.data()['knowledge_node_id']
-    labels = record.data()['q_labels']
+    # Build list of formatted questions
+    questions = []
+    for record in records:
+        flat_props = record.data()['q_props']
+        kn_id = record.data()['knowledge_node_id']
+        labels = record.data()['q_labels']
+        questions.append(_build_question_dict(flat_props, kn_id, labels))
 
-    # Build and return formatted question dictionary
-    return _build_question_dict(flat_props, kn_id, labels)
+    return questions
 
 
 router = APIRouter(
@@ -335,16 +338,17 @@ async def start_a_quiz(
     await _check_existing_quiz_attempt(db, current_user.id, course_id)
 
     try:
-        # Fetch question from Neo4j
-        fetched_question = await get_random_question_for_user(
+        # Fetch questions from Neo4j
+        fetched_questions = await get_random_questions_for_user(
             neo_driver,
             str(current_user.id),
             course_id,
+            quiz_request.question_num,
         )
 
-        # Validate and parse question
-        questions_adapter = TypeAdapter(AnyQuestion)
-        parsed_question = questions_adapter.validate_python(fetched_question)
+        # Validate and parse questions
+        questions_adapter = TypeAdapter(list[AnyQuestion])
+        parsed_questions = questions_adapter.validate_python(fetched_questions)
 
         # Create quiz attempt in database
         quiz_attempt = await _create_quiz_attempt(
@@ -362,7 +366,7 @@ async def start_a_quiz(
             question_num=quiz_attempt.question_num,
             status=quiz_attempt.status,
             created_at=quiz_attempt.created_at,
-            questions=[parsed_question],
+            questions=parsed_questions,
         )
 
     except (UserNotFoundInNeo4j, CourseNotFoundOrNotEnrolledInNeo4j) as e:
