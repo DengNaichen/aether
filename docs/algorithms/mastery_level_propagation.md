@@ -1,5 +1,6 @@
 # Mastery Level Propagation Algorithm
-Refer to sign node [mastery level](./mastery_level_kbt.md)), assume the student name is Chloe.
+Refer to sign node [mastery level](./mastery_level_kbt.md), assume the student name is Chloe.
+
 ## Step 1: Initial Answer Processing
 
 This is the first step that runs immediately upon answer submission.
@@ -12,7 +13,7 @@ This is the first step that runs immediately upon answer submission.
     - Calculate the new $P(L_t)_{\text{final}}$ using the appropriate BKT update formulas (i.e., the "Correct" or "Incorrect" formula followed by the "Incorporating Learning" formula).
 4. **Save Update:** Save this new $P(L_t)_{\text{final}}$ mastery score to `Node_L`.
 
----
+
 
 ## Step 2: Trigger Propagation
 
@@ -25,10 +26,13 @@ This update recalculates the mastery of parent *topics* based on their component
 1. **Find Parent:** Find the parent `Node_P` where `(Node_L) <-[r:HAS_SUBTOPIC]- (Node_P)`.
 2. **Trigger Recalculation:** If `Node_P` exists, trigger a recalculation of its mastery score.
 3. **Calculation:** The mastery of `Node_P` is the **weighted sum** of *all* its subtopics' current masteries.
+
 $$
-\text{Mastery}(P) = \sum_{i} \left( \text{Mastery}(S_i) \cdot \text{weight}(r_i) \right)
+\mathrm{Mastery}(P) = \sum_{i} \Big( \mathrm{Mastery}(S_i) \cdot \mathrm{weight}(r_i) \Big)
 $$
+
 (Where $S_i$ is a subtopic and $r_i$ is its relationship to $P$).
+
 4. **Recurse:** This process is recursive. If `Node_P`'s score changes, it triggers a recalculation for *its* parent, continuing all the way up the `HAS_SUBTOPIC` hierarchy.
 
 ### Propagation Type 2: `IS_PREREQUISITE_FOR` (Logical Inference)
@@ -47,10 +51,8 @@ This update propagates inferences about dependent skills.
     - **Inference:** The cause is ambiguous. It could be a failure of `Node_L` or its prerequisite `Node_A`.
     - **Algorithm:**
         1. **DO NOT** propagate the failure backward. The mastery score of `Node_A` is *not* changed.
-        2. **Action:** Flag `Node_A` for the **recommendation engine**. The system's next move should be to test `Node_A` directly to resolve the ambiguity.
 
 **B. Forward Propagation (Updating future readiness)**
-TODO:
 
 - **Inference:** Mastering a prerequisite (`Node_L`) means Chloe is now prepared to learn the post-requisite (`Node_B`).
 - **Algorithm:**
@@ -59,6 +61,7 @@ TODO:
     3. This calculation should be based on the mastery of *all* of B's prerequisites. A simple, robust model is to use the *minimum* mastery of all its required prerequisites.
 
     $$
-    P(L_0)_{\text{Node\_B}} = \text{MIN}(\text{Mastery of all prerequisites of B})
+    P(L_0)_{\mathrm{Node\_B}} = \mathrm{MIN}(\mathrm{Mastery\ of\ all\ prerequisites\ of\ B})
     $$
+
     4. **Result:** The next time the Chloe sees a question for `Node_B`, the BKT calculation will start from this higher, more accurate $P(L_0)$, allowing for faster mastery.

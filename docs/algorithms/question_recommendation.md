@@ -26,10 +26,10 @@ The algorithm integrates:
 - `due_date`: Next review date (FSRS-based scheduling)
 - `p_l0`, `p_t`, `p_g`, `p_s`: BKT parameters (see [mastery_level_kbt.md](./mastery_level_kbt.md))
 
-### Graph Relationships
+### Graph Relationships (see [knowledge_graph.md](./knowledge_graph.md))
 
 - **`IS_PREREQUISITE_FOR`**: Defines prerequisite dependencies between nodes
-- **`HAS_SUBTOPIC`**: Hierarchical decomposition of topics (see [knowledge_graph.md](./knowledge_graph.md))
+- **`HAS_SUBTOPIC`**: Hierarchical decomposition of topics 
 - **`TESTS`**: Links questions to knowledge nodes
 
 ---
@@ -56,6 +56,7 @@ The algorithm follows a strict priority cascade:
 ### Priority 2: Remediation
 
 **Trigger:** Only if no review nodes are due.
+- [ ] TODO: Not sure if this makes sense.
 
 **Goal:** Strengthen weak or struggling nodes.
 
@@ -74,6 +75,7 @@ The algorithm follows a strict priority cascade:
 ### Priority 3: New Knowledge
 
 **Trigger:** Only if no review or remediation nodes are available.
+- [ ] TODO: again, not sure if this makes sense.
 
 **Goal:** Introduce new concepts when prerequisites are met.
 
@@ -84,9 +86,10 @@ The algorithm follows a strict priority cascade:
 2. For each candidate node:
    - Check all prerequisite nodes
    - Verify all prerequisites are mastered: `score >= threshold` (typically 0.7) OR `state = "review"`
-   - Calculate **quality score** = weighted average of prerequisite mastery scores
-   - If node has no prerequisites, assign quality = 1.0
-3. Keep only nodes where **all** prerequisites are mastered
+   - Calculate **quality score**
+      - weighted average of prerequisite mastery scores, right now, we might not consider the weight.
+      - If node has no prerequisites, assign quality = 1.0
+3. Keep only nodes where **all** prerequisites are mastered ?? 
 4. Sort by:
    - `level` (ASC) — Shallower nodes first (breadth-first learning)
    - `dependents_count` (DESC) — Nodes that unlock more content
@@ -97,59 +100,40 @@ The algorithm follows a strict priority cascade:
 
 ---
 
-## FSRS Integration
+## FSRS Integration 
 
-FSRS (Free Spaced Repetition Scheduler) manages review timing based on the forgetting curve:
+[FSRS (Free Spaced Repetition Scheduler)](https://github.com/open-spaced-repetition/awesome-fsrs) manages review 
 
-$$R(t) = e^{-t/S}$$
-
-**Where:**
-- $R(t)$ = Retrievability at time $t$
-- $t$ = Time elapsed since last review
-- $S$ = Stability (memory strength in days)
-
-**Key Parameters:**
-- **Stability**: Increases with successful reviews
-- **Difficulty**: Personalized per user and node
-- **Retrievability**: When $R(t)$ drops below threshold (e.g., 0.9), schedule review
-
-**FSRS Rating Mapping:**
-- Incorrect answer → `AGAIN` (relearn)
-- Correct + low mastery (< 0.65) → `HARD`
-- Correct + medium mastery (0.65-0.85) → `GOOD`
-- Correct + high mastery (> 0.85) → `EASY`
-
----
 
 ## Question Selection
 
 Once a node is selected, choose a specific question:
 
 **Difficulty Matching:**
-- Low mastery (< 0.3) → Easy questions
-- Medium mastery (0.3-0.6) → Medium questions
-- High mastery (> 0.6) → Hard questions
+- [ ] won't use it for this phase, but left a hook
+- ~~Low mastery (< 0.3) → Easy questions~~
+- ~~Medium mastery (0.3-0.6) → Medium questions~~
+- ~~High mastery (> 0.6) → Hard questions~~
 
 **Freshness:**
 - Avoid recently seen questions (track last N attempts)
 - Prefer questions not seen in recent history
 
----
+**Randomly Choose** questions based on the nodes.
+
+
 
 ## Special Cases
 
 ### New User (No Mastery Data)
 
-**Solution:** Find nodes with no prerequisites (foundation nodes) and start with easy questions to establish baseline.
+**Solution:** Find nodes with no prerequisites (foundation nodes)
+- [ ] Or better cold start solution, this problem is hard but important.
 
 ### No Available Nodes (Stuck)
 
-**Solution:** Identify weak nodes blocking the most prepared nodes. Prioritize remediation of high-impact blocking nodes.
+- [ ] Not sure when we gonna have this problem.
 
 ### All Content Mastered
 
 **Solution:** Focus on FSRS-scheduled reviews and hard questions on advanced topics.
-
-### Incorrect Answer (Diagnostic)
-
-**Solution:** Test prerequisite nodes directly to identify root cause. See [mastery_level_propagation.md](./mastery_level_propagation.md) for details.
