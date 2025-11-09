@@ -5,34 +5,26 @@ An adaptive learning platform for Ontario high school students, powered by knowl
 ## Core Features
 
 ### 1. Knowledge Graph-Based Curriculum
-[The design detail of the knowledge node](/docs/knowledge_graph.md)
+- [The design detail of the knowledge node](/docs/algorithms/knowledge_graph.md)
 - Models high school curriculum (Grade 11 Physics, Grade 12 Chemistry, etc.) as an interconnected graph
 - Tracks prerequisite relationships between concepts
 - Tracks subtopic for each concept node.
 
 ### 2. Mastery Tracking with BKT
-[Definition of BKT](/docs/mastery_level.md)
+- [Definition of BKT](/docs/algorithms/mastery_level_kbt.md)
 - Implements Bayesian Knowledge Tracing to model student understanding
 - Updates knowledge state after each answer
 - Predicts mastery probability for each concept node
 
 ### 3. Updating Mastery Level:
+- [details](/docs/algorithms/mastery_level_propagation.md)
 
-
-### 2. Adaptive Question Recommendation
-- [ ] 
+### 4. Adaptive Question Recommendation
+- [details](/docs/algorithms/question_recommendation.md)
 - Analyzes student performance history
 - Recommends problems tailored to current proficiency level
 - Uses Neo4j graph traversal to find optimal next concepts
 
-
-
-### 4. Automated Multi-Format Grading
-- [ ]
-- **Multiple Choice**: Instant feedback with explanation
-- **Fill-in-Blank**: Case-insensitive with whitespace normalization
-- **Calculation**: Tolerance-based numeric comparison
-- Async processing via Redis task queue
 
 ## Tech Stack
 
@@ -51,9 +43,9 @@ An adaptive learning platform for Ontario high school students, powered by knowl
 iOS App/Frontend
    ↓ REST API
 FastAPI Server
-   ├─→ PostgreSQL (user data, quizzes)
+   ├─→ PostgreSQL (user data, quizzes record)
    ├─→ Neo4j (knowledge graph, relationships)
-   └─→ Redis Queue → Worker (async grading)
+   └─→ Redis Queue → Worker (async grading, course creating, etc)
 ```
 
 **Design principle**: Keep it simple. Redis for queuing, no heavy message brokers.
@@ -88,9 +80,13 @@ docker-compose exec web uv run python scripts/setup_dev_course.py
 ```bash
 # Start services
 docker-compose up
+# or
+make up
 
 # Stop services (Ctrl+C, then)
 docker-compose down
+# or
+make down
 
 # View logs
 docker-compose logs -f
@@ -99,26 +95,6 @@ docker-compose logs -f
 docker-compose up --build
 ```
 
-### Alternative: Local Development (Without Docker)
-
-If you prefer running the app locally:
-
-```bash
-# 1. Install uv
-curl -LsSf https://astral.sh/uv/install.sh | sh
-
-# 2. Start only databases
-docker-compose up -d db redis
-
-# 3. Install dependencies
-uv sync
-
-# 4. Run API server
-uv run uvicorn app.main:app --reload
-
-# 5. Run worker (separate terminal)
-uv run python -m app.worker
-```
 
 
 ## How Adaptive Learning Works
@@ -134,6 +110,11 @@ uv run python -m app.worker
 4. **Next question** → Repeats with updated knowledge state
 
 ## Testing
+Start the docker test env first:
+```bash
+make test-up
+```
+Then run the tests:
 
 ```bash
 uv run pytest              # Run all tests
