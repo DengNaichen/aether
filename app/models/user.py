@@ -46,4 +46,8 @@ class User(Base):
     )
     refresh_token = Column(String, nullable=True, index=True)
 
+    # Password reset fields
+    reset_token = Column(String, nullable=True, index=True)
+    reset_token_expires_at = Column(TIMESTAMP(timezone=True), nullable=True)
+
     quiz_attempts = relationship("QuizAttempt", back_populates="user")

@@ -20,10 +20,24 @@ from app.crud.user import (
     get_user_by_email,
     get_user_by_id,
     update_refresh_token,
+    set_reset_token,
+    get_user_by_reset_token,
+    clear_reset_token,
+    update_password,
+)
+from app.core.security import (
+    generate_reset_token,
+    hash_reset_token,
 )
 from app.models.user import User
 from app.schemas.token import AccessToken, Token
-from app.schemas.user import UserCreate, UserRead
+from app.schemas.user import (
+    UserCreate,
+    UserRead,
+    PasswordResetRequest,
+    PasswordResetConfirm,
+    PasswordResetResponse,
+)
 
 router = APIRouter(
     prefix="/users",
@@ -169,3 +183,103 @@ async def read_users_me(
     current_user: User = Depends(get_current_active_user),
 ):
     return current_user
+
+
+@router.post("/password-reset/request", response_model=PasswordResetResponse)
+async def request_password_reset(
+    reset_request: PasswordResetRequest,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Request a password reset link.
+
+    This endpoint generates a secure reset token, stores it in the database,
+    and sends an email to the user with a reset link.
+
+    Args:
+        reset_request (PasswordResetRequest): Contains the email address
+        db (AsyncSession): Database session dependency
+
+    Returns:
+        PasswordResetResponse: Success message
+
+    Note:
+        For security, always returns success even if email doesn't exist
+        to prevent user enumeration attacks.
+    """
+    from datetime import datetime, timedelta, timezone
+    from app.services.email import send_password_reset_email
+
+    user = await get_user_by_email(db=db, email=reset_request.email)
+
+    if user:
+        # Generate a secure reset token
+        plain_token = generate_reset_token()
+        hashed_token = hash_reset_token(plain_token)
+
+        # Token expires in 1 hour
+        expires_at = datetime.now(timezone.utc) + timedelta(hours=1)
+
+        # Store hashed token in database
+        await set_reset_token(
+            db=db,
+            user_id=user.id,
+            hashed_token=hashed_token,
+            expires_at=expires_at
+        )
+
+        # Send email with reset link
+        try:
+            await send_password_reset_email(user.email, plain_token)
+        except Exception as e:
+            # Log error but don't reveal to user (security)
+            import logging
+            logging.error(f"Failed to send password reset email: {e}")
+
+    # Always return success to prevent email enumeration
+    return {
+        "message": "If the email exists, a password reset link has been sent"
+    }
+
+
+@router.post("/password-reset/confirm", response_model=PasswordResetResponse)
+async def confirm_password_reset(
+    reset_data: PasswordResetConfirm,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Reset password using a valid reset token.
+
+    This endpoint verifies the reset token and updates the user's password
+    if the token is valid and hasn't expired.
+
+    Args:
+        reset_data (PasswordResetConfirm): Contains the reset token and new password
+        db (AsyncSession): Database session dependency
+
+    Returns:
+        PasswordResetResponse: Success or error message
+
+    Raises:
+        HTTPException: If token is invalid, expired, or user not found
+    """
+    # Hash the provided token and look up user directly (O(1) operation)
+    hashed_token = hash_reset_token(reset_data.token)
+    user = await get_user_by_reset_token(db=db, hashed_token=hashed_token)
+
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired reset token"
+        )
+
+    # Update the password
+    await update_password(db=db, user_id=user.id, new_password=reset_data.new_password)
+
+    # Clear the reset token
+    await clear_reset_token(db=db, user_id=user.id)
+
+    # Optional: Clear all refresh tokens to log user out of all sessions
+    await update_refresh_token(db=db, user_id=user.id, token=None)
+
+    return {"message": "Password has been reset successfully"}
