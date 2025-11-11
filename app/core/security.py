@@ -3,7 +3,6 @@ from datetime import datetime, timedelta, timezone
 
 from jose import jwt
 from passlib.context import CryptContext
-from psutil import users
 from pydantic import EmailStr
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -19,7 +18,7 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 SECRET_KEY = settings.SECRET_KEY
 ALGORITHM = settings.ALGORITHM
 REFRESH_TOKEN_EXPIRE_DAY = settings.REFRESH_TOKEN_EXPIRE_DAYS
-ACCESS_TOKEN_EXPIRE_MINUTES = 1440
+ACCESS_TOKEN_EXPIRE_MINUTES = settings.ACCESS_TOKEN_EXPIRE_MINUTES
 
 
 def get_password_hash(password: str) -> str:
