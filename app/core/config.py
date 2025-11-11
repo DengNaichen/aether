@@ -35,6 +35,11 @@ class Settings(BaseSettings):
     NEO4J_PASSWORD: str
     NEO4J_DATABASE: str
 
+    # Email config (Resend)
+    RESEND_API_KEY: str 
+    FRONTEND_URL: str = Field(default="http://localhost:3000")  # Default for local dev
+    EMAIL_FROM: str
+
     @property
     def is_testing(self) -> bool:
         return self.ENVIRONMENT == "test"

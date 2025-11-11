@@ -1,3 +1,4 @@
+import secrets
 import uuid
 from datetime import datetime, timedelta, timezone
 
@@ -166,3 +167,48 @@ async def authenticate_user(
     if not verify_password(password, user.hashed_password):
         return None
     return user
+
+
+def generate_reset_token() -> str:
+    """
+    Generate a cryptographically secure random token for password reset.
+
+    Returns:
+        str: A 32-character URL-safe token
+
+    Example:
+        >>> token = generate_reset_token()
+        >>> print(token)
+        'k7j9m2n4p6q8r0s1t3u5v7w9x1y3z5'
+    """
+    return secrets.token_urlsafe(32)
+
+
+def hash_reset_token(token: str) -> str:
+    """
+    Hash a reset token using SHA-256 for fast, secure database lookups.
+
+    We use SHA-256 instead of bcrypt to enable direct database lookups
+    while still protecting tokens if the database is compromised.
+
+    Why SHA-256 is safe here:
+    - Reset tokens have 256 bits of cryptographic randomness
+    - Impossible to reverse or brute-force
+    - Allows O(1) database lookups vs O(n) with bcrypt
+
+    Args:
+        token (str): The plain reset token from secrets.token_urlsafe(32)
+
+    Returns:
+        str: SHA-256 hex digest (64 characters)
+
+    Example:
+        >>> token = "VGhpcyBpcyBhIHRlc3Q"
+        >>> hashed = hash_reset_token(token)
+        >>> print(len(hashed))
+        64
+        >>> # Store: user.reset_token = hashed
+        >>> # Lookup: WHERE reset_token = hash_reset_token(input)
+    """
+    import hashlib
+    return hashlib.sha256(token.encode()).hexdigest()

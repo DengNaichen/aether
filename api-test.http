@@ -1,0 +1,49 @@
+### Aether API Tests
+### Base URL
+@baseUrl = http://localhost:8000
+@email = test@gmail.com
+@password = newPassword456
+@token = PlVqaPuB1wM4AlAFK63JZz4l9Pvzar96qKbAIfn5hsA
+### 1. Register a new user
+POST {{baseUrl}}/users/register
+Content-Type: application/json
+
+{
+  "email": "{{email}}",
+  "password": "{{password}}",
+  "name": "Test User"
+}
+
+### 2. Login
+# @name login
+POST {{baseUrl}}/users/login
+Content-Type: application/x-www-form-urlencoded
+
+username={{email}}&password={{password}}
+
+### 3. Get current user (requires login first)
+@accessToken = {{login.response.body.access_token}}
+
+GET {{baseUrl}}/users/me
+Authorization: Bearer {{accessToken}}
+
+### 4. Request password reset
+POST {{baseUrl}}/users/password-reset/request
+Content-Type: application/json
+
+{
+  "email": "{{email}}"
+}
+
+### 5. Confirm password reset (use token from console/email)
+POST {{baseUrl}}/users/password-reset/confirm
+Content-Type: application/json
+
+{
+  "token": "{{token}}",
+  "new_password": "newPassword456"
+}
+
+### 6. Logout
+POST {{baseUrl}}/users/logout
+Authorization: Bearer {{accessToken}}

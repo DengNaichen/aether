@@ -82,7 +82,7 @@ class adminUserUpdate(BaseModel):
     Attributes:
         email (Optional[EmailStr]): The user's email address.
         name (Optional[str]): The user's full name.
-        password (Optional[str]): The user's password. It will be hashed before 
+        password (Optional[str]): The user's password. It will be hashed before
             storing in the database.
         is_admin (Optional[bool]): Indicates if the user has admin privileges.
         is_active (Optional[bool]): Indicates if the user account is active.
@@ -92,3 +92,36 @@ class adminUserUpdate(BaseModel):
     password: str | None = None
     is_admin: bool | None = None
     is_active: bool | None = None
+
+
+class PasswordResetRequest(BaseModel):
+    """Schema for requesting a password reset.
+
+    User provides their email to receive a reset link.
+
+    Attributes:
+        email (EmailStr): The email address of the account to reset.
+    """
+    email: EmailStr
+
+
+class PasswordResetConfirm(BaseModel):
+    """Schema for confirming a password reset.
+
+    User provides the reset token and their new password.
+
+    Attributes:
+        token (str): The password reset token from the email link.
+        new_password (str): The new password to set (min 8 characters).
+    """
+    token: str
+    new_password: str
+
+
+class PasswordResetResponse(BaseModel):
+    """Schema for password reset response.
+
+    Attributes:
+        message (str): Success or error message.
+    """
+    message: str

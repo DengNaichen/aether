@@ -86,12 +86,139 @@ async def update_refresh_token(
 
     Returns:
         User | None: The updated user object if found, otherwise None.
-            
+
     """
     user = await db.get(User, user_id)
     if not user:
         return None
     user.refresh_token = token
+    await db.commit()
+    await db.refresh(user)
+    return user
+
+
+async def set_reset_token(
+    db: AsyncSession,
+    *,
+    user_id: UUID,
+    hashed_token: str,
+    expires_at: any
+) -> User | None:
+    """
+    Set a password reset token for a user.
+
+    Args:
+        db (AsyncSession): The database session.
+        user_id (UUID): The unique identifier of the user.
+        hashed_token (str): The hashed reset token to store.
+        expires_at (datetime): When the token expires.
+
+    Returns:
+        User | None: The updated user object if found, otherwise None.
+
+    Example:
+        >>> from datetime import datetime, timedelta, timezone
+        >>> expires = datetime.now(timezone.utc) + timedelta(hours=1)
+        >>> user = await set_reset_token(
+        ...     db, user_id=user.id,
+        ...     hashed_token=hashed,
+        ...     expires_at=expires
+        ... )
+    """
+    user = await db.get(User, user_id)
+    if not user:
+        return None
+
+    user.reset_token = hashed_token
+    user.reset_token_expires_at = expires_at
+    await db.commit()
+    await db.refresh(user)
+    return user
+
+
+async def get_user_by_reset_token(
+    db: AsyncSession,
+    hashed_token: str
+) -> User | None:
+    """
+    Find a user by their hashed password reset token.
+
+    This function performs a direct O(1) database lookup using the token index.
+    It also checks that the token hasn't expired.
+
+    Args:
+        db (AsyncSession): The database session.
+        hashed_token (str): The SHA-256 hashed reset token.
+
+    Returns:
+        User | None: The user object if found and token not expired, None otherwise.
+
+    Example:
+        >>> from app.core.security import hash_reset_token
+        >>> from datetime import datetime, timezone
+        >>> plain_token = "abc123xyz..."  # From user's reset link
+        >>> hashed = hash_reset_token(plain_token)
+        >>> user = await get_user_by_reset_token(db, hashed)
+        >>> if user:
+        ...     # Token is valid and not expired, can reset password
+    """
+    from datetime import datetime, timezone
+
+    result = await db.execute(
+        select(User).where(
+            User.reset_token == hashed_token,
+            User.reset_token_expires_at > datetime.now(timezone.utc)
+        )
+    )
+    return result.scalar_one_or_none()
+
+
+async def clear_reset_token(
+    db: AsyncSession,
+    user_id: UUID
+) -> User | None:
+    """
+    Clear the password reset token after successful reset.
+
+    Args:
+        db (AsyncSession): The database session.
+        user_id (UUID): The unique identifier of the user.
+
+    Returns:
+        User | None: The updated user object if found, otherwise None.
+    """
+    user = await db.get(User, user_id)
+    if not user:
+        return None
+
+    user.reset_token = None
+    user.reset_token_expires_at = None
+    await db.commit()
+    await db.refresh(user)
+    return user
+
+
+async def update_password(
+    db: AsyncSession,
+    user_id: UUID,
+    new_password: str
+) -> User | None:
+    """
+    Update a user's password.
+
+    Args:
+        db (AsyncSession): The database session.
+        user_id (UUID): The unique identifier of the user.
+        new_password (str): The new password (will be hashed).
+
+    Returns:
+        User | None: The updated user object if found, otherwise None.
+    """
+    user = await db.get(User, user_id)
+    if not user:
+        return None
+
+    user.hashed_password = get_password_hash(new_password)
     await db.commit()
     await db.refresh(user)
     return user
