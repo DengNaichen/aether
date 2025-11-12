@@ -19,7 +19,6 @@
 # ===================================================================
 
 # Virtual Environment
-# 通常命名为 venv, env, .venv, .env.dev 等
 venv/
 env/
 .venv/
@@ -65,7 +64,6 @@ MANIFEST
 
 # =_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=
 # IMPORTANT: Environment variables file
-# 包含了你的数据库密码、SECRET_KEY等敏感信息，绝对不能上传！
 .env
 .env.*
 *.env
@@ -119,3 +117,9 @@ playground.xcworkspace
 .ipynb_checkpoints/
 
 *.rdb
+
+# ===================================================================
+# Temporary files and directories
+# ===================================================================
+temp/
+**/temp/

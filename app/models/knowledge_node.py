@@ -265,24 +265,26 @@ class Question(Base):
     Assessment question linked to a knowledge node.
 
     Questions are stored with flexible JSONB schema to support multiple types:
-    - Multiple Choice: {options: [...], correct_answer: int, p_g: float}
-    - Fill in Blank: {expected_answers: [...], p_g: float}
-    - Calculation: {expected_answers: [...], precision: int, p_g: float}
+    - Multiple Choice: {question_type: "multiple_choice", options: [...], correct_answer: int, p_g: float, p_s: float}
+    - Fill in Blank: {question_type: "fill_in_the_blank", expected_answers: [...], p_g: float, p_s: float}
+    - Calculation: {question_type: "calculation", expected_answers: [...], precision: int, p_g: float, p_s: float}
 
     Attributes:
         id: Internal primary key (UUID)
         graph_id: Which graph this question belongs to
         node_id: Which node this question tests
-        question_type: Type (multiple_choice, fill_blank, calculation)
+        question_type: Type (multiple_choice, fill_blank, calculation) - duplicated in details for validation
         text: Question prompt
-        details: Question-specific data as JSONB
+        details: Question-specific data as JSONB (includes question_type, p_g, and p_s)
         difficulty: Difficulty level (easy, medium, hard)
-        p_s: Slip probability (0.0-1.0, chance of error despite mastery)
         created_by: Optional creator user ID (for attribution)
         created_at: Creation timestamp
 
-    Note:
-        - p_g (guess probability) is stored in details JSONB
+    Design Note:
+        - question_type is stored both as a column AND in details JSONB:
+          * Column: For efficient SQL queries/filtering (e.g., "get all multiple choice questions")
+          * JSONB: For Pydantic discriminated union validation in API schemas
+        - p_g (guess probability) and p_s (slip probability) are stored only in details JSONB
         - Questions should link to LEAF nodes (no subtopics)
         - created_by is optional for future PR/contribution features
     """
@@ -298,9 +300,8 @@ class Question(Base):
     node_id = Column(String, nullable=False)
     question_type = Column(String, nullable=False)
     text = Column(Text, nullable=False)
-    details = Column(JSONB, nullable=False)  # Flexible schema
+    details = Column(JSONB, nullable=False)  # (includes p_g and p_s)
     difficulty = Column(String, nullable=False)
-    p_s = Column(Float, default=0.1, nullable=False)  # Slip probability
 
     # Optional: track who created this question (for future PR features)
     created_by = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"))
@@ -316,7 +317,6 @@ class Question(Base):
             ["knowledge_nodes.graph_id", "knowledge_nodes.node_id"],
             ondelete="CASCADE",
         ),
-        CheckConstraint("p_s >= 0.0 AND p_s <= 1.0", name="ck_question_p_s"),
         CheckConstraint(
             f"question_type IN ('{QuestionType.MULTIPLE_CHOICE.value}', "
             f"'{QuestionType.FILL_BLANK.value}', '{QuestionType.CALCULATION.value}')",
