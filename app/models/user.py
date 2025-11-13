@@ -142,7 +142,7 @@ class UserMastery(Base):
         primary_key=True,
         nullable=False,
     )
-    node_id = Column(String, primary_key=True, nullable=False)
+    node_id = Column(UUID(as_uuid=True), primary_key=True, nullable=False)
 
     # BKT parameters
     score = Column(Float, default=0.1, nullable=False)
@@ -171,7 +171,7 @@ class UserMastery(Base):
     __table_args__ = (
         ForeignKeyConstraint(
             ["graph_id", "node_id"],
-            ["knowledge_nodes.graph_id", "knowledge_nodes.node_id"],
+            ["knowledge_nodes.graph_id", "knowledge_nodes.id"],
             ondelete="CASCADE",
         ),
         # BKT constraints

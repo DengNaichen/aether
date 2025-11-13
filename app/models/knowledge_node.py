@@ -83,7 +83,6 @@ class KnowledgeNode(Base):
         ForeignKey("knowledge_graphs.id", ondelete="CASCADE"),
         nullable=False,
     )
-    node_id = Column(String, nullable=False)
     node_name = Column(String, nullable=False)
     description = Column(Text)
 
@@ -99,14 +98,14 @@ class KnowledgeNode(Base):
     questions = relationship("Question", back_populates="node", cascade="all, delete-orphan")
 
     __table_args__ = (
-        UniqueConstraint("graph_id", "node_id", name="uq_graph_node_id"),
+        UniqueConstraint("graph_id", "id", name="uq_graph_node_uuid"),
         Index("idx_nodes_graph", "graph_id"),
-        Index("idx_nodes_graph_node", "graph_id", "node_id"),
+        Index("idx_nodes_graph_id", "graph_id", "id"),
         Index("idx_nodes_level", "graph_id", "level"),  # For topological queries
     )
 
     def __repr__(self):
-        return f"<KnowledgeNode {self.node_name} ({self.node_id}) in graph {self.graph_id}>"
+        return f"<KnowledgeNode {self.node_name} (id={self.id}) in graph {self.graph_id}>"
 
 
 class Prerequisite(Base):
@@ -118,8 +117,8 @@ class Prerequisite(Base):
 
     Attributes:
         graph_id: Which graph this relationship belongs to
-        from_node_id: The prerequisite node
-        to_node_id: The target node
+        from_node_id: The prerequisite node UUID
+        to_node_id: The target node UUID
         weight: Importance (0.0-1.0, default 1.0 = critical)
         created_at: When this relationship was created
 
@@ -137,27 +136,26 @@ class Prerequisite(Base):
         primary_key=True,
         nullable=False,
     )
-    from_node_id = Column(String, primary_key=True, nullable=False)
-    to_node_id = Column(String, primary_key=True, nullable=False)
+    from_node_id = Column(UUID(as_uuid=True), primary_key=True, nullable=False)
+    to_node_id = Column(UUID(as_uuid=True), primary_key=True, nullable=False)
     weight = Column(Float, default=1.0, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     __table_args__ = (
         ForeignKeyConstraint(
-            # This constraint make sure from_node_id has to be in the same graph
+            # This constraint ensures from_node_id belongs to the same graph
             ["graph_id", "from_node_id"],
-            ["knowledge_nodes.graph_id", "knowledge_nodes.node_id"],
+            ["knowledge_nodes.graph_id", "knowledge_nodes.id"],
             ondelete="CASCADE",
         ),
         ForeignKeyConstraint(
-            # This constraint make sure to_node_id has to be in the same graph
+            # This constraint ensures to_node_id belongs to the same graph
             ["graph_id", "to_node_id"],
-            ["knowledge_nodes.graph_id", "knowledge_nodes.node_id"],
+            ["knowledge_nodes.graph_id", "knowledge_nodes.id"],
             ondelete="CASCADE",
         ),
         CheckConstraint("weight >= 0.0 AND weight <= 1.0", name="ck_prerequisite_weight"),
-        # TODO: Add self-reference prevention
-        # CheckConstraint("from_node_id != to_node_id", name="ck_no_self_prerequisite"),
+        CheckConstraint("from_node_id != to_node_id", name="ck_no_self_prerequisite"),
         Index("idx_prereq_graph_from", "graph_id", "from_node_id"),
         Index("idx_prereq_graph_to", "graph_id", "to_node_id"),
     )
@@ -180,8 +178,8 @@ class Subtopic(Base):
 
     Attributes:
         graph_id: Which graph this relationship belongs to
-        parent_node_id: The parent topic
-        child_node_id: The subtopic
+        parent_node_id: The parent topic UUID
+        child_node_id: The subtopic UUID
         weight: Contribution to parent (0.0-1.0, should sum to 1.0 for siblings)
         created_at: When this relationship was created
 
@@ -198,27 +196,26 @@ class Subtopic(Base):
         primary_key=True,
         nullable=False,
     )
-    parent_node_id = Column(String, primary_key=True, nullable=False)
-    child_node_id = Column(String, primary_key=True, nullable=False)
+    parent_node_id = Column(UUID(as_uuid=True), primary_key=True, nullable=False)
+    child_node_id = Column(UUID(as_uuid=True), primary_key=True, nullable=False)
     weight = Column(Float, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     __table_args__ = (
         ForeignKeyConstraint(
-            # This constraint make sure parent_node_id has to be in the same graph
+            # This constraint ensures parent_node_id belongs to the same graph
             ["graph_id", "parent_node_id"],
-            ["knowledge_nodes.graph_id", "knowledge_nodes.node_id"],
+            ["knowledge_nodes.graph_id", "knowledge_nodes.id"],
             ondelete="CASCADE",
         ),
         ForeignKeyConstraint(
-            # This constraint make sure child_node_id has to be in the same graph
+            # This constraint ensures child_node_id belongs to the same graph
             ["graph_id", "child_node_id"],
-            ["knowledge_nodes.graph_id", "knowledge_nodes.node_id"],
+            ["knowledge_nodes.graph_id", "knowledge_nodes.id"],
             ondelete="CASCADE",
         ),
         CheckConstraint("weight >= 0.0 AND weight <= 1.0", name="ck_subtopic_weight"),
-        # TODO: Add self-reference prevention
-        # CheckConstraint("parent_node_id != child_node_id", name="ck_no_self_subtopic"),
+        CheckConstraint("parent_node_id != child_node_id", name="ck_no_self_subtopic"),
         Index("idx_subtopic_graph_parent", "graph_id", "parent_node_id"),
         Index("idx_subtopic_graph_child", "graph_id", "child_node_id"),
     )

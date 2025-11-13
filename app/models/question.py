@@ -46,7 +46,7 @@ class Question(Base):
     Attributes:
         id: Internal primary key (UUID)
         graph_id: Which graph this question belongs to
-        node_id: Which node this question tests
+        node_id: Which node UUID this question tests
         question_type: Type (multiple_choice, fill_blank, calculation) - duplicated in details for validation
         text: Question prompt
         details: Question-specific data as JSONB (includes question_type, p_g, and p_s)
@@ -71,7 +71,7 @@ class Question(Base):
         ForeignKey("knowledge_graphs.id", ondelete="CASCADE"),
         nullable=False,
     )
-    node_id = Column(String, nullable=False)
+    node_id = Column(UUID(as_uuid=True), nullable=False)
     question_type = Column(String, nullable=False)
     text = Column(Text, nullable=False)
     details = Column(JSONB, nullable=False)  # (includes p_g and p_s)
@@ -88,7 +88,7 @@ class Question(Base):
     __table_args__ = (
         ForeignKeyConstraint(
             ["graph_id", "node_id"],
-            ["knowledge_nodes.graph_id", "knowledge_nodes.node_id"],
+            ["knowledge_nodes.graph_id", "knowledge_nodes.id"],
             ondelete="CASCADE",
         ),
         CheckConstraint(
