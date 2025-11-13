@@ -37,6 +37,27 @@ class KnowledgeNodeResponse(BaseModel):
         from_attributes = True
 
 
+class GraphNode(BaseModel):
+    """Node representation for knowledge graph visualization."""
+    id: str
+    name: str
+    description: str
+    mastery_score: float  # 0.0 to 1.0, default 0.2 if no relationship exists
+
+
+class GraphEdge(BaseModel):
+    """Edge representation for knowledge graph visualization."""
+    source: str  # source node_id
+    target: str  # target node_id
+    type: str  # "IS_PREREQUISITE_FOR" or "HAS_SUBTOPIC"
+
+
+class KnowledgeGraphVisualization(BaseModel):
+    """Complete knowledge graph for visualization."""
+    nodes: list[GraphNode]
+    edges: list[GraphEdge]
+
+
 
 
 

@@ -254,8 +254,7 @@ class MasteryService:
         # (Recommendation engine is handled elsewhere)
 
         # Type 2B: Forward propagation - update p_l0 for dependent nodes
-        # todo: need to implement
-        # self._update_dependent_p_l0(user, knowledge_node)
+        self._update_dependent_p_l0(user, knowledge_node)
 
         logging.info(
             f"Completed propagation for user {user.user_id} on node {knowledge_node.node_id}"
@@ -415,3 +414,114 @@ class MasteryService:
 
             # Recursively propagate to grandparents
             self._propagate_to_parents(user, parent_node)
+
+    def _update_dependent_p_l0(
+        self,
+        user: neo.User,
+        knowledge_node: neo.KnowledgeNode
+    ) -> None:
+        """Forward propagation: Update p_l0 for dependent nodes.
+
+        Algorithm from docs:
+        When a user masters a prerequisite node, we should increase the prior
+        knowledge probability (p_l0) for all dependent nodes that require this
+        prerequisite. This reflects that mastering prerequisites improves the
+        likelihood of already knowing the dependent skills.
+
+        The p_l0 update is based on:
+        1. The user's current mastery score on the prerequisite
+        2. The weight/importance of the prerequisite relationship
+        3. Only affects nodes the user hasn't been assessed on yet (or has low mastery)
+
+        Args:
+            user: The user node
+            knowledge_node: The prerequisite node that was just updated
+        """
+        # Find all dependent nodes that have current node as their prerequisite
+        # In neomodel:
+        # - prerequisites = RelationshipTo: (node)-[:IS_PREREQUISITE_FOR]->(its_prereq)
+        # - is_prerequisite_for = RelationshipFrom: (node)<-[:IS_PREREQUISITE_FOR]-(dependent)
+        # So when we call node_a.is_prerequisite_for.connect(node_b),
+        # it creates: (node_b)-[:IS_PREREQUISITE_FOR]->(node_a)
+        # meaning node_a is a prerequisite of node_b
+        #
+        # We want to find nodes that have current node as prerequisite:
+        # (dependent)-[:IS_PREREQUISITE_FOR]->(knowledge_node)
+
+        query = """
+        MATCH (dependent:KnowledgeNode)-[:IS_PREREQUISITE_FOR]->
+              (prereq:KnowledgeNode {node_id: $node_id})
+        RETURN dependent
+        """
+
+        from neomodel import db
+        results, _ = db.cypher_query(
+            query,
+            {"node_id": knowledge_node.node_id}
+        )
+
+        if not results:
+            logging.debug(
+                f"Node {knowledge_node.node_id} has no dependent nodes, "
+                f"skipping forward propagation"
+            )
+            return
+
+        dependent_nodes = [neo.KnowledgeNode.inflate(row[0]) for row in results]
+
+        logging.info(
+            f"Forward propagation: Found {len(dependent_nodes)} dependent nodes "
+            f"for node {knowledge_node.node_id}"
+        )
+
+        # Get current mastery score on this prerequisite
+        prerequisite_rel = user.mastery.relationship(knowledge_node)
+        if not prerequisite_rel:
+            logging.debug(
+                f"User has no mastery on prerequisite {knowledge_node.node_id}, "
+                f"skipping forward propagation"
+            )
+            return
+
+        prerequisite_mastery = prerequisite_rel.score
+
+        # Only propagate if prerequisite mastery is reasonably high
+        if prerequisite_mastery < 0.5:
+            logging.debug(
+                f"Prerequisite {knowledge_node.node_id} mastery too low "
+                f"({prerequisite_mastery:.3f}), skipping forward propagation"
+            )
+            return
+
+        # Update p_l0 for each dependent node
+        for dependent_node in dependent_nodes:
+            # Get or create mastery relationship for dependent node
+            dependent_rel = user.mastery.relationship(dependent_node)
+
+            if not dependent_rel:
+                # User hasn't been assessed on this node yet
+                # Create the relationship with updated p_l0
+                dependent_rel = user.mastery.connect(dependent_node)
+                old_p_l0 = dependent_rel.p_l0
+            else:
+                old_p_l0 = dependent_rel.p_l0
+
+            # Calculate new p_l0 based on prerequisite mastery
+            # Formula: new_p_l0 = old_p_l0 + (prerequisite_mastery - old_p_l0) * influence
+            # influence_factor represents how much the prerequisite affects the dependent
+            influence_factor = 0.3  # Conservative influence (30%)
+
+            # New p_l0 should be bounded between old value and prerequisite mastery
+            p_l0_boost = (prerequisite_mastery - old_p_l0) * influence_factor
+            new_p_l0 = min(0.9, max(old_p_l0, old_p_l0 + p_l0_boost))
+
+            # Update the p_l0
+            dependent_rel.p_l0 = new_p_l0
+            dependent_rel.last_update = datetime.now(timezone.utc)
+            dependent_rel.save()
+
+            logging.debug(
+                f"Updated p_l0 for dependent {dependent_node.node_id}: "
+                f"{old_p_l0:.3f} -> {new_p_l0:.3f} "
+                f"(based on prerequisite mastery {prerequisite_mastery:.3f})"
+            )

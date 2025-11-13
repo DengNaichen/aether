@@ -439,8 +439,9 @@ async def knowledge_graph_in_neo4j_db(
         )
 
         # Create IS_PREREQUISITE_FOR relationship
+        # subtopic_a is prerequisite for subtopic_b
         await asyncio.to_thread(
-            subtopic_a.is_prerequisite_for.connect,
+            subtopic_a.prerequisites.connect,
             subtopic_b
         )
 
@@ -482,7 +483,10 @@ async def enrolled_user_client(
     user_in_db: User,
     course_in_db: Course,
 ):
-    """提供一个已认证且其用户已注册了课程的客户端。"""
+    """
+    Provide a client who already enrolled in a course, 
+    and of course, authenticated.
+    """
     course_one, _ = course_in_db
     new_enrollment = Enrollment(
         user_id=user_in_db.id,
@@ -504,42 +508,3 @@ async def cleanup_test_db():
 
     if os.path.exists("./test_db.sqlite"):
         os.remove("./test_db.sqlite")
-
-
-# ==================================================================
-# === MOCK Fixtures for unit test ===
-# ==================================================================
-# @pytest.fixture(scope="function")
-# def mock_redis_client() -> MagicMock:
-#     client = MagicMock(spec=Redis)
-#     client.lpush = AsyncMock(return_value=1)
-#     return client
-#
-#
-# @pytest.fixture(scope="function")
-# def mock_upload_file() -> MagicMock:
-#     file_content = [b"header1, header2\n", b"value1, value2\n", b""]
-#
-#     file = MagicMock(spec=UploadFile)
-#     file.content_type = "test/csv"
-#     file.filename = "test.csv"
-#     file.read = AsyncMock(side_effect=file_content)
-#     file.close = AsyncMock()
-#     return file
-#
-#
-# @pytest.fixture(scope="function")
-# def mock_aiofiles_open(mocker):
-#     mock_file_handle = AsyncMock()
-#     mock_file_handle.write = AsyncMock()
-#
-#     mock_content_manager = AsyncMock()
-#     mock_file_handle.__aenter__.return_value = mock_file_handle
-#
-#     return mocker.patch("")  # TODO: problem here !!!
-
-
-
-
-
-
