@@ -5,7 +5,7 @@ This service handles all grading logic for different question types:
 - Fill-in-the-Blank questions
 - Calculation questions
 
-It fetches question data from Neo4j and evaluates user answers.
+It fetches question data from PostgreSQL and evaluates user answers.
 """
 
 import logging
@@ -13,7 +13,10 @@ from dataclasses import dataclass
 from uuid import UUID
 from typing import Optional
 
-import app.models.neo4j_model as neo
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.models.question import Question, QuestionType
 
 
 @dataclass
@@ -33,10 +36,10 @@ class GradingResult:
 
 
 class GradingService:
-    """Service for grading quiz answers against Neo4j question data.
+    """Service for grading quiz answers against PostgreSQL question data.
 
     This service is responsible for:
-    1. Fetching question nodes from Neo4j
+    1. Fetching question data from PostgreSQL
     2. Determining correctness based on question type
     3. Extracting BKT parameters (p_g, p_s) for mastery updates
 
@@ -44,6 +47,14 @@ class GradingService:
     - Update mastery levels (that's MasteryService's job)
     - Update quiz attempts (that's the handler's job)
     """
+
+    def __init__(self, db_session: AsyncSession):
+        """Initialize grading service with database session.
+
+        Args:
+            db_session: SQLAlchemy async session for database queries
+        """
+        self.db = db_session
 
     @staticmethod
     def _grade_multiple_choice(user_answer, correct_answer: int) -> bool:
@@ -104,17 +115,17 @@ class GradingService:
 
     def grade_answer(
         self,
-        question_node: neo.Question,
+        question: Question,
         user_answer_json: dict
     ) -> tuple[bool, float, float]:
         """Grade a single answer based on the question type.
 
         This function delegates to specific grading functions based on question
-        type and extracts BKT parameters (p_g, p_s) from the question node.
+        type and extracts BKT parameters (p_g, p_s) from the question details.
 
         Args:
-            question_node: The question node from Neo4j (already fetched)
-            user_answer_json: Dictionary containing the user's answer with 
+            question: The Question model from PostgreSQL (already fetched)
+            user_answer_json: Dictionary containing the user's answer with
                             key 'user_answer'
 
         Returns:
@@ -126,57 +137,81 @@ class GradingService:
 
             if user_ans is None:
                 logging.warning(
-                    f"Missing user_answer for question "
-                    f"{question_node.question_id}"
+                    f"Missing user_answer for question {question.id}"
                 )
                 return False, -1.0, -1.0
 
-            # Grade based on question type and extract BKT parameters
-            if isinstance(question_node, neo.MultipleChoice):
-                is_correct = self._grade_multiple_choice(
-                    user_ans,
-                    question_node.correct_answer
-                )
-                return is_correct, question_node.p_g, question_node.p_s
+            # Extract details from JSONB field
+            details = question.details
 
-            if isinstance(question_node, neo.FillInBlank):
-                is_correct = self._grade_fill_in_blank(
-                    user_ans,
-                    question_node.expected_answer
-                )
-                return is_correct, question_node.p_g, question_node.p_s
+            # Extract BKT parameters from details
+            p_g = details.get("p_g", 0.0)
+            p_s = details.get("p_s", 0.1)
 
-            if isinstance(question_node, neo.Calculation):
+            # Grade based on question type
+            if question.question_type == QuestionType.MULTIPLE_CHOICE.value:
+                correct_answer = details.get("correct_answer")
+                if correct_answer is None:
+                    logging.error(
+                        f"Missing correct_answer in details for question {question.id}"
+                    )
+                    return False, -1.0, -1.0
+
+                is_correct = self._grade_multiple_choice(user_ans, correct_answer)
+                return is_correct, p_g, p_s
+
+            elif question.question_type == QuestionType.FILL_BLANK.value:
+                expected_answers = details.get("expected_answer", [])
+                if not expected_answers:
+                    logging.error(
+                        f"Missing expected_answer in details for question {question.id}"
+                    )
+                    return False, -1.0, -1.0
+
+                is_correct = self._grade_fill_in_blank(user_ans, expected_answers)
+                return is_correct, p_g, p_s
+
+            elif question.question_type == QuestionType.CALCULATION.value:
+                expected_answers = details.get("expected_answer", [])
+                precision = details.get("precision", 2)
+
+                if not expected_answers:
+                    logging.error(
+                        f"Missing expected_answer in details for question {question.id}"
+                    )
+                    return False, -1.0, -1.0
+
                 is_correct = self._grade_calculation(
                     user_ans,
-                    question_node.expected_answer[0],
-                    question_node.precision
+                    expected_answers[0],
+                    precision
                 )
-                return is_correct, question_node.p_g, question_node.p_s
+                return is_correct, p_g, p_s
 
-            logging.warning(
-                f"Unknown question type: question {question_node.question_id}"
-                f": {type(question_node).__name__}"
-            )
-            return False, -1.0, -1.0
+            else:
+                logging.warning(
+                    f"Unknown question type: question {question.id}: "
+                    f"{question.question_type}"
+                )
+                return False, -1.0, -1.0
 
-        except (TypeError, ValueError, AttributeError) as e:
+        except (TypeError, ValueError, AttributeError, KeyError) as e:
             logging.error(
-                f"Grading error for question {question_node.question_id}: {e}",
+                f"Grading error for question {question.id}: {e}",
                 exc_info=True
             )
             return False, -1.0, -1.0
 
-    def fetch_and_grade(
+    async def fetch_and_grade(
         self,
-        question_id: str,
+        question_id: UUID,
         user_answer: dict
     ) -> Optional[GradingResult]:
-        """Fetch question from Neo4j and grade the answer.
+        """Fetch question from PostgreSQL and grade the answer.
 
         This is the main entry point for grading a single answer.
         It handles:
-        1. Fetching the question node from Neo4j
+        1. Fetching the question from PostgreSQL
         2. Grading the answer
         3. Packaging the result with BKT parameters
 
@@ -187,33 +222,32 @@ class GradingService:
         Returns:
             GradingResult if question exists, None if not found
         """
-        # Try each concrete question type since Question is abstract
-        question_node = neo.MultipleChoice.nodes.get_or_none(
-            question_id=question_id
-        )
+        try:
+            # Fetch question from PostgreSQL
+            stmt = select(Question).where(Question.id == question_id)
+            result = await self.db.execute(stmt)
+            question = result.scalar_one_or_none()
 
-        if not question_node:
-            question_node = neo.FillInBlank.nodes.get_or_none(
-                question_id=question_id
+            if not question:
+                logging.warning(
+                    f"Question {question_id} not found in PostgreSQL database, "
+                    f"cannot grade answer"
+                )
+                return None
+
+            # Grade the answer
+            is_correct, p_g, p_s = self.grade_answer(question, user_answer)
+
+            return GradingResult(
+                question_id=str(question_id),
+                is_correct=is_correct,
+                p_g=p_g,
+                p_s=p_s
             )
 
-        if not question_node:
-            question_node = neo.Calculation.nodes.get_or_none(
-                question_id=question_id
-            )
-
-        if not question_node:
-            logging.warning(
-                f"Question {question_id} not found in Neo4j database, "
-                f"cannot grade answer"
+        except Exception as e:
+            logging.error(
+                f"Error fetching and grading question {question_id}: {e}",
+                exc_info=True
             )
             return None
-
-        is_correct, p_g, p_s = self.grade_answer(question_node, user_answer)
-
-        return GradingResult(
-            question_id=str(question_id),
-            is_correct=is_correct,
-            p_g=p_g,
-            p_s=p_s
-        )

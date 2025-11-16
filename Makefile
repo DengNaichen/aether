@@ -127,8 +127,6 @@ test-up:
 	@echo "✓ Test services started:"
 	@echo "  • PostgreSQL:  localhost:5433"
 	@echo "  • Redis:       localhost:6380"
-	@echo "  • Neo4j HTTP:  localhost:7475"
-	@echo "  • Neo4j Bolt:  localhost:7688"
 	@echo ""
 	@echo "Waiting for services to be healthy..."
 	@sleep 5
@@ -200,7 +198,6 @@ init-data:
 	docker-compose exec web uv run python scripts/setup_dev_course.py
 	@echo ""
 	@echo "✓ Development data loaded"
-	@echo "  Visit http://localhost:7474 to explore Neo4j graph"
 
 # Clean everything (WARNING: deletes volumes!)
 clean:
@@ -226,11 +223,11 @@ status:
 	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 	@echo ""
 	@echo "🔧 Development Databases:"
-	@docker-compose ps --format "table {{.Name}}\t{{.Status}}\t{{.Ports}}" 2>/dev/null | grep -E "db|redis|neo4j" || echo "  No development databases running"
+	@docker-compose ps --format "table {{.Name}}\t{{.Status}}\t{{.Ports}}" 2>/dev/null | grep -E "db|redis" || echo "  No development databases running"
 	@echo ""
 	@echo "🧪 Test Databases:"
 	@docker-compose -f docker-compose.test.yml ps --format "table {{.Name}}\t{{.Status}}\t{{.Ports}}" 2>/dev/null || echo "  No test databases running"
 	@echo ""
 	@echo "💡 Quick Reference:"
-	@echo "   Development: localhost:5432 (PostgreSQL), localhost:6379 (Redis), localhost:7474/7687 (Neo4j)"
-	@echo "   Test:        localhost:5433 (PostgreSQL), localhost:6380 (Redis), localhost:7475/7688 (Neo4j)"
+	@echo "   Development: localhost:5432 (PostgreSQL), localhost:6379 (Redis)"
+	@echo "   Test:        localhost:5433 (PostgreSQL), localhost:6380 (Redis)"

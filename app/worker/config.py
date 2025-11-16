@@ -17,31 +17,17 @@ class WorkerContext:
         self.db_manager = db_mng
 
     @property
-    def neo4j_driver(self):
-        return self.db_manager.neo4j_driver
+    # def neo4j_driver(self):
+    #     return self.db_manager.neo4j_driver
 
     @property
     def redis_client(self):
         return self.db_manager.redis_client
 
     @asynccontextmanager
-    async def neo4j_session(self):
-        """
-        get Neo4J session
-        """
-        async with self.db_manager.get_neo4j_session() as session:
-            yield session
-
-    @asynccontextmanager
     async def sql_session(self):
         async with self.db_manager.get_sql_session() as session:
             yield session
-
-    @asynccontextmanager
-    async def neo4j_scoped_connection(self):
-        async with self.db_manager.neo4j_scoped_connection():
-            yield
-
 
 def register_handler(task_type: str):
     def decorator(func):

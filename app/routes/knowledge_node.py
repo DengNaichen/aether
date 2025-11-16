@@ -1,228 +1,605 @@
 from fastapi import APIRouter, HTTPException, status, UploadFile, File
 from fastapi.params import Depends
-from neomodel import DoesNotExist
-from redis.asyncio import Redis
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.deps import get_redis_client
+from app.core.deps import get_db, get_current_active_user
 from app.models.user import User
-from app.helper.course_helper import assemble_course_id
-from app.schemas.knowledge_node import KnowledgeNodeCreate, RelationType, \
-    KnowledgeRelationCreate
+# from app.helper.course_helper import assemble_course_id
+from app.schemas.knowledge_node import (
+    KnowledgeNodeCreate,
+    RelationType,
+    KnowledgeRelationCreate,
+    KnowledgeNodeResponse,
+    PrerequisiteCreate,
+    PrerequisiteResponse,
+    SubtopicCreate,
+    SubtopicResponse,
+    KnowledgeGraphVisualization
+)
+from app.schemas.questions import QuestionCreateForGraph, QuestionResponseFromGraph
 
 from app.core.deps import get_current_admin_user, get_worker_context
-from app.schemas.knowledge_node import KnowledgeNodeResponse
-from app.worker.config import WorkerContext
-import app.models.neo4j_model as neo
-from app.routes.utils import queue_bulk_import_task
 
-
-# TODO: the following part need to be changed to another file ?
-class NodeAlreadyExistsError(Exception):
-    pass
-
-
-async def _create_knowledge_node_sync(
-        course_id: str,
-        node_data: KnowledgeNodeCreate,
-) -> neo.KnowledgeNode:
-    try:
-        course = neo.Course.nodes.get(course_id=course_id)
-    except DoesNotExist:
-        raise ValueError(f"Course {course_id} does not exist")
-
-    if neo.KnowledgeNode.nodes.first_or_none(node_id=node_data.id):
-        raise NodeAlreadyExistsError(f'Node {node_data.node_id} already exists')
-
-    new_node = neo.KnowledgeNode(
-        node_id=node_data.id,
-        node_name=node_data.name,
-        description=node_data.description,
-    ).save()
-    new_node.course.connect(course)
-
-    return new_node
-
-
-async def _create_knowledge_relation_sync(
-        relation: KnowledgeRelationCreate,
-) -> dict:
-    try:
-        source_node = neo.KnowledgeNode.nodes.get(
-            node_id=relation.source_node_id
-        )
-        target_node = neo.KnowledgeNode.nodes.get(
-            node_id=relation.target_node_id
-        )
-    except DoesNotExist:
-        raise ValueError(f"Source or Target node does not exist")
-
-    if relation.relation_type == RelationType.HAS_PREREQUISITES:
-        source_node.prerequisites.connect(target_node)
-        # todo: how about another relations?
-    elif relation.relation_type == RelationType.HAS_SUBTOPIC:
-        source_node.subtopic.connect(target_node)
-    elif relation.relation_type == RelationType.IS_EXAMPLE_OF:
-        source_node.concept_this_is_example_of.connect(target_node)
-
-    else:
-        raise TypeError(f"Unknown relation type {relation.relation_type}")
-
-    return {
-        "status": "success",
-        "source": source_node.node_id,
-        "target": target_node.node_id,
-        "relation": relation.relation_type.value,
-    }
 
 
 router = APIRouter(
-    # TODO:
+    prefix="",
+    tags=["Knowledge Graph - Structure"],
 )
 
 
 @router.post(
-    "/courses/{course_id}/node",
+    "/graphs/{graph_id}/nodes",
     status_code=status.HTTP_201_CREATED,
-    summary="Create a new knowledge node",
+    summary="Create a new knowledge node in a graph",
     response_model=KnowledgeNodeResponse,
 )
-async def create_knowledge_node(
-        course_id: str,
-        node: KnowledgeNodeCreate,
-        ctx: WorkerContext = Depends(get_worker_context),
-        admin: User = Depends(get_current_admin_user)
+async def create_knowledge_node_new(
+        graph_id: str,
+        node_data: KnowledgeNodeCreate,
+        db: AsyncSession = Depends(get_db),
+        current_user: User = Depends(get_current_active_user),
 ) -> KnowledgeNodeResponse:
-    """ Create a new knowledge node under a course with course id
-
     """
+    Create a new knowledge node in a specific knowledge graph.
 
-    node_course_id = assemble_course_id(node.grade, node.subject)
-
-    if course_id != node_course_id:
-        raise HTTPException(
-            status_code=400,
-            detail="URL course_id does not match node's course details"
-        )
-
-    try:
-        async with ctx.neo4j_scoped_connection():
-            new_knowledge_node = await _create_knowledge_node_sync(course_id,
-                                                                   node)
-
-        responses = KnowledgeNodeResponse(
-            id=node.id,
-            name=node.name,
-            course_id=node_course_id,
-            description=node.description,
-        )
-
-        return responses
-
-    except NodeAlreadyExistsError as e:
-        raise HTTPException(
-            status_code=409,
-            detail=str(e)
-        )
-    except ValueError as e:
-        raise HTTPException(
-            status_code=404,
-            detail=str(e)
-        )
-    except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"An unexpected error occurred: {e}"
-        )
-
-
-@router.post(
-    "/courses/{course_id}/relationship",
-    status_code=status.HTTP_201_CREATED,
-    summary="Create a new knowledge relation in the neo4j database",
-)
-async def create_knowledge_relation(
-        relation: KnowledgeRelationCreate,
-        ctx: WorkerContext = Depends(get_worker_context),
-        admin: User = Depends(get_current_admin_user)
-) -> dict:
-    """ Create a new knowledge relation under a course
-
-    Relationship Types:
-        - HAS_PREREQUISITE: Source node requires target node as prerequisite
-          (e.g., "Oxidation-Reduction" requires "Electron Transfer")
-        - HAS_SUBTOPIC: Source node contains target node as a subtopic
-          (e.g., "Acids and Bases" contains "pH Scale")
-        - IS_EXAMPLE_OF: Source node is a concrete example of target node
-          (e.g., "HCl" is an example of "Strong Acid")
+    Only the owner of the graph can create nodes in it.
 
     Args:
-        relation: The relationship request containing:
-            - source_node_id: ID of the source knowledge node
-            - target_node_id: ID of the target knowledge node
-            - relation_type: Type of relationship (enum value)
+        graph_id: UUID of the knowledge graph
+        node_data: Node creation data (node_id, node_name, description)
+        db: Database session
+        current_user: Authenticated user
 
-        ctx: WorkerContext for task queuing
-        admin: Admin user
+    Returns:
+        KnowledgeNodeResponse: The created knowledge node
+
+    Raises:
+        404: Graph not found
+        403: User is not the owner of the graph
+        409: Node with the same node_id already exists in this graph
     """
+    from uuid import UUID as convert_UUID
+    from app.crud import knowledge_graph as crud
 
+    # Validate graph_id is a valid UUID
     try:
-        async with ctx.neo4j_scoped_connection():
-            result = await _create_knowledge_relation_sync(relation)
-        return result
-
-    except ValueError as e:
+        graph_uuid = convert_UUID(graph_id)
+    except ValueError:
         raise HTTPException(
-            status_code=400,
-            detail=str(e)
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid graph_id format"
         )
 
-    except TypeError as e:
+    # Check if graph exists
+    graph = await crud.get_graph_by_id(db, graph_uuid)
+    if not graph:
         raise HTTPException(
-            status_code=400,
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Knowledge graph {graph_id} not found"
+        )
+
+    # Check if user is the owner
+    if graph.owner_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only the graph owner can create nodes"
+        )
+
+    # Create the node
+    try:
+        new_node = await crud.create_knowledge_node(
+            db_session=db,
+            graph_id=graph_uuid,
+            node_name=node_data.node_name,
+            description=node_data.description,
+        )
+        return KnowledgeNodeResponse.model_validate(new_node)
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to create knowledge node: {str(e)}"
+        )
+
+
+@router.post(
+    "/graphs/{graph_id}/prerequisites",
+    status_code=status.HTTP_201_CREATED,
+    summary="Create a prerequisite relationship",
+    response_model=PrerequisiteResponse,
+)
+async def create_prerequisite_new(
+        graph_id: str,
+        prereq_data: PrerequisiteCreate,
+        db: AsyncSession = Depends(get_db),
+        current_user: User = Depends(get_current_active_user),
+) -> PrerequisiteResponse:
+    """
+    Create a prerequisite relationship between two nodes in a graph.
+
+    Structure: (from_node) IS_PREREQUISITE_FOR (to_node)
+    Meaning: from_node must be learned before to_node.
+
+    IMPORTANT CONSTRAINT: Only leaf nodes can have prerequisite relationships.
+    This ensures precise diagnosis of student knowledge gaps at the atomic knowledge level.
+
+    Only the owner of the graph can create prerequisites.
+
+    Args:
+        graph_id: UUID of the knowledge graph
+        prereq_data: Prerequisite data (from_node_id, to_node_id, weight)
+        db: Database session
+        current_user: Authenticated user
+
+    Returns:
+        PrerequisiteResponse: The created prerequisite relationship
+
+    Raises:
+        400: One or both nodes are not leaf nodes
+        404: Graph not found or one of the nodes not found
+        403: User is not the owner of the graph
+        409: Prerequisite already exists
+    """
+    from uuid import UUID as convert_UUID
+    from app.crud import knowledge_graph as crud
+    from app.schemas.knowledge_node import PrerequisiteResponse
+
+    # Validate graph_id
+    try:
+        graph_uuid = convert_UUID(graph_id)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid graph_id format"
+        )
+
+    # Check if graph exists
+    graph = await crud.get_graph_by_id(db, graph_uuid)
+    if not graph:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Knowledge graph {graph_id} not found"
+        )
+
+    # Check if user is the owner
+    if graph.owner_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only the graph owner can create prerequisites"
+        )
+
+    # Check if both nodes exist
+    from_node = await crud.get_node_by_id(db, prereq_data.from_node_id)
+    to_node = await crud.get_node_by_id(db, prereq_data.to_node_id)
+
+    if not from_node:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Node '{prereq_data.from_node_id}' not found"
+        )
+    if not to_node:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Node '{prereq_data.to_node_id}' not found"
+        )
+
+    # Verify both nodes belong to this graph
+    if from_node.graph_id != graph_uuid:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Node '{prereq_data.from_node_id}' does not belong to this graph"
+        )
+    if to_node.graph_id != graph_uuid:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Node '{prereq_data.to_node_id}' does not belong to this graph"
+        )
+
+    # Create the prerequisite
+    try:
+        new_prereq = await crud.create_prerequisite(
+            db_session=db,
+            graph_id=graph_uuid,
+            from_node_id=prereq_data.from_node_id,
+            to_node_id=prereq_data.to_node_id,
+            weight=prereq_data.weight,
+        )
+        return PrerequisiteResponse.model_validate(new_prereq)
+    except ValueError as e:
+        # Raised when nodes are not leaf nodes
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e)
         )
     except Exception as e:
+        # Check if it's a duplicate key error (prerequisite already exists)
+        if "duplicate key" in str(e).lower() or "unique constraint" in str(e).lower():
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Prerequisite from '{prereq_data.from_node_id}' to '{prereq_data.to_node_id}' already exists"
+            )
         raise HTTPException(
-            status_code=500,
-            detail=f"An unexpected error occurred: {e}"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to create prerequisite: {str(e)}"
         )
 
 
 @router.post(
-    "/courses/nodes/bulk",
-    status_code=status.HTTP_202_ACCEPTED,
-    summary="Queue a task to bulk create new knowledge node from a csv file",
+    "/graphs/{graph_id}/subtopics",
+    status_code=status.HTTP_201_CREATED,
+    summary="Create a subtopic relationship",
+    response_model=SubtopicResponse,
 )
-async def bulk_nodes(
-        node_file: UploadFile = File(..., description="A CSV file of node"),
-        redis_client: Redis = Depends(get_redis_client),
-        admin: User = Depends(get_current_admin_user)
-):
-    file_path, _ = await queue_bulk_import_task(
-        file=node_file,
-        redis_client=redis_client,
-        task_type="handle_bulk_import_nodes",
-        extra_payload={"requested_by": admin.email}
-    )
-    return {"message": "Bulk node creation task queued.", 
-            "file_path": str(file_path)}
+async def create_subtopic_new(
+        graph_id: str,
+        subtopic_data: SubtopicCreate,
+        db: AsyncSession = Depends(get_db),
+        current_user: User = Depends(get_current_active_user),
+) -> SubtopicResponse:
+    """
+    Create a subtopic relationship between two nodes in a graph.
+
+    Structure: (parent_node) HAS_SUBTOPIC (child_node)
+    Meaning: child_node is a subtopic of parent_node.
+
+    Only the owner of the graph can create subtopics.
+
+    Args:
+        graph_id: UUID of the knowledge graph
+        subtopic_data: Subtopic data (parent_node_id, child_node_id, weight)
+        db: Database session
+        current_user: Authenticated user
+
+    Returns:
+        SubtopicResponse: The created subtopic relationship
+
+    Raises:
+        404: Graph not found or one of the nodes not found
+        403: User is not the owner of the graph
+        409: Subtopic already exists
+    """
+    from uuid import UUID as convert_UUID
+    from app.crud import knowledge_graph as crud
+    from app.schemas.knowledge_node import SubtopicResponse, SubtopicCreate
+
+    # Validate graph_id
+    try:
+        graph_uuid = convert_UUID(graph_id)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid graph_id format"
+        )
+
+    # Check if graph exists
+    graph = await crud.get_graph_by_id(db, graph_uuid)
+    if not graph:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Knowledge graph {graph_id} not found"
+        )
+
+    # Check if user is the owner
+    if graph.owner_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only the graph owner can create subtopics"
+        )
+
+    # Check if both nodes exist
+    parent_node = await crud.get_node_by_id(db, subtopic_data.parent_node_id)
+    child_node = await crud.get_node_by_id(db, subtopic_data.child_node_id)
+
+    if not parent_node:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Node '{subtopic_data.parent_node_id}' not found"
+        )
+    if not child_node:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Node '{subtopic_data.child_node_id}' not found"
+        )
+
+    # Verify both nodes belong to this graph
+    if parent_node.graph_id != graph_uuid:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Node '{subtopic_data.parent_node_id}' does not belong to this graph"
+        )
+    if child_node.graph_id != graph_uuid:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Node '{subtopic_data.child_node_id}' does not belong to this graph"
+        )
+
+    # Create the subtopic
+    try:
+        new_subtopic = await crud.create_subtopic(
+            db_session=db,
+            graph_id=graph_uuid,
+            parent_node_id=subtopic_data.parent_node_id,
+            child_node_id=subtopic_data.child_node_id,
+            weight=subtopic_data.weight,
+        )
+        return SubtopicResponse.model_validate(new_subtopic)
+    except Exception as e:
+        # Check if it's a duplicate key error (subtopic already exists)
+        if "duplicate key" in str(e).lower() or "unique constraint" in str(e).lower():
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Subtopic from '{subtopic_data.parent_node_id}' to '{subtopic_data.child_node_id}' already exists"
+            )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to create subtopic: {str(e)}"
+        )
 
 
 @router.post(
-    "/courses/relationships/bulk",
-    status_code=status.HTTP_202_ACCEPTED,
-    summary="Queue a task to bulk create new knowledge relation from csv file",
+    "/graphs/{graph_id}/questions",
+    status_code=status.HTTP_201_CREATED,
+    summary="Create a new question for a knowledge node",
+    response_model=QuestionResponseFromGraph,
 )
-async def bulk_relations(
-        relation_file: UploadFile = File(...),
-        redis_client: Redis = Depends(get_redis_client),
-        admin: User = Depends(get_current_admin_user)
-):
-    file_path, _ = await queue_bulk_import_task(
-        file=relation_file,
-        redis_client=redis_client,
-        task_type="handle_bulk_import_relations",
-        extra_payload={"requested_by": admin.email}  # TODO: think about this
+async def create_question_new(
+        graph_id: str,
+        question_data: QuestionCreateForGraph,
+        db: AsyncSession = Depends(get_db),
+        current_user: User = Depends(get_current_active_user),
+) -> QuestionResponseFromGraph:
+    """
+    Create a new question for a knowledge node in a graph.
+
+    Questions are assessment items used to test user mastery of a node.
+    The details field structure depends on question_type:
+    - Multiple Choice: {"question_type": "multiple_choice", "options": [...], "correct_answer": int, "p_g": float, "p_s": float}
+    - Fill in Blank: {"question_type": "fill_in_the_blank", "expected_answer": [...], "p_g": float, "p_s": float}
+    - Calculation: {"question_type": "calculation", "expected_answer": [...], "precision": int, "p_g": float, "p_s": float}
+
+    Design Note:
+        - question_type is stored both as a top-level field AND within details:
+          * Top-level: Stored in database column for efficient SQL filtering
+          * Within details: Required for Pydantic discriminated union validation
+        - p_g (guess probability) and p_s (slip probability) are stored only in details JSONB
+
+    Only the owner of the graph can create questions.
+
+    Args:
+        graph_id: UUID of the knowledge graph
+        question_data: Question data with typed details (including question_type, p_g, and p_s)
+        db: Database session
+        current_user: Authenticated user
+
+    Returns:
+        QuestionResponseFromGraph: The created question
+
+    Raises:
+        400: Invalid graph_id format
+        404: Graph not found or node not found
+        403: User is not the owner of the graph
+    """
+    from uuid import UUID as convert_UUID
+    from app.crud import knowledge_graph as crud
+
+    # Validate graph_id
+    try:
+        graph_uuid = convert_UUID(graph_id)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid graph_id format"
+        )
+
+    # Check if graph exists
+    graph = await crud.get_graph_by_id(db, graph_uuid)
+    if not graph:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Knowledge graph {graph_id} not found"
+        )
+
+    # Check if user is the owner
+    if graph.owner_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only the graph owner can create questions"
+        )
+
+    # Check if node exists
+    node = await crud.get_node_by_id(db, question_data.node_id)
+    if not node:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Node '{question_data.node_id}' not found"
+        )
+
+    # Verify node belongs to this graph
+    if node.graph_id != graph_uuid:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Node '{question_data.node_id}' does not belong to this graph"
+        )
+
+    # Convert Pydantic details to dict for JSONB storage
+    # Note: p_g and p_s are now included in the details field
+    details_dict = question_data.details.model_dump()
+
+    # Create the question
+    try:
+        new_question = await crud.create_question(
+            db_session=db,
+            graph_id=graph_uuid,
+            node_id=question_data.node_id,
+            question_type=question_data.question_type.value,
+            text=question_data.text,
+            details=details_dict,
+            difficulty=question_data.difficulty.value,
+            created_by=current_user.id,
+        )
+        return QuestionResponseFromGraph.model_validate(new_question)
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to create question: {str(e)}"
+        )
+
+
+async def fetch_pg_knowledge_graph(
+    graph_id: str, user_id: str, db: AsyncSession
+) -> "KnowledgeGraphVisualization":
+    """
+    Fetch the knowledge graph with user mastery scores from PostgreSQL.
+
+    Returns a graph visualization with:
+    - All knowledge nodes belonging to the graph
+    - All relationships (IS_PREREQUISITE_FOR and HAS_SUBTOPIC)
+    - User mastery scores (default 0.2 if no mastery relationship exists)
+
+    Args:
+        graph_id: The knowledge graph identifier (UUID)
+        user_id: The user identifier (UUID)
+        db: Database session
+
+    Returns:
+        KnowledgeGraphVisualization with nodes and edges
+    """
+    from uuid import UUID
+    from sqlalchemy import select, union_all, literal
+    from app.models.knowledge_node import KnowledgeNode, Prerequisite, Subtopic
+    from app.models.user import UserMastery
+    from app.schemas.knowledge_node import (
+        KnowledgeGraphVisualization,
+        GraphNode,
+        GraphEdge,
+        EdgeType,
     )
-    return {"message": "Bulk relation creation task queued.",
-            "file_path": str(file_path)}
+
+    graph_uuid = UUID(graph_id)
+    user_uuid = UUID(user_id)
+
+    # Fetch all knowledge nodes with user mastery scores
+    nodes_stmt = (
+        select(
+            KnowledgeNode.id,
+            KnowledgeNode.node_name,
+            KnowledgeNode.description,
+            UserMastery.score,
+        )
+        .where(KnowledgeNode.graph_id == graph_uuid)
+        .outerjoin(
+            UserMastery,
+            (UserMastery.graph_id == KnowledgeNode.graph_id)
+            & (UserMastery.node_id == KnowledgeNode.id)
+            & (UserMastery.user_id == user_uuid),
+        )
+    )
+
+    nodes_result = await db.execute(nodes_stmt)
+    nodes_rows = nodes_result.all()
+
+    # Build nodes list with default mastery score of 0.2
+    nodes = [
+        GraphNode(
+            id=row.id,  # UUID type, no need to convert to string
+            name=row.node_name,
+            description=row.description or "",
+            mastery_score=row.score if row.score is not None else 0.2,
+        )
+        for row in nodes_rows
+    ]
+
+    # Fetch prerequisite relationships
+    prereq_stmt = (
+        select(
+            Prerequisite.from_node_id,
+            Prerequisite.to_node_id,
+            literal(EdgeType.IS_PREREQUISITE_FOR.value).label("type"),
+        )
+        .where(Prerequisite.graph_id == graph_uuid)
+    )
+
+    # Fetch subtopic relationships
+    subtopic_stmt = (
+        select(
+            Subtopic.parent_node_id,
+            Subtopic.child_node_id,
+            literal(EdgeType.HAS_SUBTOPIC.value).label("type"),
+        )
+        .where(Subtopic.graph_id == graph_uuid)
+    )
+
+    # Combine both relationship types
+    edges_stmt = union_all(prereq_stmt, subtopic_stmt)
+    edges_result = await db.execute(edges_stmt)
+    edges_rows = edges_result.all()
+
+    # Build edges list
+    edges = [
+        GraphEdge(
+            source=row[0],  # UUID type, no need to convert to string
+            target=row[1],  # UUID type, no need to convert to string
+            type=EdgeType(row[2]),  # Convert string to EdgeType enum
+        )
+        for row in edges_rows
+    ]
+
+    return KnowledgeGraphVisualization(nodes=nodes, edges=edges)
+
+
+@router.get(
+    "/graphs/{graph_id}/knowledge_graph",
+    summary="Retrieve knowledge graph visualization",
+    response_model=KnowledgeGraphVisualization,
+)
+async def fetch_knowledge_graph(
+    graph_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    """
+    Retrieve the knowledge graph with user mastery scores.
+
+    Returns all knowledge nodes belonging to the graph along with their
+    relationships (IS_PREREQUISITE_FOR and HAS_SUBTOPIC) and the current
+    user's mastery scores for each node.
+
+    Args:
+        graph_id: The knowledge graph identifier (UUID as string)
+        db: Database session
+        current_user: The authenticated user
+
+    Returns:
+        KnowledgeGraphVisualization: Graph structure with nodes and edges
+
+    Raises:
+        HTTPException 404: If the knowledge graph does not exist
+    """
+    from uuid import UUID
+    from app.crud.knowledge_graph import get_graph_by_id
+
+    # Validate and convert graph_id to UUID
+    try:
+        graph_uuid = UUID(graph_id)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid graph_id format. Must be a valid UUID.",
+        )
+
+    # Check if graph exists in PostgreSQL
+    graph = await get_graph_by_id(db, graph_uuid)
+    if not graph:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Knowledge graph does not exist",
+        )
+
+    # Fetch the knowledge graph from PostgreSQL
+    result = await fetch_pg_knowledge_graph(
+        graph_id,
+        str(current_user.id),
+        db
+    )
+
+    return result

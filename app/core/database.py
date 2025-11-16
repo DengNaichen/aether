@@ -2,8 +2,6 @@ import asyncio
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator, Optional
 
-from neo4j import AsyncGraphDatabase, AsyncDriver, AsyncSession as Neo4jAsyncSession
-from neomodel import db, config
 from redis.asyncio import Redis
 import redis.asyncio as aioredis
 from sqlalchemy import text
@@ -22,10 +20,8 @@ class DatabaseManager:
     def __init__(self, settings: Settings):
         self.settings = settings
         self._sql_engine: Optional[AsyncEngine] = None
-        self._neo4j_driver: Optional[AsyncDriver] = None
         self._session_local = None
         self._redis_client: Optional[Redis] = None
-        self._neomodel_lock = asyncio.Lock()
 
     # ==================== PostgreSQL ====================
     @property
@@ -39,7 +35,7 @@ class DatabaseManager:
                 # echo=self.settings.is_testing,
                 echo=False,
                 future=True,
-                pool_pre_ping=True
+                pool_pre_ping=True,
             )
         return self._sql_engine
 
@@ -77,52 +73,6 @@ class DatabaseManager:
             finally:
                 await session.close()
 
-    # ==================== Neo4j ====================
-    @property
-    def neo4j_driver(self) -> AsyncDriver:
-        """
-        Lazy initialization of Neo4j driver.
-        """
-        if self._neo4j_driver is None:
-            self._neo4j_driver = AsyncGraphDatabase.driver(
-                self.settings.NEO4J_URI,
-                auth=(self.settings.NEO4J_USER, self.settings.NEO4J_PASSWORD)
-            )
-        return self._neo4j_driver
-
-    @asynccontextmanager
-    async def get_neo4j_session(self) -> AsyncGenerator[Neo4jAsyncSession, None]:
-        """
-        Context manager for Neo4j sessions.
-        Usage:
-            async with db_manager.get_neo4j_session() as session:
-                result = await session.run("MATCH (n) RETURN n LIMIT 10")
-        """
-        neo4j_db_name = self.settings.NEO4J_DATABASE
-        async with self.neo4j_driver.session(database=neo4j_db_name) as session:
-            yield session
-
-    @asynccontextmanager
-    async def neo4j_scoped_connection(self) -> AsyncGenerator[None, None]:
-        async with self._neomodel_lock:
-            original_url = config.DATABASE_URL
-
-            try:
-                config.DATABASE_URL = self.settings.NEOMODEL_NEO4J_URI
-                # Close existing driver if any before setting to None
-                if db.driver:
-                    db.driver.close()
-                db.driver = None
-
-                yield
-
-            finally:
-                config.DATABASE_URL = original_url
-
-            if db.driver:
-                db.driver.close()
-            db.driver = None
-
     # ==================== Redis ====================
     @property
     def redis_client(self) -> Redis:
@@ -131,9 +81,7 @@ class DatabaseManager:
         """
         if self._redis_client is None:
             self._redis_client = aioredis.from_url(
-                self.settings.REDIS_URL,
-                encoding="utf-8",
-                decode_responses=True
+                self.settings.REDIS_URL, encoding="utf-8", decode_responses=True
             )
         return self._redis_client
 
@@ -144,7 +92,7 @@ class DatabaseManager:
         return await self.redis_client.get(key)
 
     async def set_redis_value(
-            self, key: str, value: str, expire: Optional[int] = None
+        self, key: str, value: str, expire: Optional[int] = None
     ) -> bool:
         """
         Set value in Redis.
@@ -174,13 +122,6 @@ class DatabaseManager:
         except Exception as e:
             return False, f"❌ SQL database connection failed: {e}"
 
-    async def _check_neo4j(self):
-        try:
-            await self.neo4j_driver.verify_connectivity()
-            return True, None
-        except Exception as e:
-            return False, f"❌ Neo4j connection failed: {e}"
-
     async def _check_redis(self):
         try:
             await self.redis_client.ping()
@@ -194,7 +135,7 @@ class DatabaseManager:
         """
         checks = {
             "SQL": self._check_sql,
-            "Neo4j": self._check_neo4j,
+            # "Neo4j": self._check_neo4j,
             "Redis": self._check_redis,
         }
         results = await asyncio.gather(*(check() for check in checks.values()))
@@ -205,19 +146,15 @@ class DatabaseManager:
             else:
                 errors.append(error_msg)
         if errors:
-            raise RuntimeError(
-                f"Database initialization failed:\n" + "\n".join(errors)
-            )
+            raise RuntimeError(f"Database initialization failed:\n" + "\n".join(errors))
 
     async def health_check(self) -> dict:
-        sql_status, neo4j_status, redis_status = await asyncio.gather(
+        sql_status, redis_status = await asyncio.gather(
             self._check_sql(),
-            self._check_neo4j(),
             self._check_redis(),
         )
         return {
             "sql": sql_status[0],
-            "neo4j": neo4j_status[0],
             "redis": redis_status[0],
         }
 
@@ -234,32 +171,6 @@ class DatabaseManager:
             await conn.run_sync(base.metadata.drop_all)
         print(f"✅ All SQL tables Dropped.")
 
-    async def create_neo4j_constraints(self):
-        # TODO: 
-        """
-        Create Neo4j constraints and indexes.
-        You should customize this based on your schema.
-        """
-        constraints = [
-            # "CREATE CONSTRAINT IF NOT EXISTS FOR (u:User) REQUIRE u.id IS UNIQUE",
-            # "CREATE INDEX IF NOT EXISTS FOR (u:User) ON (u.email)",
-            # Add more constraints as needed
-        ]
-
-        async with self.get_neo4j_session() as session:
-            for constraint in constraints:
-                try:
-                    await session.run(constraint)
-                except Exception as e:
-                    print(f"Warning: Failed to create constraint: {e}")
-        print("✓ Neo4j constraints created")
-
-    async def clear_neo4j_database(self):
-        """Clear all nodes and relationships in Neo4j. Use with caution!"""
-        async with self.get_neo4j_session() as session:
-            await session.run("MATCH (n) DETACH DELETE n")
-        print("✓ Neo4j database cleared")
-
     # ==================== Cleanup ====================
     async def close(self):
         """Close all database connections gracefully."""
@@ -272,14 +183,6 @@ class DatabaseManager:
                 print("✅ SQL engine closed")
             except Exception as e:
                 errors.append(f"SQL close error: {e}")
-
-        # Close Neo4j driver
-        if self._neo4j_driver:
-            try:
-                await self._neo4j_driver.close()
-                print("✅Neo4j driver closed")
-            except Exception as e:
-                errors.append(f"Neo4j close error: {e}")
 
         # Close Redis client
         if self._redis_client:

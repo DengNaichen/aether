@@ -71,12 +71,7 @@ class User(Base):
     reset_token = Column(String, nullable=True, index=True)
     reset_token_expires_at = Column(TIMESTAMP(timezone=True), nullable=True)
 
-    quiz_attempts = relationship("QuizAttempt", back_populates="user")
-
-    # Legacy course enrollments (old system, will be deprecated)
-    enrollments = relationship("Enrollment", backref="user")
-
-    # Knowledge graph enrollments (new system)
+    # Knowledge graph enrollments
     graph_enrollments = relationship("GraphEnrollment", back_populates="user")
 
 

@@ -39,38 +39,8 @@ services:
       retries: 5
     restart: unless-stopped
 
-  # Test Neo4j Database
-  # Runs on different ports (7475/7688) to avoid conflicts with development Neo4j
-  test-neo4j:
-    image: neo4j:5.15-community
-    container_name: aether-test-neo4j
-    environment:
-      - NEO4J_AUTH=neo4j/neo4j_password
-      - NEO4J_dbms_memory_pagecache_size=512M
-      - NEO4J_dbms_memory_heap_initial__size=512M
-      - NEO4J_dbms_memory_heap_max__size=1G
-      # Enable multiple databases (Neo4j 5.x feature)
-      - NEO4J_dbms_default__database=neo4j
-    ports:
-      - "7475:7474"  # HTTP (External: 7475, Internal: 7474)
-      - "7688:7687"  # Bolt (External: 7688, Internal: 7687)
-    volumes:
-      - test_neo4j_data:/data
-      - test_neo4j_logs:/logs
-    healthcheck:
-      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider localhost:7474 || exit 1"]
-      interval: 10s
-      timeout: 10s
-      retries: 5
-      start_period: 30s
-    restart: unless-stopped
-
 volumes:
   test_postgres_data:
     name: aether_test_postgres_data
   test_redis_data:
     name: aether_test_redis_data
-  test_neo4j_data:
-    name: aether_test_neo4j_data
-  test_neo4j_logs:
-    name: aether_test_neo4j_logs

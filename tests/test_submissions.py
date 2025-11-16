@@ -11,7 +11,7 @@ from redis.asyncio import Redis
 from app.models.course import Course
 from app.models.quiz import QuizStatus, SubmissionAnswer, QuizAttempt
 from app.models.user import User
-from app.schemas.questions import QuestionType
+from app.models.question import QuestionType
 
 # --- Test Constants ---
 QUESTION_1_ID = str(uuid.uuid4())

@@ -75,7 +75,7 @@ class AdminUserCreate(UserCreate):
     is_active: bool = True
 
 
-class adminUserUpdate(BaseModel):
+class AdminUserUpdate(BaseModel):
     """Schema for updating admin user information.
     Inherits from BaseModel and includes optional fields for updating
     admin user attributes.
