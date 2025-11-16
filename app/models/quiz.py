@@ -8,54 +8,37 @@ from sqlalchemy.orm import relationship
 
 from app.models import Base  # 或者 from .base import Base
 
-
-# --- Enums ---
-class QuizStatus(enum.Enum):
-    IN_PROGRESS = "in_progress"
-    COMPLETED = "completed"
-    ABORTED = "aborted"
-
-
-class QuizAttempt(Base):
-    __tablename__ = "quiz_attempts"
-
-    attempt_id = Column(UUID(as_uuid=True),
-                        primary_key=True,
-                        default=uuid.uuid4)
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
-
-    course_id = Column(String, ForeignKey("courses.id"), nullable=False)
-    question_num = Column(Integer, nullable=False)
-
-    status = Column(
-        SQLAlchemyEnum(QuizStatus,
-                       name="quiz_status_enum",
-                       create_constraint=True),
-        nullable=False,
-        default=QuizStatus.IN_PROGRESS,
-    )
-
-    score = Column(Integer, nullable=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    submitted_at = Column(DateTime(timezone=True), nullable=True)
-
-    user = relationship("User", back_populates="quiz_attempts")
-    answers = relationship(
-        "SubmissionAnswer", back_populates="quiz_attempt",
-        cascade="all, delete-orphan"
-    )
-
-
 class SubmissionAnswer(Base):
+    """Answer submission record for practice mode.
+
+    Each answer is an independent record tracking:
+    - Who answered (user_id)
+    - What was answered (question_id, graph_id)
+    - The answer and grading result
+
+    This replaces the old quiz-based submission model.
+
+    Attributes:
+        id: Unique identifier for this answer
+        user_id: Who submitted this answer
+        graph_id: Which knowledge graph this belongs to
+        question_id: Which question was answered (foreign key to questions table)
+        user_answer: The user's answer as JSON
+        is_correct: Whether the answer was correct (graded result)
+        created_at: When this answer was submitted
+    """
     __tablename__ = "submission_answers"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    submission_id = Column(
-        UUID(as_uuid=True), ForeignKey("quiz_attempts.attempt_id"), nullable=False
-    )
-    question_id = Column(UUID(as_uuid=True), nullable=False)
-    user_answer = Column(JSON, nullable=True)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    graph_id = Column(UUID(as_uuid=True), ForeignKey("knowledge_graphs.id"), nullable=False)
+    question_id = Column(UUID(as_uuid=True), ForeignKey("questions.id"), nullable=False)
 
-    is_correct = Column(Boolean, nullable=True)
+    user_answer = Column(JSON, nullable=False)
+    is_correct = Column(Boolean, nullable=False)
 
-    quiz_attempt = relationship("QuizAttempt", back_populates="answers")
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    # Relationships
+    user = relationship("User", foreign_keys=[user_id])
+    question = relationship("Question", foreign_keys=[question_id])

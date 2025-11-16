@@ -62,7 +62,8 @@ class KnowledgeNode(Base):
     Attributes:
         id: Internal primary key (UUID)
         graph_id: Which graph this node belongs to
-        node_id: Human-readable identifier (unique within graph)
+        node_id_str: Business/human-readable identifier (e.g., "kp_kinematics")
+                     Optional, used for traceability, AI integration, and external references
         node_name: Display name (e.g., "Derivative")
         description: Detailed explanation for LLM/UI
         level: Topological level in prerequisite DAG (-1 = not computed)
@@ -71,7 +72,7 @@ class KnowledgeNode(Base):
         updated_at: Last modification timestamp
 
     Constraints:
-        - (graph_id, node_id) must be unique (same node_id OK in different graphs)
+        - (graph_id, node_id_str) must be unique if node_id_str is provided
         - level and dependents_count are computed/cached for performance
     """
 
@@ -83,6 +84,10 @@ class KnowledgeNode(Base):
         ForeignKey("knowledge_graphs.id", ondelete="CASCADE"),
         nullable=False,
     )
+
+    # Business identifier (from CSV/AI/external source, for traceability and idempotency)
+    node_id_str = Column(String, nullable=True, index=True)
+
     node_name = Column(String, nullable=False)
     description = Column(Text)
 
@@ -99,8 +104,10 @@ class KnowledgeNode(Base):
 
     __table_args__ = (
         UniqueConstraint("graph_id", "id", name="uq_graph_node_uuid"),
+        UniqueConstraint("graph_id", "node_id_str", name="uq_graph_node_str"),
         Index("idx_nodes_graph", "graph_id"),
         Index("idx_nodes_graph_id", "graph_id", "id"),
+        Index("idx_nodes_graph_str", "graph_id", "node_id_str"),  # For node_id_str lookups
         Index("idx_nodes_level", "graph_id", "level"),  # For topological queries
     )
 
@@ -115,10 +122,16 @@ class Prerequisite(Base):
     Structure: (from_node) IS_PREREQUISITE_FOR (to_node)
     Scoped to a specific graph.
 
+    IMPORTANT CONSTRAINT: Only leaf nodes can have prerequisite relationships.
+    This design choice ensures:
+    - Precise diagnosis of student knowledge gaps at the atomic knowledge level
+    - Clear, unambiguous learning dependencies
+    - Simplified mastery propagation logic
+
     Attributes:
         graph_id: Which graph this relationship belongs to
-        from_node_id: The prerequisite node UUID
-        to_node_id: The target node UUID
+        from_node_id: The prerequisite node UUID (must be a leaf node)
+        to_node_id: The target node UUID (must be a leaf node)
         weight: Importance (0.0-1.0, default 1.0 = critical)
         created_at: When this relationship was created
 
@@ -126,6 +139,10 @@ class Prerequisite(Base):
         - Backward propagation: Correct answer on to_node boosts from_node mastery
         - Forward propagation: Calculate p_l0 for to_node from from_node mastery
         - Recommendation: Failure on to_node flags from_node for testing
+
+    Validation:
+        The leaf-only constraint is enforced in the service/CRUD layer via is_leaf_node() check.
+        See app/crud/knowledge_graph.py::create_prerequisite() for implementation.
     """
 
     __tablename__ = "prerequisites"

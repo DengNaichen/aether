@@ -50,10 +50,7 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     return pwd_context.verify(plain_password, hashed_password)
 
 
-def create_access_token(
-        user: User,
-        expires_delta: timedelta | None = None
-) -> str:
+def create_access_token(user: User, expires_delta: timedelta | None = None) -> str:
     """
     Generate a JWT access token for a given user
 
@@ -115,8 +112,7 @@ def create_refresh_token(user: User) -> str:
         >>> print(token)
         'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'
     """
-    expires = (datetime.now(timezone.utc)
-               + timedelta(days=REFRESH_TOKEN_EXPIRE_DAY))
+    expires = datetime.now(timezone.utc) + timedelta(days=REFRESH_TOKEN_EXPIRE_DAY)
     to_encode = {
         "exp": expires,
         "sub": str(user.id),
@@ -128,9 +124,7 @@ def create_refresh_token(user: User) -> str:
 
 
 async def authenticate_user(
-        db: AsyncSession,
-        email: EmailStr,
-        password: str
+    db: AsyncSession, email: EmailStr, password: str
 ) -> User | None:
     """
     Authenticate a user with the given email and password.
@@ -211,4 +205,5 @@ def hash_reset_token(token: str) -> str:
         >>> # Lookup: WHERE reset_token = hash_reset_token(input)
     """
     import hashlib
+
     return hashlib.sha256(token.encode()).hexdigest()

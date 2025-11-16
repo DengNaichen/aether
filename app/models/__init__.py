@@ -1,15 +1,22 @@
-# SQLAlchemy model
+# SQLAlchemy models
 from app.models.base import Base
-from app.models.user import User
-from app.models.course import Course
-# from app.models.knowledge_node import KnowledgeNode
-from app.models.enrollment import Enrollment
+from app.models.user import User, UserMastery
+from app.models.enrollment import GraphEnrollment
+from app.models.knowledge_graph import KnowledgeGraph
+from app.models.knowledge_node import KnowledgeNode, Prerequisite, Subtopic
+from app.models.question import Question
+from app.models.quiz import SubmissionAnswer
 
 
 __all__ = [
     "Base",
     "User",
-    "Course",
-    "Enrollment",
-    "quiz",
+    "UserMastery",
+    "GraphEnrollment",
+    "KnowledgeGraph",
+    "KnowledgeNode",
+    "Prerequisite",
+    "Subtopic",
+    "Question",
+    "SubmissionAnswer",
 ]

@@ -4,7 +4,6 @@ from typing import AsyncGenerator
 from fastapi import Depends, HTTPException, status, Request
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
-from neo4j import AsyncNeo4jDriver
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -39,23 +38,6 @@ async def get_redis_client() -> Redis:
     return db_manager.redis_client
 
 
-async def get_neo4j_driver() -> AsyncNeo4jDriver:
-    """
-    Dependency to get the Neo4j driver.
-    Returns:
-        AsyncNeo4jDriver: An asynchronous Neo4j driver.
-    Raises:
-        HTTPException: If the Neo4j driver is not available.
-    """
-    driver = db_manager.neo4j_driver
-    if driver is None:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Neo4j Driver is not available",
-        )
-    return driver
-
-
 async def get_worker_context() -> AsyncGenerator[WorkerContext, None]:
     ctx = WorkerContext(db_manager)
 
@@ -66,9 +48,9 @@ async def get_worker_context() -> AsyncGenerator[WorkerContext, None]:
 
 
 async def get_current_user(
-        request: Request,
-        db: AsyncSession = Depends(get_db),
-        token: str = Depends(oauth2_scheme)
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    token: str = Depends(oauth2_scheme),
 ) -> User:
     """
     Retrieves the current authenticated user from a JWT access token.
@@ -86,14 +68,16 @@ async def get_current_user(
 
     Returns:
         user (User): User object corresponding to the token subject.
-    
+
     Raises:
         HTTPException: If user does not exist or token is invalid.
         ValueError: If user ID is not a valid UUID
     """
     # Debug: Log raw Authorization header
     auth_header = request.headers.get("Authorization", "NOT FOUND")
-    print(f"🔍 [deps] Authorization header: {auth_header[:50] if len(auth_header) > 50 else auth_header}...")
+    print(
+        f"🔍 [deps] Authorization header: {auth_header[:50] if len(auth_header) > 50 else auth_header}..."
+    )
     print(f"🔍 [deps] get_current_user called!")
 
     credentials_exception = HTTPException(
@@ -137,7 +121,7 @@ async def get_current_user(
 
 
 async def get_current_active_user(
-        current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ) -> User:
     """
     Ensures that the current user is active.
@@ -150,13 +134,14 @@ async def get_current_active_user(
         HTTPException: If the user is inactive.
     """
     if not current_user.is_active:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
-                            detail="Inactive user")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Inactive user"
+        )
     return current_user
 
 
 async def get_current_admin_user(
-        current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ) -> User:
     """
     Ensures that the current user has admin privileges.
@@ -170,7 +155,6 @@ async def get_current_admin_user(
     """
     if not current_user.is_admin:
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Insufficient privileges"
+            status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient privileges"
         )
     return current_user

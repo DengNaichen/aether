@@ -2,49 +2,39 @@ from datetime import datetime
 from typing import List, Optional, Union
 from uuid import UUID
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 from app.schemas.questions import MultipleChoiceQuestion, FillInTheBlankQuestion, CalculationQuestion, AnyQuestion, AnyAnswer
-from app.models.quiz import QuizStatus
 
+# ==================== Single Answer Submission Schemas ====================
 
-class QuizStartRequest(BaseModel):
-    """ [Request] POST /.../quizzes
+class SingleAnswerSubmitRequest(BaseModel):
+    """Request schema for submitting a single answer.
 
-    as the course id is included in the url, so the only thing we need
-    is the number of the question
+    This is for practice mode - one question at a time with immediate feedback.
+
     Attributes:
-        question_num(int): The question number of the quiz
+        question_id: UUID of the question being answered
+        user_answer: The user's answer (discriminated union based on question type)
+        graph_id: UUID of the knowledge graph (to track which graph this practice belongs to)
     """
-    question_num: int
-
-
-class QuizAttemptResponse(BaseModel):
-    """ [Response] POST /.../quizzes
-    return i
-    """
-    attempt_id: UUID
-    user_id: UUID
-    course_id: str
-    question_num: int
-    status: QuizStatus = QuizStatus.IN_PROGRESS
-    score: Optional[int] = None
-    created_at: datetime
-    questions: List[AnyQuestion]
-
-    class Config:
-        from_attributes = True
-
-
-class ClientAnswerInput(BaseModel):
     question_id: UUID
-    answer: AnyAnswer
+    user_answer: AnyAnswer
+    graph_id: UUID
 
 
-class QuizSubmissionRequest(BaseModel):
-    answers: List[ClientAnswerInput]
+class SingleAnswerSubmitResponse(BaseModel):
+    """Response schema for single answer submission.
 
+    Returns grading result and mastery update status.
 
-class QuizSubmissionResponse(BaseModel):
-    attempt_id: UUID
-    message: str
+    Attributes:
+        answer_id: UUID of the saved answer record
+        is_correct: Whether the answer was correct
+        mastery_updated: Whether mastery level was updated successfully
+        next_question_id: Optional UUID of recommended next question
+    """
+    answer_id: UUID
+    is_correct: bool
+    mastery_updated: bool
+    next_question_id: Optional[UUID] = None

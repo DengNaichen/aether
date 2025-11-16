@@ -1,29 +1,11 @@
 import uuid
 
-from sqlalchemy import Column, DateTime, ForeignKey, String, Boolean, Index, UniqueConstraint
+from sqlalchemy import Column, DateTime, ForeignKey, Boolean, Index, UniqueConstraint
 from sqlalchemy.orm import relationship
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func
 
 from app.models.base import Base
-
-
-class Enrollment(Base):
-    """
-    TODO: Legacy course enrollments (old system, will be deprecated)
-    SQLAlchemy model for the `enrollments` table.
-    Attributes:
-        id (UUID): Primary key, unique identifier for the enrollment.
-        student_id (UUID): Foreign key referencing the `user` table.
-        course_id (str): Foreign key referencing the `course` table.
-        enrollment_date (datetime): Timestamp of when the enrollment was created
-    """
-
-    __tablename__ = "enrollments"
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
-    course_id = Column(String, ForeignKey("courses.id"), nullable=False)
-    enrollment_date = Column(DateTime(timezone=True), server_default=func.now())
 
 
 class GraphEnrollment(Base):

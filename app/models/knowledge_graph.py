@@ -146,5 +146,3 @@ class KnowledgeGraph(Base):
 
     def __repr__(self):
         return f"<KnowledgeGraph {self.name} (owner={self.owner_id})>"
-
-

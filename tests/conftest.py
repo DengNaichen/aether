@@ -39,21 +39,19 @@ from app.core.security import create_access_token, get_password_hash
 # Configure neomodel BEFORE importing app.main (which triggers lifespan)
 # This ensures neomodel uses test database URL
 from neomodel import config as neomodel_config
-neomodel_config.DATABASE_URL = settings.NEOMODEL_NEO4J_URI
-print(f"🧪 Test neomodel configured with URI: {settings.NEO4J_URI}")
+# neomodel_config.DATABASE_URL = settings.NEOMODEL_NEO4J_URI
+# print(f"🧪 Test neomodel configured with URI: {settings.NEO4J_URI}")
 
 from app.main import app
 from app.models.base import Base
-from app.models.course import Course
-from app.models.enrollment import Enrollment
+# from app.models.course import Course
+# from app.models.enrollment import Enrollment
+from app.models.knowledge_graph import KnowledgeGraph
+from app.models.enrollment import GraphEnrollment
 from app.models.user import User
-import app.models.neo4j_model as neo
 from app.schemas.knowledge_node import RelationType
-import app.schemas.questions as pydantic
-from app.worker.handlers import _enroll_user_in_course_sync
-from app.models.quiz import QuizAttempt, QuizStatus
 
-# --- 测试常量 ---
+# --- test constant ---
 TEST_USER_NAME = "test user conf"
 TEST_ADMIN_NAME = "test admin conf"
 TEST_USER_EMAIL = "test.conf@example.com"
@@ -105,7 +103,7 @@ async def test_db_manager() -> AsyncGenerator[DatabaseManager, Any]:
 async def test_db(
     test_db_manager: DatabaseManager,
 ) -> AsyncGenerator[AsyncSession, None]:
-    """提供测试数据库会话"""
+    """provide a database session for each test function, and clean after"""
     async with test_db_manager.get_sql_session() as session:
         try:
             yield session
@@ -169,7 +167,7 @@ async def client(
 
 @pytest_asyncio.fixture(scope="function")
 async def user_in_db(test_db: AsyncSession) -> User:
-    """在数据库中创建一个用户，并返回该用户对象。"""
+    """create a user in the database"""
     new_user = User(
         email=TEST_USER_EMAIL,
         hashed_password=get_password_hash(TEST_USER_PASSWORD),
@@ -198,263 +196,522 @@ async def admin_in_db(test_db: AsyncSession) -> User:
 
 
 @pytest_asyncio.fixture(scope="function")
-async def course_in_db(test_db: AsyncSession):
-    new_course_1 = Course(
-        id=COURSE_ID_ONE,
-        name=COURSE_NAME_ONE,
-        description="This is an existing course for test",
+async def other_user_in_db(test_db: AsyncSession) -> User:
+    """Create a second regular user for testing non-owner access scenarios."""
+    other_user = User(
+        email="other.user@example.com",
+        hashed_password=get_password_hash("other_secure_password_123@"),
+        name="Other Test User",
+        is_active=True,
     )
-    new_course_2 = Course(
-        id=COURSE_ID_TWO,
-        name=COURSE_NAME_TWO,
-        description="This is an existing course for test",
-    )
-    test_db.add(new_course_1)
-    test_db.add(new_course_2)
+    test_db.add(other_user)
     await test_db.commit()
-    await test_db.refresh(new_course_1)
-    await test_db.refresh(new_course_2)
-    return new_course_1, new_course_2
+    await test_db.refresh(other_user)
+    return other_user
+
+
+# @pytest_asyncio.fixture(scope="function")
+# async def course_in_db(test_db: AsyncSession):
+#     new_course_1 = Course(
+#         id=COURSE_ID_ONE,
+#         name=COURSE_NAME_ONE,
+#         description="This is an existing course for test",
+#     )
+#     new_course_2 = Course(
+#         id=COURSE_ID_TWO,
+#         name=COURSE_NAME_TWO,
+#         description="This is an existing course for test",
+#     )
+#     test_db.add(new_course_1)
+#     test_db.add(new_course_2)
+#     await test_db.commit()
+#     await test_db.refresh(new_course_1)
+#     await test_db.refresh(new_course_2)
+#     return new_course_1, new_course_2
+
+@pytest_asyncio.fixture(scope="function")
+async def private_graph_in_db(test_db: AsyncSession, user_in_db: User):
+    new_graph = KnowledgeGraph(
+        owner_id=user_in_db.id,
+        name="Private Test Graph",
+        slug="private-test-graph",
+        description="This is a private knowledge graph for testing",
+        tags=["test", "private"],
+        is_public=False,
+    )
+    test_db.add(new_graph)
+    await test_db.commit()
+    await test_db.refresh(new_graph)
+    return new_graph
+
+@pytest_asyncio.fixture(scope="function")
+async def private_graph_with_few_nodes_and_relations_in_db(
+    test_db: AsyncSession,
+    user_in_db: User,
+):
+    """
+    Create a private knowledge graph with 5 nodes and various relationships.
+
+    Graph structure:
+        Node1 (Calculus Basics)
+          ├─> Node2 (Derivatives) [SUBTOPIC]
+          │    └─> Node4 (Chain Rule) [SUBTOPIC]
+          └─> Node3 (Integrals) [SUBTOPIC]
+               └─> Node5 (Integration by Parts) [SUBTOPIC]
+
+        Node2 (Derivatives) ──[PREREQUISITE]──> Node3 (Integrals)
+        Node4 (Chain Rule) ──[PREREQUISITE]──> Node5 (Integration by Parts)
+
+    Returns:
+        dict with:
+            - graph: KnowledgeGraph object
+            - nodes: dict mapping node_id to KnowledgeNode
+            - prerequisites: list of Prerequisite relationships
+            - subtopics: list of Subtopic relationships
+    """
+    from app.models.knowledge_node import KnowledgeNode, Prerequisite, Subtopic
+
+    # Create the knowledge graph
+    graph = KnowledgeGraph(
+        owner_id=user_in_db.id,
+        name="Calculus Learning Path",
+        slug="calculus-learning-path",
+        description="A structured path to learn calculus fundamentals",
+        tags=["math", "calculus", "university"],
+        is_public=False,
+    )
+    test_db.add(graph)
+    await test_db.commit()
+    await test_db.refresh(graph)
+
+    # Create 5 nodes
+    nodes_data = [
+        {
+            "key": "calculus-basics",  # Key for lookup in dict
+            "node_name": "Calculus Basics",
+            "description": "Fundamental concepts of calculus including limits and continuity",
+        },
+        {
+            "key": "derivatives",
+            "node_name": "Derivatives",
+            "description": "Understanding rates of change and differentiation",
+        },
+        {
+            "key": "integrals",
+            "node_name": "Integrals",
+            "description": "Integration and area under curves",
+        },
+        {
+            "key": "chain-rule",
+            "node_name": "Chain Rule",
+            "description": "Advanced differentiation technique for composite functions",
+        },
+        {
+            "key": "integration-by-parts",
+            "node_name": "Integration by Parts",
+            "description": "Advanced integration technique based on product rule",
+        },
+    ]
+
+    nodes = {}
+    for node_data in nodes_data:
+        node = KnowledgeNode(
+            graph_id=graph.id,
+            node_name=node_data["node_name"],
+            description=node_data["description"],
+            level=0,  # Will be computed later
+            dependents_count=0,
+        )
+        test_db.add(node)
+        nodes[node_data["key"]] = node
+
+    await test_db.commit()
+    for node in nodes.values():
+        await test_db.refresh(node)
+
+    # Create Prerequisite relationships
+    # Derivatives must be learned before Integrals
+    # Chain Rule must be learned before Integration by Parts
+    prerequisites_data = [
+        {"from": "derivatives", "to": "integrals", "weight": 1.0},
+        {"from": "chain-rule", "to": "integration-by-parts", "weight": 0.8},
+    ]
+
+    prerequisites = []
+    for prereq_data in prerequisites_data:
+        prereq = Prerequisite(
+            graph_id=graph.id,
+            from_node_id=nodes[prereq_data["from"]].id,
+            to_node_id=nodes[prereq_data["to"]].id,
+            weight=prereq_data["weight"],
+        )
+        test_db.add(prereq)
+        prerequisites.append(prereq)
+
+    await test_db.commit()
+    for prereq in prerequisites:
+        await test_db.refresh(prereq)
+
+    # Create Subtopic relationships (parent -> child)
+    # Calculus Basics contains Derivatives and Integrals
+    # Derivatives contains Chain Rule
+    # Integrals contains Integration by Parts
+    subtopics_data = [
+        {"parent": "calculus-basics", "child": "derivatives", "weight": 0.5},
+        {"parent": "calculus-basics", "child": "integrals", "weight": 0.5},
+        {"parent": "derivatives", "child": "chain-rule", "weight": 1.0},
+        {"parent": "integrals", "child": "integration-by-parts", "weight": 1.0},
+    ]
+
+    subtopics = []
+    for subtopic_data in subtopics_data:
+        subtopic = Subtopic(
+            graph_id=graph.id,
+            parent_node_id=nodes[subtopic_data["parent"]].id,
+            child_node_id=nodes[subtopic_data["child"]].id,
+            weight=subtopic_data["weight"],
+        )
+        test_db.add(subtopic)
+        subtopics.append(subtopic)
+
+    await test_db.commit()
+    for subtopic in subtopics:
+        await test_db.refresh(subtopic)
+
+    return {
+        "graph": graph,
+        "nodes": nodes,
+        "prerequisites": prerequisites,
+        "subtopics": subtopics,
+    }
+
+
+# TODO: Delete later
+# @pytest_asyncio.fixture(scope="function")
+# async def enrollment_in_db(
+#         test_db: AsyncSession,
+#         user_in_db: User
+# ) -> Enrollment:
+#     """Legacy enrollment fixture for old Course model tests."""
+#     new_enrollment = Enrollment(
+#         user_id=user_in_db.id,
+#         course_id=COURSE_ID_ONE,
+#     )
+#     test_db.add(new_enrollment)
+#     await test_db.commit()
+#     await test_db.refresh(new_enrollment)
+#     return new_enrollment
 
 
 @pytest_asyncio.fixture(scope="function")
-async def enrollment_in_db(
+async def graph_enrollment_owner_in_db(
         test_db: AsyncSession,
-        user_in_db: User
-) -> Enrollment:
-    new_enrollment = Enrollment(
-        user_id=user_in_db.id,
-        course_id=COURSE_ID_ONE,
+        user_in_db: User,
+        private_graph_in_db: KnowledgeGraph,
+) -> GraphEnrollment:
+    """
+    Owner enrolls in their own private graph to track learning progress.
+
+    Use case: A teacher creates a personal curriculum and wants to track
+    their own learning progress while developing it.
+
+    Pattern: Private graphs can only be enrolled by their owner.
+    """
+    enrollment = GraphEnrollment(
+        user_id=user_in_db.id,  # Owner enrolls in their own graph
+        graph_id=private_graph_in_db.id,
+        is_active=True,
     )
-    test_db.add(new_enrollment)
+    test_db.add(enrollment)
     await test_db.commit()
-    await test_db.refresh(new_enrollment)
-    return new_enrollment
+    await test_db.refresh(enrollment)
+    return enrollment
+
+
+@pytest_asyncio.fixture(scope="function")
+async def template_graph_in_db(
+        test_db: AsyncSession,
+        admin_in_db: User,
+) -> KnowledgeGraph:
+    """
+    Create an official template graph that students can enroll in.
+
+    Template graphs are:
+    - Marked as template (is_template=True)
+    - Immutable (should not be modified after students enroll)
+    - Safe for multiple students to enroll
+    - Usually created by admins
+
+    Note: is_public is set to True for template graphs so they're visible.
+    """
+    template_graph = KnowledgeGraph(
+        owner_id=admin_in_db.id,  # Created by admin
+        name="Official Calculus Template",
+        slug="official-calculus-template",
+        description="Official curriculum template for calculus learning",
+        tags=["template", "official", "calculus"],
+        is_public=True,  # Visible to all
+        is_template=True,  # Immutable, multi-user
+    )
+    test_db.add(template_graph)
+    await test_db.commit()
+    await test_db.refresh(template_graph)
+    return template_graph
+
+
+@pytest_asyncio.fixture(scope="function")
+async def graph_enrollment_student_in_db(
+        test_db: AsyncSession,
+        user_in_db: User,  # Regular user acts as student
+        template_graph_in_db: KnowledgeGraph,
+) -> GraphEnrollment:
+    """
+    Student enrolls in an official template graph.
+
+    Pattern:
+    - Only template graphs (is_template=True) allow non-owner enrollment
+    - Student's progress is tracked in UserMastery table
+    - Template graph remains unchanged, safe for all learners
+    """
+    enrollment = GraphEnrollment(
+        user_id=user_in_db.id,  # Student enrolls
+        graph_id=template_graph_in_db.id,  # In a template graph
+        is_active=True,
+    )
+    test_db.add(enrollment)
+    await test_db.commit()
+    await test_db.refresh(enrollment)
+    return enrollment
 
 
 # todo: write a Attempt in db
-@pytest_asyncio.fixture(scope="function")
-async def quiz_in_db(
-        test_db: AsyncSession,
-        user_in_db: User,
-        course_in_db: tuple[Course, Course],
-) -> QuizAttempt:
-    course_one, _ = course_in_db
-    new_attempt = QuizAttempt(
-        user_id=user_in_db.id,
-        course_id=course_one.id,
-        question_num=2,
-        status=QuizStatus.IN_PROGRESS
-    )
-    test_db.add(new_attempt)
-    await test_db.commit()
-    await test_db.refresh(new_attempt)
-    return new_attempt
+# @pytest_asyncio.fixture(scope="function")
+# async def quiz_in_db(
+#         test_db: AsyncSession,
+#         user_in_db: User,
+#         course_in_db: tuple[Course, Course],
+# ) -> QuizAttempt:
+#     course_one, _ = course_in_db
+#     new_attempt = QuizAttempt(
+#         user_id=user_in_db.id,
+#         course_id=course_one.id,
+#         question_num=2,
+#         status=QuizStatus.IN_PROGRESS
+#     )
+#     test_db.add(new_attempt)
+#     await test_db.commit()
+#     await test_db.refresh(new_attempt)
+#     return new_attempt
 
 
-@pytest_asyncio.fixture(scope="function")
-async def course_in_neo4j_db(
-        test_db_manager: DatabaseManager,
-) -> AsyncGenerator[Course, Any]:
-    course_obj = neo.Course(
-        course_id=COURSE_ID_ONE,
-        course_name=COURSE_NAME_ONE,
-    )
-
-    async with test_db_manager.neo4j_scoped_connection():
-        await asyncio.to_thread(course_obj.save)
-
-    yield course_obj
-
-
-@pytest_asyncio.fixture(scope="function")
-async def user_in_neo4j_db(
-    test_db_manager: DatabaseManager,
-    course_in_neo4j_db: neo.Course,
-    user_in_db: User,
-) -> AsyncGenerator[neo.User, Any]:
-
-    enrolled_course_id = course_in_neo4j_db.course_id
-    user_id = user_in_db.id
-    user_name = user_in_db.name
-
-    try:
-        async with test_db_manager.neo4j_scoped_connection():
-            user_node, create = await asyncio.to_thread(
-                _enroll_user_in_course_sync,
-                user_id=str(user_id),
-                user_name=user_name,
-                course_id=enrolled_course_id,
-            )
-        if user_node is None:
-            raise RuntimeError
-
-    except Exception as e:
-        print(f"❌ Error in user_in_neo4j_db fixture: {e}")
-    yield user_node
+# TODO: Delete later
+# @pytest_asyncio.fixture(scope="function")
+# async def course_in_neo4j_db(
+#         test_db_manager: DatabaseManager,
+# ) -> AsyncGenerator[Course, Any]:
+#     course_obj = neo.Course(
+#         course_id=COURSE_ID_ONE,
+#         course_name=COURSE_NAME_ONE,
+#     )
+#
+#     async with test_db_manager.neo4j_scoped_connection():
+#         await asyncio.to_thread(course_obj.save)
+#
+#     yield course_obj
 
 
-@pytest_asyncio.fixture(scope="function")
-async def nodes_in_neo4j_db(
-        test_db_manager: DatabaseManager,
-        course_in_neo4j_db: neo.Course,
-) -> AsyncGenerator[tuple[neo.KnowledgeNode, neo.KnowledgeNode], Any]:
-
-    target_node_obj = neo.KnowledgeNode(
-        node_id=TARGET_KNOWLEDGE_NODE_ID,
-        node_name=TARGET_KNOWLEDGE_NODE_NAME,
-    )
-
-    source_node_obj = neo.KnowledgeNode(
-        node_id=SOURCE_KNOWLEDGE_NODE_ID,
-        node_name=SOURCE_KNOWLEDGE_NODE_NAME,
-    )
-
-    async with test_db_manager.neo4j_scoped_connection():
-
-        await asyncio.to_thread(target_node_obj.save)
-        await asyncio.to_thread(source_node_obj.save)
-
-        # connect course with BELONGS_TO relationship
-        await asyncio.to_thread(
-            target_node_obj.course.connect, course_in_neo4j_db
-        )
-        await asyncio.to_thread(
-            source_node_obj.course.connect, course_in_neo4j_db
-        )
-
-    yield target_node_obj, source_node_obj
+# TODO: Delete later
+# @pytest_asyncio.fixture(scope="function")
+# async def user_in_neo4j_db(
+#     test_db_manager: DatabaseManager,
+#     course_in_neo4j_db: neo.Course,
+#     user_in_db: User,
+# ) -> AsyncGenerator[neo.User, Any]:
+#
+#     enrolled_course_id = course_in_neo4j_db.course_id
+#     user_id = user_in_db.id
+#     user_name = user_in_db.name
+#
+#     try:
+#         async with test_db_manager.neo4j_scoped_connection():
+#             user_node, create = await asyncio.to_thread(
+#                 _enroll_user_in_course_sync,
+#                 user_id=str(user_id),
+#                 user_name=user_name,
+#                 course_id=enrolled_course_id,
+#             )
+#         if user_node is None:
+#             raise RuntimeError
+#
+#     except Exception as e:
+#         print(f"❌ Error in user_in_neo4j_db fixture: {e}")
+#     yield user_node
 
 
-@pytest_asyncio.fixture(scope="function")
-async def questions_in_neo4j_db(
-        test_db_manager: DatabaseManager,
-        nodes_in_neo4j_db: tuple[neo.KnowledgeNode, neo.KnowledgeNode],
-) -> AsyncGenerator[
-    tuple[neo.MultipleChoice, neo.FillInBlank], Any
-]:
-    target_node, source_node = nodes_in_neo4j_db
+# TODO: Delete later
+# @pytest_asyncio.fixture(scope="function")
+# async def nodes_in_neo4j_db(
+#         test_db_manager: DatabaseManager,
+#         course_in_neo4j_db: neo.Course,
+# ) -> AsyncGenerator[tuple[neo.KnowledgeNode, neo.KnowledgeNode], Any]:
+#
+#     target_node_obj = neo.KnowledgeNode(
+#         node_id=TARGET_KNOWLEDGE_NODE_ID,
+#         node_name=TARGET_KNOWLEDGE_NODE_NAME,
+#     )
+#
+#     source_node_obj = neo.KnowledgeNode(
+#         node_id=SOURCE_KNOWLEDGE_NODE_ID,
+#         node_name=SOURCE_KNOWLEDGE_NODE_NAME,
+#     )
+#
+#     async with test_db_manager.neo4j_scoped_connection():
+#
+#         await asyncio.to_thread(target_node_obj.save)
+#         await asyncio.to_thread(source_node_obj.save)
+#
+#         # connect course with BELONGS_TO relationship
+#         await asyncio.to_thread(
+#             target_node_obj.course.connect, course_in_neo4j_db
+#         )
+#         await asyncio.to_thread(
+#             source_node_obj.course.connect, course_in_neo4j_db
+#         )
+#
+#     yield target_node_obj, source_node_obj
 
-    mcq_obj = neo.MultipleChoice(
-        question_id=uuid.UUID("7c9e6679-7425-40de-944b-e07fc1f90ae7"),
-        text="Which of these is a 'target' node?",
-        difficulty=pydantic.QuestionDifficulty.EASY.value,
-        options=["Target", "Source", "Neither"],
-        correct_answer=0,
-    )
-    fib_obj = neo.FillInBlank(
-        question_id="8f14e45f-ceea-467a-9af0-fd3c2a1234ab",
-        text="The source node name is ____.",
-        difficulty=pydantic.QuestionDifficulty.EASY.value,
-        expected_answer=[SOURCE_KNOWLEDGE_NODE_NAME],
-    )
-    async with test_db_manager.neo4j_scoped_connection():
-        await asyncio.to_thread(mcq_obj.save)
-        await asyncio.to_thread(fib_obj.save)
 
-        await asyncio.to_thread(mcq_obj.knowledge_node.connect, target_node)
-        await asyncio.to_thread(fib_obj.knowledge_node.connect, source_node)
+# TODO: Delete later
+# @pytest_asyncio.fixture(scope="function")
+# async def questions_in_neo4j_db(
+#         test_db_manager: DatabaseManager,
+#         nodes_in_neo4j_db: tuple[neo.KnowledgeNode, neo.KnowledgeNode],
+# ) -> AsyncGenerator[
+#     tuple[neo.MultipleChoice, neo.FillInBlank], Any
+# ]:
+#     target_node, source_node = nodes_in_neo4j_db
+#
+#     mcq_obj = neo.MultipleChoice(
+#         question_id=uuid.UUID("7c9e6679-7425-40de-944b-e07fc1f90ae7"),
+#         text="Which of these is a 'target' node?",
+#         difficulty=pydantic.QuestionDifficulty.EASY.value,
+#         options=["Target", "Source", "Neither"],
+#         correct_answer=0,
+#     )
+#     fib_obj = neo.FillInBlank(
+#         question_id="8f14e45f-ceea-467a-9af0-fd3c2a1234ab",
+#         text="The source node name is ____.",
+#         difficulty=pydantic.QuestionDifficulty.EASY.value,
+#         expected_answer=[SOURCE_KNOWLEDGE_NODE_NAME],
+#     )
+#     async with test_db_manager.neo4j_scoped_connection():
+#         await asyncio.to_thread(mcq_obj.save)
+#         await asyncio.to_thread(fib_obj.save)
+#
+#         await asyncio.to_thread(mcq_obj.knowledge_node.connect, target_node)
+#         await asyncio.to_thread(fib_obj.knowledge_node.connect, source_node)
+#
+#     yield mcq_obj, fib_obj
 
-    yield mcq_obj, fib_obj
 
-
-@pytest_asyncio.fixture(scope="function")
-async def knowledge_graph_in_neo4j_db(
-        test_db_manager: DatabaseManager,
-        course_in_neo4j_db: neo.Course,
-) -> AsyncGenerator[dict, Any]:
-    """
-    Create a complete knowledge graph with hierarchical relationships.
-
-    Structure:
-        Parent Topic (parent_topic)
-        ├── Subtopic A (subtopic_a) [weight: 0.6]
-        │   └── Question: MCQ about Subtopic A (correct answer: 0)
-        └── Subtopic B (subtopic_b) [weight: 0.4]
-            └── Question: MCQ about Subtopic B (correct answer: 1)
-
-    Prerequisites:
-        Subtopic A is prerequisite for Subtopic B
-
-    Returns:
-        dict with nodes and questions for easy access
-    """
-    # Create parent topic node
-    parent_node = neo.KnowledgeNode(
-        node_id="parent_topic",
-        node_name="Parent Topic",
-    )
-
-    # Create subtopic nodes
-    subtopic_a = neo.KnowledgeNode(
-        node_id="subtopic_a",
-        node_name="Subtopic A",
-    )
-
-    subtopic_b = neo.KnowledgeNode(
-        node_id="subtopic_b",
-        node_name="Subtopic B",
-    )
-
-    # Create MCQ questions
-    mcq_a = neo.MultipleChoice(
-        question_id=uuid.UUID("7c9e6679-7425-40de-944b-e07fc1f90ae7"),
-        text="Which answer is correct for Subtopic A?",
-        difficulty=pydantic.QuestionDifficulty.EASY.value,
-        options=["Answer A (Correct)", "Answer B", "Answer C"],
-        correct_answer=0,  # First option is correct
-    )
-
-    mcq_b = neo.MultipleChoice(
-        question_id=uuid.UUID("8f14e45f-ceea-467a-9af0-fd3c2a1234ab"),
-        text="Which answer is correct for Subtopic B?",
-        difficulty=pydantic.QuestionDifficulty.EASY.value,
-        options=["Answer A", "Answer B (Correct)", "Answer C"],
-        correct_answer=1,  # Second option is correct
-    )
-
-    async with test_db_manager.neo4j_scoped_connection():
-        # Save all nodes
-        await asyncio.to_thread(parent_node.save)
-        await asyncio.to_thread(subtopic_a.save)
-        await asyncio.to_thread(subtopic_b.save)
-        await asyncio.to_thread(mcq_a.save)
-        await asyncio.to_thread(mcq_b.save)
-
-        # Connect nodes to course
-        await asyncio.to_thread(parent_node.course.connect, course_in_neo4j_db)
-        await asyncio.to_thread(subtopic_a.course.connect, course_in_neo4j_db)
-        await asyncio.to_thread(subtopic_b.course.connect, course_in_neo4j_db)
-
-        # Create HAS_SUBTOPIC relationships (parent -> children)
-        await asyncio.to_thread(
-            parent_node.subtopic.connect,
-            subtopic_a,
-            {'weight': 0.6}  # Subtopic A weight
-        )
-        await asyncio.to_thread(
-            parent_node.subtopic.connect,
-            subtopic_b,
-            {'weight': 0.4}  # Subtopic B weight
-        )
-
-        # Create IS_PREREQUISITE_FOR relationship
-        await asyncio.to_thread(
-            subtopic_a.is_prerequisite_for.connect,
-            subtopic_b
-        )
-
-        # Connect questions to knowledge nodes (TESTS relationship)
-        await asyncio.to_thread(mcq_a.knowledge_node.connect, subtopic_a)
-        await asyncio.to_thread(mcq_b.knowledge_node.connect, subtopic_b)
-
-    yield {
-        'parent_node': parent_node,
-        'subtopic_a': subtopic_a,
-        'subtopic_b': subtopic_b,
-        'mcq_a': mcq_a,  # Question for subtopic A
-        'mcq_b': mcq_b,  # Question for subtopic B
-    }
+# TODO: Delete later
+# @pytest_asyncio.fixture(scope="function")
+# async def knowledge_graph_in_neo4j_db(
+#         test_db_manager: DatabaseManager,
+#         course_in_neo4j_db: neo.Course,
+# ) -> AsyncGenerator[dict, Any]:
+#     """
+#     Create a complete knowledge graph with hierarchical relationships.
+#
+#     Structure:
+#         Parent Topic (parent_topic)
+#         ├── Subtopic A (subtopic_a) [weight: 0.6]
+#         │   └── Question: MCQ about Subtopic A (correct answer: 0)
+#         └── Subtopic B (subtopic_b) [weight: 0.4]
+#             └── Question: MCQ about Subtopic B (correct answer: 1)
+#
+#     Prerequisites:
+#         Subtopic A is prerequisite for Subtopic B
+#
+#     Returns:
+#         dict with nodes and questions for easy access
+#     """
+#     # Create parent topic node
+#     parent_node = neo.KnowledgeNode(
+#         node_id="parent_topic",
+#         node_name="Parent Topic",
+#     )
+#
+#     # Create subtopic nodes
+#     subtopic_a = neo.KnowledgeNode(
+#         node_id="subtopic_a",
+#         node_name="Subtopic A",
+#     )
+#
+#     subtopic_b = neo.KnowledgeNode(
+#         node_id="subtopic_b",
+#         node_name="Subtopic B",
+#     )
+#
+#     # Create MCQ questions
+#     mcq_a = neo.MultipleChoice(
+#         question_id=uuid.UUID("7c9e6679-7425-40de-944b-e07fc1f90ae7"),
+#         text="Which answer is correct for Subtopic A?",
+#         difficulty=pydantic.QuestionDifficulty.EASY.value,
+#         options=["Answer A (Correct)", "Answer B", "Answer C"],
+#         correct_answer=0,  # First option is correct
+#     )
+#
+#     mcq_b = neo.MultipleChoice(
+#         question_id=uuid.UUID("8f14e45f-ceea-467a-9af0-fd3c2a1234ab"),
+#         text="Which answer is correct for Subtopic B?",
+#         difficulty=pydantic.QuestionDifficulty.EASY.value,
+#         options=["Answer A", "Answer B (Correct)", "Answer C"],
+#         correct_answer=1,  # Second option is correct
+#     )
+#
+#     async with test_db_manager.neo4j_scoped_connection():
+#         # Save all nodes
+#         await asyncio.to_thread(parent_node.save)
+#         await asyncio.to_thread(subtopic_a.save)
+#         await asyncio.to_thread(subtopic_b.save)
+#         await asyncio.to_thread(mcq_a.save)
+#         await asyncio.to_thread(mcq_b.save)
+#
+#         # Connect nodes to course
+#         await asyncio.to_thread(parent_node.course.connect, course_in_neo4j_db)
+#         await asyncio.to_thread(subtopic_a.course.connect, course_in_neo4j_db)
+#         await asyncio.to_thread(subtopic_b.course.connect, course_in_neo4j_db)
+#
+#         # Create HAS_SUBTOPIC relationships (parent -> children)
+#         await asyncio.to_thread(
+#             parent_node.subtopic.connect,
+#             subtopic_a,
+#             {'weight': 0.6}  # Subtopic A weight
+#         )
+#         await asyncio.to_thread(
+#             parent_node.subtopic.connect,
+#             subtopic_b,
+#             {'weight': 0.4}  # Subtopic B weight
+#         )
+#
+#         # Create IS_PREREQUISITE_FOR relationship
+#         await asyncio.to_thread(
+#             subtopic_a.is_prerequisite_for.connect,
+#             subtopic_b
+#         )
+#
+#         # Connect questions to knowledge nodes (TESTS relationship)
+#         await asyncio.to_thread(mcq_a.knowledge_node.connect, subtopic_a)
+#         await asyncio.to_thread(mcq_b.knowledge_node.connect, subtopic_b)
+#
+#     yield {
+#         'parent_node': parent_node,
+#         'subtopic_a': subtopic_a,
+#         'subtopic_b': subtopic_b,
+#         'mcq_a': mcq_a,  # Question for subtopic A
+#         'mcq_b': mcq_b,  # Question for subtopic B
+#     }
 
 
 @pytest_asyncio.fixture(scope="function")
@@ -476,70 +733,45 @@ async def authenticated_admin_client(client: AsyncClient,
 
 
 @pytest_asyncio.fixture(scope="function")
-async def enrolled_user_client(
-    authenticated_client: AsyncClient,
-    test_db: AsyncSession,
-    user_in_db: User,
-    course_in_db: Course,
-):
-    """提供一个已认证且其用户已注册了课程的客户端。"""
-    course_one, _ = course_in_db
-    new_enrollment = Enrollment(
-        user_id=user_in_db.id,
-        course_id=course_one.id
-    )
-    test_db.add(new_enrollment)
-    await test_db.commit()
-    yield authenticated_client
+async def other_user_client(
+    client: AsyncClient,
+    other_user_in_db: User
+) -> AsyncClient:
+    """Create an authenticated client for the second user (for testing non-owner access)."""
+    token = create_access_token(other_user_in_db)
+    client.headers["Authorization"] = f"Bearer {token}"
+    return client
 
-    await test_db.delete(new_enrollment)
-    await test_db.commit()
+
+# @pytest_asyncio.fixture(scope="function")
+# async def enrolled_user_client(
+#     authenticated_client: AsyncClient,
+#     test_db: AsyncSession,
+#     user_in_db: User,
+#     course_in_db: Course,
+# ):
+#     """提供一个已认证且其用户已注册了课程的客户端。"""
+#     course_one, _ = course_in_db
+#     new_enrollment = Enrollment(
+#         user_id=user_in_db.id,
+#         course_id=course_one.id
+#     )
+#     test_db.add(new_enrollment)
+#     await test_db.commit()
+#     yield authenticated_client
+#
+#     await test_db.delete(new_enrollment)
+#     await test_db.commit()
 
 
 @pytest_asyncio.fixture(scope="session", autouse=True)
 async def cleanup_test_db():
-    """测试会话结束后清理测试数据库文件"""
+    """
+    Clean the database after the test session
+    """
     yield
     import os
 
     if os.path.exists("./test_db.sqlite"):
         os.remove("./test_db.sqlite")
-
-
-# ==================================================================
-# === MOCK Fixtures for unit test ===
-# ==================================================================
-# @pytest.fixture(scope="function")
-# def mock_redis_client() -> MagicMock:
-#     client = MagicMock(spec=Redis)
-#     client.lpush = AsyncMock(return_value=1)
-#     return client
-#
-#
-# @pytest.fixture(scope="function")
-# def mock_upload_file() -> MagicMock:
-#     file_content = [b"header1, header2\n", b"value1, value2\n", b""]
-#
-#     file = MagicMock(spec=UploadFile)
-#     file.content_type = "test/csv"
-#     file.filename = "test.csv"
-#     file.read = AsyncMock(side_effect=file_content)
-#     file.close = AsyncMock()
-#     return file
-#
-#
-# @pytest.fixture(scope="function")
-# def mock_aiofiles_open(mocker):
-#     mock_file_handle = AsyncMock()
-#     mock_file_handle.write = AsyncMock()
-#
-#     mock_content_manager = AsyncMock()
-#     mock_file_handle.__aenter__.return_value = mock_file_handle
-#
-#     return mocker.patch("")  # TODO: problem here !!!
-
-
-
-
-
 

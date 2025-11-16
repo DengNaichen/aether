@@ -1,0 +1,96 @@
+### Knowledge Graph API Tests
+### Prerequisites: Run the login request below first, then use the token in other requests
+
+@baseUrl = http://localhost:8000
+@email = test@gmail.com
+@password = newPassword456
+
+### 0. Login to get access token
+# @name login
+POST {{baseUrl}}/users/login
+Content-Type: application/x-www-form-urlencoded
+
+username={{email}}&password={{password}}
+
+###
+@accessToken = {{login.response.body.access_token}}
+
+### 1. Create a new knowledge graph (private)
+# @name createPrivateGraph
+POST {{baseUrl}}/me/graphs
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "name": "My Python Course",
+  "description": "Learn Python from scratch",
+  "tags": ["python", "programming", "beginner"],
+  "is_public": false
+}
+
+### 2. Create a public knowledge graph
+# @name createPublicGraph
+POST {{baseUrl}}/me/graphs
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "name": "Advanced Data Structures",
+  "description": "Master advanced data structures and algorithms",
+  "tags": ["algorithms", "data-structures", "advanced"],
+  "is_public": true
+}
+
+### 3. Create graph without description and tags (minimal)
+POST {{baseUrl}}/me/graphs
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "name": "Quick Notes",
+  "is_public": false
+}
+
+### 4. Try to create duplicate graph (should fail with 409)
+POST {{baseUrl}}/me/graphs
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "name": "My Python Course",
+  "description": "This should fail because slug already exists",
+  "is_public": false
+}
+
+### 5. Create graph with special characters in name (test slug generation)
+POST {{baseUrl}}/me/graphs
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "name": "C++ Programming & Design Patterns!",
+  "description": "Test slug generation with special characters",
+  "tags": ["c++", "design-patterns"],
+  "is_public": false
+}
+
+### 6. Test empty name (should fail with validation error)
+POST {{baseUrl}}/me/graphs
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "name": "",
+  "is_public": false
+}
+
+### 7. Test too many tags (should fail with validation error)
+POST {{baseUrl}}/me/graphs
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "name": "Too Many Tags Test",
+  "tags": ["tag1", "tag2", "tag3", "tag4", "tag5", "tag6", "tag7", "tag8", "tag9", "tag10", "tag11", "tag12", "tag13", "tag14", "tag15", "tag16", "tag17", "tag18", "tag19", "tag20", "tag21"],
+  "is_public": false
+}

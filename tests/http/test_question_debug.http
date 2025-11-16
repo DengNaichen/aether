@@ -1,0 +1,18 @@
+### Test Question Creation
+POST http://localhost:8000/graphs/{{graph_id}}/questions
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "node_id": "test-node",
+  "question_type": "multiple_choice",
+  "text": "What is the derivative of x^2?",
+  "difficulty": "easy",
+  "details": {
+    "question_type": "multiple_choice",
+    "options": ["x", "2x", "x^2", "2"],
+    "correct_answer": 1,
+    "p_g": 0.25,
+    "p_s": 0.1
+  }
+}
