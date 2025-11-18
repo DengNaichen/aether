@@ -2,8 +2,8 @@ import asyncio
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator, Optional
 
-from redis.asyncio import Redis
-import redis.asyncio as aioredis
+# from redis.asyncio import Redis
+# import redis.asyncio as aioredis
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
@@ -74,44 +74,44 @@ class DatabaseManager:
                 await session.close()
 
     # ==================== Redis ====================
-    @property
-    def redis_client(self) -> Redis:
-        """
-        Lazy initialization of Redis client.
-        """
-        if self._redis_client is None:
-            self._redis_client = aioredis.from_url(
-                self.settings.REDIS_URL, encoding="utf-8", decode_responses=True
-            )
-        return self._redis_client
+    # @property
+    # def redis_client(self) -> Redis:
+    #     """
+    #     Lazy initialization of Redis client.
+    #     """
+    #     if self._redis_client is None:
+    #         self._redis_client = aioredis.from_url(
+    #             self.settings.REDIS_URL, encoding="utf-8", decode_responses=True
+    #         )
+    #     return self._redis_client
 
-    async def get_redis_value(self, key: str) -> Optional[str]:
-        """
-        Get value from Redis.
-        """
-        return await self.redis_client.get(key)
+    # async def get_redis_value(self, key: str) -> Optional[str]:
+    #     """
+    #     Get value from Redis.
+    #     """
+    #     return await self.redis_client.get(key)
 
-    async def set_redis_value(
-        self, key: str, value: str, expire: Optional[int] = None
-    ) -> bool:
-        """
-        Set value in Redis.
+    # async def set_redis_value(
+    #     self, key: str, value: str, expire: Optional[int] = None
+    # ) -> bool:
+    #     """
+    #     Set value in Redis.
 
-        Arguments:
-            key: Redis key.
-            value: Value to store
-            expire: Expiration time in seconds.
+    #     Arguments:
+    #         key: Redis key.
+    #         value: Value to store
+    #         expire: Expiration time in seconds.
 
-        Returns:
-            True on success.
-        """
-        return await self.redis_client.set(key, value, ex=expire)
+    #     Returns:
+    #         True on success.
+    #     """
+    #     return await self.redis_client.set(key, value, ex=expire)
 
-    async def delete_redis_key(self, key: str) -> int:
-        """
-        Delete key from Redis.
-        """
-        return await self.redis_client.delete(key)
+    # async def delete_redis_key(self, key: str) -> int:
+    #     """
+    #     Delete key from Redis.
+    #     """
+    #     return await self.redis_client.delete(key)
 
     # ==================== Initialization & Health Checks ====================
     async def _check_sql(self):
@@ -122,12 +122,12 @@ class DatabaseManager:
         except Exception as e:
             return False, f"❌ SQL database connection failed: {e}"
 
-    async def _check_redis(self):
-        try:
-            await self.redis_client.ping()
-            return True, None
-        except Exception as e:
-            return False, f"❌ Redis connection failed: {e}"
+    # async def _check_redis(self):
+    #     try:
+    #         await self.redis_client.ping()
+    #         return True, None
+    #     except Exception as e:
+    #         return False, f"❌ Redis connection failed: {e}"
 
     async def initialize(self):
         """
@@ -136,7 +136,7 @@ class DatabaseManager:
         checks = {
             "SQL": self._check_sql,
             # "Neo4j": self._check_neo4j,
-            "Redis": self._check_redis,
+            # "Redis": self._check_redis,
         }
         results = await asyncio.gather(*(check() for check in checks.values()))
         errors = []
@@ -149,13 +149,11 @@ class DatabaseManager:
             raise RuntimeError(f"Database initialization failed:\n" + "\n".join(errors))
 
     async def health_check(self) -> dict:
-        sql_status, redis_status = await asyncio.gather(
-            self._check_sql(),
-            self._check_redis(),
-        )
+        sql_status = await self._check_sql()
+        # redis_status = await self._check_redis()
         return {
             "sql": sql_status[0],
-            "redis": redis_status[0],
+            # "redis": redis_status[0],
         }
 
     # ==================== Table Management ====================
@@ -185,15 +183,15 @@ class DatabaseManager:
                 errors.append(f"SQL close error: {e}")
 
         # Close Redis client
-        if self._redis_client:
-            try:
-                await self._redis_client.close()
-                print("✅Redis client closed")
-            except Exception as e:
-                errors.append(f"Redis close error: {e}")
+        # if self._redis_client:
+        #     try:
+        #         await self._redis_client.close()
+        #         print("✅Redis client closed")
+        #     except Exception as e:
+        #         errors.append(f"Redis close error: {e}")
 
-        if errors:
-            print("Warnings during cleanup:\n" + "\n".join(errors))
+        # if errors:
+        #     print("Warnings during cleanup:\n" + "\n".join(errors))
 
 
 db_manager = DatabaseManager(settings)

@@ -15,8 +15,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
-      redis:
-        condition: service_healthy
+      # redis:
+      #   condition: service_healthy
 
   db:
     image: postgres:15-alpine
@@ -34,34 +34,34 @@ services:
       timeout: 5s
       retries: 5
 
-  redis:
-    image: redis:7-alpine
-    container_name: aether-redis
-    volumes:
-      - redis_data:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 3s
-      retries: 5
-    restart: unless-stopped
+  # redis:
+  #   image: redis:7-alpine
+  #   container_name: aether-redis
+  #   volumes:
+  #     - redis_data:/data
+  #   healthcheck:
+  #     test: ["CMD", "redis-cli", "ping"]
+  #     interval: 5s
+  #     timeout: 3s
+  #     retries: 5
+  #   restart: unless-stopped
 
-  worker:
-    build:
-      context: .
-    env_file:
-      - .env.local
-    environment:
-      - PYTHONUNBUFFERED=1
-    command: ["sh", "-c", "uv run python -u -m app.worker"]
-    volumes:
-      - .:/app
-    depends_on:
-      db:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    restart: unless-stopped
+  # worker:
+  #   build:
+  #     context: .
+  #   env_file:
+  #     - .env.local
+  #   environment:
+  #     - PYTHONUNBUFFERED=1
+  #   command: ["sh", "-c", "uv run python -u -m app.worker"]
+  #   volumes:
+  #     - .:/app
+  #   depends_on:
+  #     db:
+  #       condition: service_healthy
+  #     redis:
+  #       condition: service_healthy
+  #   restart: unless-stopped
 
 
 volumes:
