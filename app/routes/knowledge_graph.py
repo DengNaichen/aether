@@ -7,9 +7,15 @@ from sqlalchemy import select
 from app.core.deps import get_db, get_current_active_user
 from app.models.user import User
 from app.models.enrollment import GraphEnrollment
+from app.models.knowledge_graph import KnowledgeGraph
 from app.schemas.knowledge_graph import KnowledgeGraphCreate, KnowledgeGraphResponse
 from app.schemas.enrollment import GraphEnrollmentResponse
-from app.crud.knowledge_graph import get_graph_by_owner_and_slug, create_knowledge_graph, get_graph_by_id
+from app.crud.knowledge_graph import (
+    get_graph_by_owner_and_slug,
+    create_knowledge_graph,
+    get_graph_by_id,
+    get_all_template_graphs,
+)
 from app.utils.slug import slugify
 
 
@@ -179,12 +185,50 @@ async def enroll_in_graph(
 # ==================== Public Endpoints ====================
 
 
+@public_router.get("/templates",
+                   response_model=list[KnowledgeGraphResponse],
+                   summary="Get all template knowledge graphs",
+                   )
+async def get_template_graphs(
+        db_session: AsyncSession = Depends(get_db),
+        current_user: User = Depends(get_current_active_user),
+):
+    """
+    Get all template knowledge graphs available for enrollment.
+
+    Template graphs are official curriculum templates that:
+    - Are marked as templates (is_template=True)
+    - Are available for authenticated users to enroll in
+    - Provide standardized learning paths created by administrators
+
+    This endpoint requires authentication and returns enrollment status
+    for each template graph.
+
+    Returns:
+        list[KnowledgeGraphResponse]: List of all template knowledge graphs,
+            ordered by creation date (newest first). Each graph includes:
+            - Basic graph information (name, description, tags, etc.)
+            - node_count: Number of knowledge nodes in the graph
+            - is_enrolled: Whether the current user is enrolled in this graph
+
+    Use cases:
+    - Browsing available official curricula
+    - Checking enrollment status across all templates
+    - Selecting a template to enroll in
+    """
+    templates = await get_all_template_graphs(
+        db_session=db_session,
+        user_id=current_user.id
+    )
+    return templates
+
+
 @public_router.post("/{graph_id}/enrollments",
                     status_code=status.HTTP_201_CREATED,
                     response_model=GraphEnrollmentResponse,
                     summary="Enroll in a public or template knowledge graph",
                     )
-async def enroll_in_public_graph(
+async def enroll_in_template_graph(
         graph_id: UUID = Path(..., description="Knowledge graph UUID"),
         db_session: AsyncSession = Depends(get_db),
         current_user: User = Depends(get_current_active_user),
@@ -268,3 +312,77 @@ async def enroll_in_public_graph(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to create enrollment: {e}"
         )
+
+
+@public_router.get("/{graph_id}/",
+                   status_code=status.HTTP_200_OK,
+                   response_model=KnowledgeGraphResponse,
+                   summary="Get public or template knowledge graph details",
+                   )
+async def get_template_graph_details(
+        graph_id: UUID = Path(..., description="Knowledge graph UUID"),
+        db_session: AsyncSession = Depends(get_db),
+        current_user: User = Depends(get_current_active_user),
+):
+    """
+    Get detailed information about a public or template knowledge graph.
+
+    This endpoint allows authenticated users to view details of:
+    - Public graphs (is_public=True): Shared by creators
+    - Template graphs (is_template=True): Official curricula
+
+    Returns:
+        KnowledgeGraphResponse: Graph details including node count and enrollment status
+
+    Raises:
+        HTTPException 404: If the knowledge graph doesn't exist
+        HTTPException 403: If the graph is neither public nor template (private)
+    """
+    # Verify the knowledge graph exists
+    knowledge_graph = await get_graph_by_id(db_session=db_session, graph_id=graph_id)
+    if not knowledge_graph:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Knowledge graph {graph_id} not found."
+        )
+
+    # Verify access permissions - must be public or template
+    if not knowledge_graph.is_public and not knowledge_graph.is_template:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="This knowledge graph is private. Only public or template graphs can be viewed."
+        )
+
+    # Count nodes in this graph
+    from app.models.knowledge_node import KnowledgeNode
+    from sqlalchemy import func
+
+    node_count_stmt = select(func.count(KnowledgeNode.id)).where(
+        KnowledgeNode.graph_id == graph_id
+    )
+    node_count_result = await db_session.execute(node_count_stmt)
+    node_count = node_count_result.scalar() or 0
+
+    # Check if current user is enrolled
+    enrollment_stmt = select(GraphEnrollment).where(
+        GraphEnrollment.user_id == current_user.id,
+        GraphEnrollment.graph_id == graph_id
+    )
+    enrollment_result = await db_session.execute(enrollment_stmt)
+    is_enrolled = enrollment_result.scalar_one_or_none() is not None
+
+    # Build response with all required fields
+    return {
+        "id": knowledge_graph.id,
+        "name": knowledge_graph.name,
+        "slug": knowledge_graph.slug,
+        "description": knowledge_graph.description,
+        "tags": knowledge_graph.tags,
+        "is_public": knowledge_graph.is_public,
+        "is_template": knowledge_graph.is_template,
+        "owner_id": knowledge_graph.owner_id,
+        "enrollment_count": knowledge_graph.enrollment_count,
+        "node_count": node_count,
+        "is_enrolled": is_enrolled,
+        "created_at": knowledge_graph.created_at,
+    }

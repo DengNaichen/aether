@@ -27,7 +27,7 @@ import pytest_asyncio
 import pytest
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
-from neo4j import AsyncGraphDatabase, AsyncDriver
+# from neo4j import AsyncGraphDatabase, AsyncDriver
 from unittest.mock import MagicMock, AsyncMock
 from fastapi import UploadFile
 
@@ -38,7 +38,7 @@ from app.core.security import create_access_token, get_password_hash
 
 # Configure neomodel BEFORE importing app.main (which triggers lifespan)
 # This ensures neomodel uses test database URL
-from neomodel import config as neomodel_config
+# from neomodel import config as neomodel_config
 # neomodel_config.DATABASE_URL = settings.NEOMODEL_NEO4J_URI
 # print(f"🧪 Test neomodel configured with URI: {settings.NEO4J_URI}")
 

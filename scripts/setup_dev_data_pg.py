@@ -28,15 +28,16 @@ sys.path.insert(0, str(project_root))
 
 from app.core.database import db_manager
 from app.models import Base, User
-from app.models.quiz import QuizAttempt, SubmissionAnswer  # Import for relationship resolution
+from app.models.quiz import SubmissionAnswer  # Import for relationship resolution
 from app.crud import knowledge_graph as kg_crud
 from app.utils.slug import slugify
 
 # Graph configuration
 GRAPH_NAME = "Grade 11 Physics - Chapter 1: Kinematics"
 GRAPH_DESCRIPTION = "Introduction to kinematics: displacement, velocity, and acceleration"
-GRAPH_TAGS = ["physics", "grade11", "kinematics", "development"]
+GRAPH_TAGS = ["physics", "grade11", "kinematics", "template"]
 GRAPH_IS_PUBLIC = True
+GRAPH_IS_TEMPLATE = True  # Mark as official template curriculum
 
 # Admin user for setup (must exist in database)
 ADMIN_EMAIL = "admin@example.com"
@@ -139,7 +140,8 @@ async def create_knowledge_graph(session, owner_id: UUID):
         slug=slug,
         description=GRAPH_DESCRIPTION,
         tags=GRAPH_TAGS,
-        is_public=GRAPH_IS_PUBLIC
+        is_public=GRAPH_IS_PUBLIC,
+        is_template=GRAPH_IS_TEMPLATE
     )
 
     print(f"✅ Successfully created knowledge graph:")
@@ -147,6 +149,8 @@ async def create_knowledge_graph(session, owner_id: UUID):
     print(f"   Name: {graph.name}")
     print(f"   Slug: {graph.slug}")
     print(f"   Owner ID: {graph.owner_id}")
+    print(f"   Is Template: {graph.is_template}")
+    print(f"   Is Public: {graph.is_public}")
 
     return graph
 

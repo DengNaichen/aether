@@ -31,7 +31,11 @@ class KnowledgeGraphResponse(BaseModel):
     description: Optional[str]
     tags: list[str]
     is_public: bool
+    is_template: bool
     owner_id: UUID
+    enrollment_count: int
+    node_count: int = Field(default=0, description="Number of knowledge nodes in this graph")
+    is_enrolled: Optional[bool] = Field(default=None, description="Whether current user is enrolled (only for authenticated requests)")
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
