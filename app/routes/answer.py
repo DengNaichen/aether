@@ -73,9 +73,21 @@ async def submit_single_answer(
 
     # Step 1: Grade the answer
     grading_service = GradingService(db)
+
+    # Extract the actual answer value based on question type
+    user_answer_dict = answer_data.user_answer.model_dump()
+    if user_answer_dict.get("question_type") == "multiple_choice":
+        answer_value = user_answer_dict.get("selected_option")
+    elif user_answer_dict.get("question_type") == "fill_in_the_blank":
+        answer_value = user_answer_dict.get("text_answer")
+    elif user_answer_dict.get("question_type") == "calculation":
+        answer_value = user_answer_dict.get("numeric_answer")
+    else:
+        answer_value = user_answer_dict
+
     grading_result = await grading_service.fetch_and_grade(
         question_id=answer_data.question_id,
-        user_answer={"user_answer": answer_data.user_answer.model_dump()}
+        user_answer={"user_answer": answer_value}
     )
 
     if not grading_result:
@@ -105,34 +117,44 @@ async def submit_single_answer(
     mastery_updated = False
 
     try:
-        knowledge_node = await mastery_service.update_mastery_from_grading(
+        # Get old score before update for propagation
+        knowledge_node_result = await mastery_service.update_mastery_from_grading(
             db_session=db,
             user=current_user,
             question_id=answer_data.question_id,
             grading_result=grading_result
         )
 
-        if knowledge_node:
+        if knowledge_node_result:
             logger.info(
-                f"Updated mastery for user {current_user.id} on node {knowledge_node.id}"
+                f"Updated mastery for user {current_user.id} on node {knowledge_node_result.id}"
             )
             mastery_updated = True
 
             # Step 4: Propagate mastery updates through the graph
             try:
+                # Get the updated mastery score
+                new_score = await mastery_service.get_mastery_score(
+                    db_session=db,
+                    user=current_user,
+                    knowledge_node=knowledge_node_result
+                )
+
                 await mastery_service.propagate_mastery(
                     db_session=db,
                     user=current_user,
-                    knowledge_node=knowledge_node,
-                    is_correct=grading_result.is_correct
+                    node_answered=knowledge_node_result,
+                    is_correct=grading_result.is_correct,
+                    p_g=grading_result.p_g,
+                    p_s=grading_result.p_s,
                 )
                 logger.info(
-                    f"Propagated mastery for node {knowledge_node.id}"
+                    f"Propagated mastery for node {knowledge_node_result.id}"
                 )
             except Exception as e:
                 # Don't fail the entire request if propagation fails
                 logger.error(
-                    f"Mastery propagation failed for node {knowledge_node.id}: {e}",
+                    f"Mastery propagation failed for node {knowledge_node_result.id}: {e}",
                     exc_info=True
                 )
         else:

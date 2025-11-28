@@ -450,7 +450,7 @@ async def test_propagate_to_prerequisites_boosts_prerequisite_scores(
         user=user_in_db,
         node_answered=integrals_node,
         is_correct=True,
-        original_score_update=(0.1, 0.3)  # Mock score update
+        p_g=0.2, p_s=0.1
     )
 
     # Verify prerequisite score increased
@@ -488,7 +488,7 @@ async def test_propagate_to_prerequisites_skips_on_incorrect(
         user=user_in_db,
         node_answered=integrals_node,
         is_correct=False,
-        original_score_update=(0.3, 0.2)  # Mock score update (decreased)
+        p_g=0.2, p_s=0.1
     )
 
     # Verify prerequisite score unchanged
@@ -519,7 +519,7 @@ async def test_propagate_creates_prerequisite_mastery_if_missing(
         user=user_in_db,
         node_answered=integrals_node,
         is_correct=True,
-        original_score_update=(0.1, 0.3)  # Mock score update
+        p_g=0.2, p_s=0.1
     )
 
     # Verify prerequisite mastery was created
@@ -569,7 +569,7 @@ async def test_propagate_to_parents_recalculates_parent_score(
         user=user_in_db,
         node_answered=derivatives,
         is_correct=True,
-        original_score_update=(0.7, 0.8)  # Mock score update
+        p_g=0.2, p_s=0.1
     )
 
     # Verify parent score is weighted average
@@ -609,7 +609,7 @@ async def test_propagate_to_parents_handles_missing_subtopic_mastery(
         user=user_in_db,
         node_answered=derivatives,
         is_correct=True,
-        original_score_update=(0.7, 0.8)  # Mock score update
+        p_g=0.2, p_s=0.1
     )
 
     # Verify parent score
@@ -654,7 +654,7 @@ async def test_propagate_to_parents_is_recursive(
         user=user_in_db,
         node_answered=chain_rule,
         is_correct=True,
-        original_score_update=(0.8, 0.9)  # Mock score update
+        p_g=0.2, p_s=0.1
     )
 
     # Verify derivatives was updated (chain-rule's parent)
@@ -707,7 +707,7 @@ async def test_full_propagation_correct_answer(
         user=user_in_db,
         node_answered=chain_rule,
         is_correct=True,
-        original_score_update=(0.2, 0.35)  # Mock BKT update from correct answer
+        p_g=0.2, p_s=0.1
     )
 
     # Verify derivatives (parent of chain-rule) was updated via upward propagation
@@ -764,7 +764,7 @@ async def test_full_propagation_incorrect_answer(
         user=user_in_db,
         node_answered=integrals,
         is_correct=False,
-        original_score_update=(0.4, 0.35)  # Mock BKT update from incorrect answer
+        p_g=0.2, p_s=0.1
     )
 
     # Verify derivatives (prerequisite) was NOT boosted
@@ -802,7 +802,7 @@ async def test_propagation_handles_node_with_no_prerequisites(
         user=user_in_db,
         node_answered=derivatives,
         is_correct=True,
-        original_score_update=(0.2, 0.35)
+        p_g=0.2, p_s=0.1
     )
 
 
@@ -825,7 +825,7 @@ async def test_propagation_handles_node_with_no_parents(
         user=user_in_db,
         node_answered=calculus_basics,
         is_correct=True,
-        original_score_update=(0.2, 0.35)
+        p_g=0.2, p_s=0.1
     )
 
 
@@ -991,7 +991,7 @@ async def test_recursive_prerequisite_propagation_with_depth_damping(
         user=user_in_db,
         node_answered=node_d,
         is_correct=True,
-        original_score_update=(0.2, 0.4)  # Mock BKT update
+        p_g=0.2, p_s=0.1
     )
 
     # Verify depth-based damping
@@ -1052,7 +1052,7 @@ async def test_prerequisite_shortest_path_selection(
         user=user_in_db,
         node_answered=node_c,
         is_correct=True,
-        original_score_update=(0.2, 0.4)
+        p_g=0.2, p_s=0.1
     )
 
     # Node A should get depth 1 bonus (50%), not depth 2 (25%)

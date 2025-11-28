@@ -1,24 +1,25 @@
 """
 Question Routes
 
-This module provides endpoints for question management and recommendation:
-- Creating questions for knowledge graphs (content creation)
+This module provides endpoints for question recommendation:
 - Getting recommended questions based on BKT + FSRS algorithms (learning)
+
+Note: Question creation is handled in knowledge_node.py under /me/graphs/{graph_id}/questions
 """
 
 import logging
+import random
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status, Path
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
 from pydantic import BaseModel, Field
 
 from app.models.user import User
 from app.schemas.questions import AnyQuestion
 from app.models.question import Question
 from app.core.deps import get_db, get_current_active_user
-from app.crud.knowledge_graph import get_node_by_id, get_graph_by_id
+from app.crud.knowledge_graph import get_graph_by_id, get_questions_by_node
 from app.services.question_rec import QuestionService
 
 
@@ -53,112 +54,11 @@ class NextQuestionResponse(BaseModel):
     )
 
 
-@router.post("/{graph_id}/questions",
-             status_code=status.HTTP_201_CREATED,
-             summary="create a new question for a knowledge graph",
-             response_model=AnyQuestion,
-             )
-async def create_question(
-        graph_id: UUID = Path(..., description="Knowledge graph UUID"),
-        question_data: AnyQuestion = ...,
-        db: AsyncSession = Depends(get_db),
-        current_user: User = Depends(get_current_active_user),
-) -> AnyQuestion:
-    """
-    Create a new question for a knowledge node in your knowledge graph.
-
-    This endpoint creates a question in PostgreSQL. The question is linked to a
-    knowledge node and includes question-specific details (stored as JSONB).
-
-    Only the owner of the knowledge graph can create questions for it.
-
-    Args:
-        graph_id: Knowledge graph UUID (from URL path)
-        question_data: Question data including type, text, difficulty, and details
-        db: Database session
-        current_user: Authenticated user (must be the graph owner)
-
-    Returns:
-        The created question data
-
-    Raises:
-        HTTPException 400: If the knowledge node doesn't exist
-        HTTPException 403: If the user is not the owner of the knowledge graph
-        HTTPException 404: If the knowledge graph doesn't exist
-        HTTPException 500: If database operation fails
-    """
-    # Verify the user owns the knowledge graph
-    knowledge_graph = await get_graph_by_id(db_session=db, graph_id=graph_id)
-    if not knowledge_graph:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Knowledge graph {graph_id} not found."
-        )
-
-    if knowledge_graph.owner_id != current_user.id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only the owner of the knowledge graph can create questions."
-        )
-
-    # Parse knowledge_node_id (could be string or UUID)
-    try:
-        if isinstance(question_data.knowledge_node_id, str):
-            node_id = UUID(question_data.knowledge_node_id)
-        else:
-            node_id = question_data.knowledge_node_id
-    except (ValueError, AttributeError) as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Invalid knowledge_node_id format: {e}"
-        )
-
-    # Verify the knowledge node exists and belongs to this graph
-    knowledge_node = await get_node_by_id(db_session=db, node_id=node_id)
-    if not knowledge_node:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Knowledge node {node_id} does not exist."
-        )
-
-    if knowledge_node.graph_id != graph_id:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Knowledge node {node_id} does not belong to graph {graph_id}."
-        )
-
-    try:
-        # Create the question
-        new_question = Question(
-            id=question_data.question_id,
-            graph_id=graph_id,
-            node_id=node_id,
-            question_type=question_data.question_type.value,
-            text=question_data.text,
-            difficulty=question_data.difficulty.value,
-            details=question_data.details.model_dump(),  # Convert to dict for JSONB
-            created_by=current_user.id,
-        )
-
-        db.add(new_question)
-        await db.commit()
-        await db.refresh(new_question)
-
-        return question_data
-
-    except Exception as e:
-        await db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to create new question: {e}"
-        )
-
-
 @router.get(
     "/{graph_id}/next-question",
     status_code=status.HTTP_200_OK,
     response_model=NextQuestionResponse,
-    summary="Get next recommended question",
+    summary="Get next recommended question for your own graph",
 )
 async def get_next_question(
     graph_id: UUID = Path(..., description="Knowledge graph UUID"),
@@ -166,10 +66,12 @@ async def get_next_question(
     current_user: User = Depends(get_current_active_user),
 ) -> NextQuestionResponse:
     """
-    Get the next recommended question for the user based on hybrid BKT + FSRS algorithm.
+    Get the next recommended question for your own knowledge graph.
 
-    This endpoint is designed for the "Start Learning" button in the frontend.
-    It uses intelligent recommendation to select the optimal question:
+    This endpoint is for graph owners to practice on their own graphs (including private ones).
+    For enrolled users practicing public/template graphs, use GET /graphs/{graph_id}/next-question.
+
+    Uses hybrid BKT + FSRS algorithm for intelligent question selection:
 
     **Algorithm Flow:**
     1. **Phase 1 (FSRS Filtering)**: Find nodes due for review (due_date <= today)
@@ -186,12 +88,13 @@ async def get_next_question(
     Args:
         graph_id: Knowledge graph UUID
         db: Database session
-        current_user: Authenticated user
+        current_user: Authenticated user (must be the graph owner)
 
     Returns:
         NextQuestionResponse containing the recommended question and metadata
 
     Raises:
+        HTTPException 403: User is not the owner of this graph
         HTTPException 404: Knowledge graph not found
         HTTPException 500: Recommendation service error
     """
@@ -205,6 +108,13 @@ async def get_next_question(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Knowledge graph {graph_id} not found."
+        )
+
+    # Verify user is the owner
+    if knowledge_graph.owner_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only the graph owner can use this endpoint. For enrolled graphs, use GET /graphs/{graph_id}/next-question."
         )
 
     # Use QuestionService to select the next knowledge node
@@ -232,20 +142,14 @@ async def get_next_question(
         # Get a random question from the selected node
         node_id = selection_result.knowledge_node.id
 
-        stmt = (
-            select(Question)
-            .where(
-                Question.graph_id == graph_id,
-                Question.node_id == node_id
-            )
-            .order_by(Question.created_at.desc())  # Most recent first
-            .limit(1)
+        # Get all questions for this node from CRUD layer
+        questions = await get_questions_by_node(
+            db_session=db,
+            graph_id=graph_id,
+            node_id=node_id
         )
 
-        result = await db.execute(stmt)
-        question_model = result.scalar_one_or_none()
-
-        if not question_model:
+        if not questions:
             logger.warning(
                 f"Node {node_id} was selected but has no questions. "
                 f"This should not happen."
@@ -256,6 +160,9 @@ async def get_next_question(
                 selection_reason="node_has_no_questions",
                 priority_score=selection_result.priority_score
             )
+
+        # Randomly select one question from the list
+        question_model = random.choice(questions)
 
         # Convert Question model to AnyQuestion schema
         question_schema = _convert_question_to_schema(question_model)

@@ -39,3 +39,59 @@ class KnowledgeGraphResponse(BaseModel):
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class GraphNodeVisualization(BaseModel):
+    id: UUID
+    name: str
+    description: Optional[str] = None
+    mastery_score: float
+
+
+class GraphEdgeVisualization(BaseModel):
+    source_id: UUID
+    target_id: UUID
+    type: str
+
+
+class GraphVisualization(BaseModel):
+    nodes: list[GraphNodeVisualization]
+    edges: list[GraphEdgeVisualization]
+
+
+class GraphContentNode(BaseModel):
+    """Node data for graph content response"""
+    id: UUID
+    node_id_str: Optional[str] = None
+    node_name: str
+    description: Optional[str] = None
+    level: int
+    dependents_count: int
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class GraphContentPrerequisite(BaseModel):
+    """Prerequisite relation for graph content response"""
+    from_node_id: UUID
+    to_node_id: UUID
+    weight: float
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class GraphContentSubtopic(BaseModel):
+    """Subtopic relation for graph content response"""
+    parent_node_id: UUID
+    child_node_id: UUID
+    weight: float
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class GraphContentResponse(BaseModel):
+    """Complete graph content including nodes and relations"""
+    graph: KnowledgeGraphResponse
+    nodes: list[GraphContentNode]
+    prerequisites: list[GraphContentPrerequisite]
+    subtopics: list[GraphContentSubtopic]

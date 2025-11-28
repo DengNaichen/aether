@@ -1,3 +1,5 @@
+import logging
+import random
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status, Path
@@ -8,15 +10,38 @@ from app.core.deps import get_db, get_current_active_user
 from app.models.user import User
 from app.models.enrollment import GraphEnrollment
 from app.models.knowledge_graph import KnowledgeGraph
-from app.schemas.knowledge_graph import KnowledgeGraphCreate, KnowledgeGraphResponse
+from app.routes.question import _convert_question_to_schema, NextQuestionResponse
+from app.schemas.knowledge_graph import (
+    KnowledgeGraphCreate,
+    KnowledgeGraphResponse,
+    GraphVisualization,
+    GraphContentResponse,
+    GraphContentNode,
+    GraphContentPrerequisite,
+    GraphContentSubtopic,
+)
 from app.schemas.enrollment import GraphEnrollmentResponse
 from app.crud.knowledge_graph import (
     get_graph_by_owner_and_slug,
     create_knowledge_graph,
     get_graph_by_id,
     get_all_template_graphs,
+    get_graphs_by_owner,
+    get_questions_by_node,
+    get_graph_visualization,
+    import_graph_structure,
+    get_nodes_by_graph,
+    get_prerequisites_by_graph,
+    get_subtopics_by_graph,
 )
+from app.schemas.knowledge_node import (
+    GraphStructureImport,
+    GraphStructureImportResponse,
+)
+from app.services.question_rec import QuestionService
 from app.utils.slug import slugify
+
+logger = logging.getLogger(__name__)
 
 
 router = APIRouter(
@@ -29,6 +54,207 @@ public_router = APIRouter(
     prefix="/graphs",
     tags=["Knowledge Graph - Public"],
 )
+
+@router.get("/",
+             response_model=list[KnowledgeGraphResponse],
+             summary="Get all knowledge graphs owned by the current user",
+             )
+async def get_my_graphs(
+        db_session: AsyncSession = Depends(get_db),
+        current_user: User = Depends(get_current_active_user),
+):
+    """
+    Get all knowledge graphs owned by the authenticated user.
+
+    Returns:
+        list[KnowledgeGraphResponse]: List of all knowledge graphs owned by the user,
+            ordered by creation date (newest first). Each graph includes:
+            - Basic graph information (name, description, tags, etc.)
+            - node_count: Number of knowledge nodes in the graph
+    """
+    graphs = await get_graphs_by_owner(
+        db_session=db_session,
+        owner_id=current_user.id
+    )
+    return graphs
+
+
+@router.get("/{graph_id}",
+             response_model=KnowledgeGraphResponse,
+             summary="Get a specific knowledge graph owned by the current user",
+             )
+async def get_my_graph(
+        graph_id: UUID = Path(..., description="Knowledge graph UUID"),
+        db_session: AsyncSession = Depends(get_db),
+        current_user: User = Depends(get_current_active_user),
+):
+    """
+    Get a specific knowledge graph owned by the authenticated user.
+
+    Args:
+        graph_id: Knowledge graph UUID
+
+    Returns:
+        KnowledgeGraphResponse: Graph details including node count
+
+    Raises:
+        HTTPException 404: If the knowledge graph doesn't exist
+        HTTPException 403: If the user is not the owner
+    """
+    knowledge_graph = await get_graph_by_id(db_session=db_session, graph_id=graph_id)
+    if not knowledge_graph:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Knowledge graph {graph_id} not found."
+        )
+
+    if knowledge_graph.owner_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You don't have access to this knowledge graph."
+        )
+
+    # Count nodes in this graph
+    from app.models.knowledge_node import KnowledgeNode
+    from sqlalchemy import func
+
+    node_count_stmt = select(func.count(KnowledgeNode.id)).where(
+        KnowledgeNode.graph_id == graph_id
+    )
+    node_count_result = await db_session.execute(node_count_stmt)
+    node_count = node_count_result.scalar() or 0
+
+    return {
+        "id": knowledge_graph.id,
+        "name": knowledge_graph.name,
+        "slug": knowledge_graph.slug,
+        "description": knowledge_graph.description,
+        "tags": knowledge_graph.tags,
+        "is_public": knowledge_graph.is_public,
+        "is_template": knowledge_graph.is_template,
+        "owner_id": knowledge_graph.owner_id,
+        "enrollment_count": knowledge_graph.enrollment_count,
+        "node_count": node_count,
+        "is_enrolled": None,
+        "created_at": knowledge_graph.created_at,
+    }
+
+
+@router.get(
+    "/{graph_id}/visualization",
+    status_code=status.HTTP_200_OK,
+    response_model=GraphVisualization,
+    summary="Get visualization data for your own knowledge graph",
+)
+async def get_my_graph_visualization(
+    graph_id: UUID = Path(..., description="Knowledge graph UUID"),
+    db_session: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+) -> GraphVisualization:
+    """
+    Get visualization data for a knowledge graph you own.
+
+    Returns all nodes with mastery scores and all edges for rendering.
+
+    Raises:
+        HTTPException 404: If the knowledge graph doesn't exist
+        HTTPException 403: If you are not the owner
+    """
+    knowledge_graph = await get_graph_by_id(db_session=db_session, graph_id=graph_id)
+    if not knowledge_graph:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Knowledge graph {graph_id} not found."
+        )
+
+    if knowledge_graph.owner_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You don't have access to this knowledge graph."
+        )
+
+    visualization = await get_graph_visualization(
+        db_session=db_session,
+        graph_id=graph_id,
+        user_id=current_user.id
+    )
+
+    return visualization
+
+
+@router.get(
+    "/{graph_id}/content",
+    status_code=status.HTTP_200_OK,
+    response_model=GraphContentResponse,
+    summary="Get complete content of a knowledge graph",
+)
+async def get_my_graph_content(
+    graph_id: UUID = Path(..., description="Knowledge graph UUID"),
+    db_session: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+) -> GraphContentResponse:
+    """
+    Get complete content of a knowledge graph including all nodes and relations.
+
+    Returns:
+        - graph: Basic graph information
+        - nodes: All knowledge nodes in the graph
+        - prerequisites: All prerequisite relationships
+        - subtopics: All subtopic relationships
+
+    Raises:
+        HTTPException 404: If the knowledge graph doesn't exist
+        HTTPException 403: If you are not the owner
+    """
+    knowledge_graph = await get_graph_by_id(db_session=db_session, graph_id=graph_id)
+    if not knowledge_graph:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Knowledge graph {graph_id} not found."
+        )
+
+    if knowledge_graph.owner_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You don't have access to this knowledge graph."
+        )
+
+    # Fetch all data
+    nodes = await get_nodes_by_graph(db_session=db_session, graph_id=graph_id)
+    prerequisites = await get_prerequisites_by_graph(db_session=db_session, graph_id=graph_id)
+    subtopics = await get_subtopics_by_graph(db_session=db_session, graph_id=graph_id)
+
+    # Count nodes
+    node_count = len(nodes)
+
+    # Build graph response
+    graph_response = KnowledgeGraphResponse(
+        id=knowledge_graph.id,
+        name=knowledge_graph.name,
+        slug=knowledge_graph.slug,
+        description=knowledge_graph.description,
+        tags=knowledge_graph.tags,
+        is_public=knowledge_graph.is_public,
+        is_template=knowledge_graph.is_template,
+        owner_id=knowledge_graph.owner_id,
+        enrollment_count=knowledge_graph.enrollment_count,
+        node_count=node_count,
+        is_enrolled=None,
+        created_at=knowledge_graph.created_at,
+    )
+
+    # Convert to response models
+    nodes_response = [GraphContentNode.model_validate(node) for node in nodes]
+    prerequisites_response = [GraphContentPrerequisite.model_validate(prereq) for prereq in prerequisites]
+    subtopics_response = [GraphContentSubtopic.model_validate(subtopic) for subtopic in subtopics]
+
+    return GraphContentResponse(
+        graph=graph_response,
+        nodes=nodes_response,
+        prerequisites=prerequisites_response,
+        subtopics=subtopics_response,
+    )
+
 
 @router.post("/",
             status_code=status.HTTP_201_CREATED,
@@ -386,3 +612,348 @@ async def get_template_graph_details(
         "is_enrolled": is_enrolled,
         "created_at": knowledge_graph.created_at,
     }
+
+
+@public_router.get("/{graph_id}/next-question",
+                   status_code=status.HTTP_200_OK,
+                   response_model=NextQuestionResponse,
+                   summary="Get the next question in a enrolled knowledge graph"
+                   )
+async def get_next_question_in_enrolled_graph(
+    graph_id: UUID = Path(..., description="Knowledge graph UUID"),
+    db_session: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    """
+    """
+    knowledge_graph = await get_graph_by_id(
+        db_session=db_session,
+        graph_id=graph_id
+    )
+    if not knowledge_graph:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Knowledge graph {graph_id} not found."
+        )
+    if not knowledge_graph.is_public and not knowledge_graph.is_template:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="This knowledge graph is not ready for public use",
+        )
+    # check if enrolled in this graph
+    enrollment_stmt = select(GraphEnrollment.graph_id).where(
+        GraphEnrollment.user_id == current_user.id,
+        GraphEnrollment.graph_id == graph_id
+    )
+    enrollment_result = await db_session.execute(enrollment_stmt)
+    if not enrollment_result.scalar_one_or_none():
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You are not enrolled in this knowledge graph",
+        )
+    # get next question
+    question_service = QuestionService()
+
+    try:
+        selection_result = await question_service.select_next_node(
+            db_session=db_session,
+            user_id=current_user.id,
+            graph_id=graph_id
+        )
+        if not selection_result.knowledge_node:
+            logger.info(
+                f"No suitable question found for user {current_user.id} "
+                f"in graph {graph_id}. Reason: {selection_result.selection_reason}"
+            )
+            return NextQuestionResponse(
+                question=None,
+                node_id=None,
+                selection_reason=selection_result.selection_reason,
+                priority_score=None
+            )
+
+        node_id = selection_result.knowledge_node.id
+
+        # Get all questions for this node from CRUD layer
+        questions = await get_questions_by_node(
+            db_session=db_session,
+            graph_id=graph_id,
+            node_id=node_id
+        )
+
+        if not questions:
+            logger.warning(
+                f"Node {node_id} was selected but has no questions. "
+                f"This should not happen."
+            )
+            return NextQuestionResponse(
+                question=None,
+                node_id=node_id,
+                selection_reason="node_has_no_questions",
+                priority_score=selection_result.priority_score
+            )
+
+        # Randomly select one question from the list
+        question_model = random.choice(questions)
+
+        # Convert Question model to AnyQuestion schema
+        question_schema = _convert_question_to_schema(question_model)
+
+        logger.info(
+            f"Recommended question {question_model.id} from node {node_id} "
+            f"for user {current_user.id}. Reason: {selection_result.selection_reason}"
+        )
+
+        return NextQuestionResponse(
+            question=question_schema,
+            node_id=node_id,
+            selection_reason=selection_result.selection_reason,
+            priority_score=selection_result.priority_score
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(
+            f"Failed to get next question for user {current_user.id} "
+            f"in graph {graph_id}: {e}"
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get next question: {str(e)}"
+        )
+
+
+@public_router.get(
+    "/{graph_id}/visualization",
+    status_code=status.HTTP_200_OK,
+    response_model=GraphVisualization,
+    summary="Get knowledge graph visualization data",
+)
+async def get_graph_visualization_endpoint(
+    graph_id: UUID = Path(..., description="Knowledge graph UUID"),
+    db_session: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+) -> GraphVisualization:
+    """
+    Get visualization data for a knowledge graph.
+
+    Returns all nodes with user mastery scores and all edges (prerequisites and subtopics)
+    for rendering a knowledge graph visualization.
+
+    Args:
+        graph_id: Knowledge graph UUID
+        db_session: Database session
+        current_user: Authenticated user
+
+    Returns:
+        GraphVisualization: Graph structure with nodes (including mastery scores) and edges
+
+    Raises:
+        HTTPException 404: If the knowledge graph doesn't exist
+        HTTPException 403: If the graph is private and user is not enrolled/owner
+    """
+    # Verify the knowledge graph exists
+    knowledge_graph = await get_graph_by_id(db_session=db_session, graph_id=graph_id)
+    if not knowledge_graph:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Knowledge graph {graph_id} not found."
+        )
+
+    # Check access: must be public, template, owned by user, or user is enrolled
+    is_owner = knowledge_graph.owner_id == current_user.id
+    is_accessible = knowledge_graph.is_public or knowledge_graph.is_template or is_owner
+
+    if not is_accessible:
+        # Check if user is enrolled
+        enrollment_stmt = select(GraphEnrollment).where(
+            GraphEnrollment.user_id == current_user.id,
+            GraphEnrollment.graph_id == graph_id
+        )
+        enrollment_result = await db_session.execute(enrollment_stmt)
+        if not enrollment_result.scalar_one_or_none():
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You don't have access to this knowledge graph."
+            )
+
+    # Get visualization data
+    visualization = await get_graph_visualization(
+        db_session=db_session,
+        graph_id=graph_id,
+        user_id=current_user.id
+    )
+
+    return visualization
+
+
+@public_router.get(
+    "/{graph_id}/content",
+    status_code=status.HTTP_200_OK,
+    response_model=GraphContentResponse,
+    summary="Get complete content of a public or template knowledge graph",
+)
+async def get_public_graph_content(
+    graph_id: UUID = Path(..., description="Knowledge graph UUID"),
+    db_session: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+) -> GraphContentResponse:
+    """
+    Get complete content of a public or template knowledge graph.
+
+    Any authenticated user can access content of graphs that are:
+    - Public (is_public=True)
+    - Template (is_template=True)
+
+    Returns:
+        - graph: Basic graph information
+        - nodes: All knowledge nodes in the graph
+        - prerequisites: All prerequisite relationships
+        - subtopics: All subtopic relationships
+
+    Raises:
+        HTTPException 404: If the knowledge graph doesn't exist
+        HTTPException 403: If the graph is private
+    """
+    knowledge_graph = await get_graph_by_id(db_session=db_session, graph_id=graph_id)
+    if not knowledge_graph:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Knowledge graph {graph_id} not found."
+        )
+
+    # Check access: must be public or template
+    if not knowledge_graph.is_public and not knowledge_graph.is_template:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="This knowledge graph is private. Only public or template graphs can be accessed."
+        )
+
+    # Fetch all data
+    nodes = await get_nodes_by_graph(db_session=db_session, graph_id=graph_id)
+    prerequisites = await get_prerequisites_by_graph(db_session=db_session, graph_id=graph_id)
+    subtopics = await get_subtopics_by_graph(db_session=db_session, graph_id=graph_id)
+
+    # Count nodes
+    node_count = len(nodes)
+
+    # Check if current user is enrolled
+    enrollment_stmt = select(GraphEnrollment).where(
+        GraphEnrollment.user_id == current_user.id,
+        GraphEnrollment.graph_id == graph_id
+    )
+    enrollment_result = await db_session.execute(enrollment_stmt)
+    is_enrolled = enrollment_result.scalar_one_or_none() is not None
+
+    # Build graph response
+    graph_response = KnowledgeGraphResponse(
+        id=knowledge_graph.id,
+        name=knowledge_graph.name,
+        slug=knowledge_graph.slug,
+        description=knowledge_graph.description,
+        tags=knowledge_graph.tags,
+        is_public=knowledge_graph.is_public,
+        is_template=knowledge_graph.is_template,
+        owner_id=knowledge_graph.owner_id,
+        enrollment_count=knowledge_graph.enrollment_count,
+        node_count=node_count,
+        is_enrolled=is_enrolled,
+        created_at=knowledge_graph.created_at,
+    )
+
+    # Convert to response models
+    nodes_response = [GraphContentNode.model_validate(node) for node in nodes]
+    prerequisites_response = [GraphContentPrerequisite.model_validate(prereq) for prereq in prerequisites]
+    subtopics_response = [GraphContentSubtopic.model_validate(subtopic) for subtopic in subtopics]
+
+    return GraphContentResponse(
+        graph=graph_response,
+        nodes=nodes_response,
+        prerequisites=prerequisites_response,
+        subtopics=subtopics_response,
+    )
+
+
+@router.post(
+    "/{graph_id}/import-structure",
+    status_code=status.HTTP_201_CREATED,
+    response_model=GraphStructureImportResponse,
+    summary="Import complete graph structure from AI extraction",
+    description="""
+    Import a complete knowledge graph structure including nodes and relationships
+    from AI extraction (e.g., LangChain pipeline).
+
+    This endpoint accepts:
+    - nodes: List of knowledge nodes with string IDs
+    - prerequisites: List of prerequisite relationships between nodes
+    - subtopics: List of hierarchical subtopic relationships
+
+    All data is imported in a single atomic transaction. Duplicate nodes
+    (same node_id_str) are silently skipped. Invalid relationships (referencing
+    non-existent nodes) are also skipped.
+
+    Example request body:
+    ```json
+    {
+        "nodes": [
+            {"node_id_str": "vector", "node_name": "Vector", "description": "A quantity with magnitude and direction"},
+            {"node_id_str": "linear_algebra", "node_name": "Linear Algebra", "description": "Branch of mathematics"}
+        ],
+        "prerequisites": [
+            {"from_node_id_str": "vector", "to_node_id_str": "linear_algebra", "weight": 0.8}
+        ],
+        "subtopics": [
+            {"parent_node_id_str": "linear_algebra", "child_node_id_str": "vector", "weight": 1.0}
+        ]
+    }
+    ```
+    """,
+)
+async def import_structure(
+        graph_id: str = Path(..., description="Knowledge graph UUID"),
+        payload: GraphStructureImport = ...,
+        db_session: AsyncSession = Depends(get_db),
+        current_user: User = Depends(get_current_active_user),
+) -> GraphStructureImportResponse:
+    """
+    Import a complete graph structure from AI extraction.
+
+    This is the primary endpoint for integrating LangChain pipelines with the database.
+    """
+    try:
+        graph_uuid = UUID(graph_id)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid graph ID format"
+        )
+
+    # Check graph exists and user owns it
+    graph = await get_graph_by_id(db_session, graph_uuid)
+    if not graph:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Knowledge graph not found"
+        )
+
+    if graph.owner_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You don't have permission to modify this graph"
+        )
+
+    # Import the structure
+    result = await import_graph_structure(
+        db_session=db_session,
+        graph_id=graph_uuid,
+        import_data=payload,
+    )
+
+    logger.info(
+        f"Graph structure imported: graph_id={graph_id}, "
+        f"nodes={result.nodes_created}, prerequisites={result.prerequisites_created}, "
+        f"subtopics={result.subtopics_created}"
+    )
+
+    return result

@@ -2,9 +2,14 @@
 
 This service handles all mastery-related operations:
 - Creating and updating user-knowledge node relationships
-- Applying Bayesian Knowledge Tracing (BKT) algorithm
+- Applying Bayesian Knowledge Tracing (BKT) algorithm for mastery assessment
+- Applying FSRS algorithm for spaced repetition scheduling
 - Managing mastery scores and progression
 - Propagating mastery updates through the knowledge graph
+
+Architecture:
+- BKT: Determines mastery probability (score), used for prerequisite checking
+- FSRS: Determines review scheduling (due_date), used for question recommendation
 
 Migrated from Neo4j to PostgreSQL.
 """
@@ -15,8 +20,9 @@ from typing import Optional, List, Tuple, Dict
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
+from fsrs import Scheduler, Card, Rating, State
 
-from app.models.user import User, UserMastery
+from app.models.user import User, UserMastery, FSRSState
 from app.models.knowledge_node import KnowledgeNode
 from app.utils.bkt_calculator import BayesianKnowledgeTracer
 from app.services.grade_answer import GradingResult
@@ -27,17 +33,104 @@ logger = logging.getLogger(__name__)
 
 
 class MasteryService:
-    """Service for managing knowledge mastery using BKT algorithm.
+    """Service for managing knowledge mastery using BKT + FSRS algorithms.
 
     This service is responsible for:
     1. Fetching/creating mastery relationships between users and knowledge nodes
-    2. Applying BKT algorithm to update mastery scores
-    3. Propagating mastery updates through the knowledge graph
+    2. Applying BKT algorithm to update mastery scores (for prerequisite checking)
+    3. Applying FSRS algorithm to update review scheduling (for question recommendation)
+    4. Propagating mastery updates through the knowledge graph (BKT only, not FSRS)
 
     It does NOT:
     - Grade answers (that's GradingService's job)
     - Manage quiz attempts (that's the handler's job)
+
+    Architecture:
+    - BKT updates both direct answers AND propagates to prerequisites/parents
+    - FSRS updates ONLY the directly answered node (no propagation)
     """
+
+    # FSRS scheduler instance (stateless, can be shared)
+    _fsrs_scheduler = Scheduler()
+
+    @staticmethod
+    def _map_correctness_to_rating(is_correct: bool) -> Rating:
+        """Map answer correctness to FSRS rating.
+
+        Simple mapping:
+        - Correct answer -> Rating.Good (3)
+        - Wrong answer -> Rating.Again (1)
+
+        This is a simplified mapping. A more nuanced version could consider:
+        - Response time
+        - Confidence level
+        - Partial correctness
+
+        Args:
+            is_correct: Whether the answer was correct
+
+        Returns:
+            FSRS Rating enum value
+        """
+        return Rating.Good if is_correct else Rating.Again
+
+    @staticmethod
+    def _map_fsrs_state_to_enum(fsrs_state: State) -> FSRSState:
+        """Map FSRS library State to our FSRSState enum.
+
+        Args:
+            fsrs_state: FSRS library State enum
+
+        Returns:
+            Our FSRSState enum value
+        """
+        # FSRS State: Learning=1, Review=2, Relearning=3
+        state_mapping = {
+            State.Learning: FSRSState.LEARNING,
+            State.Review: FSRSState.REVIEW,
+            State.Relearning: FSRSState.RELEARNING,
+        }
+        return state_mapping.get(fsrs_state, FSRSState.LEARNING)
+
+    @classmethod
+    def _build_fsrs_card_from_mastery(cls, mastery: UserMastery) -> Card:
+        """Build an FSRS Card from a UserMastery record.
+
+        Reconstructs the FSRS card state from our database fields.
+
+        Args:
+            mastery: UserMastery record with FSRS fields
+
+        Returns:
+            FSRS Card object ready for review
+        """
+        # If this is a new card (no prior review), return a fresh Card
+        if mastery.last_review is None:
+            return Card()
+
+        # Map our state enum to FSRS State
+        state_mapping = {
+            FSRSState.LEARNING.value: State.Learning,
+            FSRSState.REVIEW.value: State.Review,
+            FSRSState.RELEARNING.value: State.Relearning,
+        }
+        fsrs_state = state_mapping.get(mastery.fsrs_state, State.Learning)
+
+        # Build card dict for FSRS
+        # Use node_id hash as card_id for consistency
+        card_id = hash(mastery.node_id) % (10 ** 12)  # Keep it within reasonable range
+
+        card_dict = {
+            "card_id": card_id,
+            "state": fsrs_state.value,
+            "step": 0,  # Will be recalculated by FSRS
+            "stability": mastery.fsrs_stability or 0.0,
+            "difficulty": mastery.fsrs_difficulty or 0.0,
+            "due": mastery.due_date.isoformat() if mastery.due_date else None,
+            "last_review": mastery.last_review.isoformat() if mastery.last_review else None,
+        }
+
+        return Card.from_dict(card_dict)
 
     async def update_mastery_from_grading(
         self,
@@ -95,8 +188,9 @@ class MasteryService:
 
         return knowledge_node
 
-    @staticmethod
+    @classmethod
     async def _update_mastery_relationship(
+        cls,
         db_session: AsyncSession,
         user: User,
         knowledge_node: KnowledgeNode,
@@ -106,23 +200,21 @@ class MasteryService:
     ) -> None:
         """Update the mastery relationship between user and knowledge node.
 
-        This is the core BKT update logic that:
-        1. Gets or creates the mastery relationship
-        2. Reads current BKT parameters (p_l0, p_t)
-        3. Applies BKT algorithm to calculate new mastery score
-        4. Updates the relationship with new score and timestamp
-
-        TODO: When implementing propagation, change return type to (old_score, new_score)
-              so the caller can determine if propagation is needed based on score change.
+        This is the core update logic that applies BOTH:
+        1. BKT algorithm: Updates mastery score (for prerequisite checking)
+        2. FSRS algorithm: Updates review scheduling (for question recommendation)
 
         Args:
-            db_session: The database session
-            user: The user model instance
-            knowledge_node: The knowledge node to update mastery for
-            is_correct: Whether the answer was correct
-            p_g: Probability of guessing (from question)
-            p_s: Probability of slip (from question)
+            - db_session: The database session
+            - user: The user model instance
+            - knowledge_node: The knowledge node to update mastery for
+            - is_correct: Whether the answer was correct
+            - p_g: Probability of guessing (from question)
+            - p_s: Probability of slip (from question)
+        # FIXME: could have the race condition problem !
         """
+        now = datetime.now(timezone.utc)
+
         # Get or create mastery relationship
         mastery_rel, was_created = await mastery_crud.get_or_create_mastery(
             db_session=db_session,
@@ -131,26 +223,66 @@ class MasteryService:
             node_id=knowledge_node.id
         )
 
-        if was_created:
+        # ==================== BKT Update ====================
+        # Determine the "Prior" (P(L) at step n - 1)
+        # If the relationship was just created, or strictly has no score
+        # use initial probability (p_l0)
+        if was_created or mastery_rel.score is None:
             logger.info(
                 f"Creating mastery relationship between user {user.id} "
                 f"and knowledge node {knowledge_node.id}"
             )
+            prior_belief = mastery_rel.p_l0
+        else:
+            # if not, we use the previous score.
+            prior_belief = mastery_rel.score
 
-        # Read current BKT parameters from the relationship
-        p_l0 = mastery_rel.score  # Use current score as prior
-        p_t = mastery_rel.p_t      # Probability of learning/transition
+        p_t = mastery_rel.p_t    # Probability of learning/transition
 
         # Apply Bayesian Knowledge Tracing algorithm
-        tracker = BayesianKnowledgeTracer(p_l0, p_t, p_g, p_s)
+        tracker = BayesianKnowledgeTracer(prior_belief, p_t, p_g, p_s)
         new_score = tracker.update(is_correct)
 
-        # Update the relationship
-        await mastery_crud.update_mastery_score(db_session, mastery_rel, new_score)
+        # ==================== FSRS Update ====================
+        # Build FSRS card from current state
+        fsrs_card = cls._build_fsrs_card_from_mastery(mastery_rel)
 
-        logger.debug(
+        # Map correctness to FSRS rating
+        rating = cls._map_correctness_to_rating(is_correct)
+
+        # Review the card
+        new_card, review_log = cls._fsrs_scheduler.review_card(fsrs_card, rating, now)
+
+        # Map FSRS state back to our enum
+        new_fsrs_state = cls._map_fsrs_state_to_enum(new_card.state)
+
+        # ==================== Update Database ====================
+        # Update BKT fields
+        mastery_rel.score = new_score
+        mastery_rel.last_updated = now
+
+        # Update FSRS fields
+        mastery_rel.fsrs_state = new_fsrs_state.value
+        mastery_rel.fsrs_stability = new_card.stability
+        mastery_rel.fsrs_difficulty = new_card.difficulty
+        mastery_rel.due_date = new_card.due
+        mastery_rel.last_review = now
+
+        # Append to review log (for FSRS history)
+        if mastery_rel.review_log is None:
+            mastery_rel.review_log = []
+        mastery_rel.review_log = mastery_rel.review_log + [{
+            "rating": rating.value,
+            "review_datetime": now.isoformat(),
+            "state_after": new_fsrs_state.value,
+        }]
+
+        await db_session.flush()
+
+        logger.info(
             f"Updated mastery for user {user.id} on node {knowledge_node.id}: "
-            f"score={new_score:.3f}, correct={is_correct}"
+            f"BKT score={new_score:.3f}, FSRS due={new_card.due.isoformat()}, "
+            f"state={new_fsrs_state.value}, correct={is_correct}"
         )
 
     @staticmethod
@@ -245,7 +377,8 @@ class MasteryService:
             user: User,
             node_answered: KnowledgeNode,  # The node that was just updated
             is_correct: bool,
-            original_score_update: Tuple[float, float]  # (old_score, new_score)
+            p_g: float,
+            p_s: float,
     ) -> None:
         """
         Propagates mastery updates using a "Fetch-Process-Write" pattern
@@ -257,8 +390,8 @@ class MasteryService:
         logger.info(f"Starting propagation for user {user.id} on node {node_answered.id}")
 
         # === 1. FETCH IDs PHASE: Get all affected node IDs ===
-
-        leaf_ids_to_bonus_with_depth = {}
+        # 1a: Get Bonus Leaf Nodes (prerequisites)
+        leaf_ids_to_bonus_with_depth: Dict[UUID, int] = {}
         if is_correct:
             # Get prerequisite leaf nodes with their depth in the prerequisite chain
             # Depth 1 = direct prerequisite, depth 2 = prerequisite of prerequisite, etc.
@@ -266,14 +399,21 @@ class MasteryService:
                 db_session, node_answered.graph_id, node_answered.id
             )
 
-        # 1c. Get all parents that need recalculating
+        # 1b. Get all affected parents that need recalculating (with hierarchy level)
+        # TODO: Actually, this level can be cached in the database. update the crud and schema later
         # This includes parents of the answered node AND all bonused nodes
-        nodes_that_changed_ids = {node_answered.id} | set(leaf_ids_to_bonus_with_depth.keys())
-        parent_ids_to_recalc = await mastery_crud.get_all_affected_parent_ids(
-            db_session, node_answered.graph_id, list(nodes_that_changed_ids)
-        )
+        changed_node_ids = {node_answered.id} | set(leaf_ids_to_bonus_with_depth.keys())
 
-        if not leaf_ids_to_bonus_with_depth and not parent_ids_to_recalc:
+        # This return a LIST of (id, level) tuples, sorted by level ASC(1, 2, 3 ...)
+        # This sort order is critical for correct math.
+        parents_with_level = await mastery_crud.get_all_affected_parent_ids(
+            db_session,
+            node_answered.graph_id,
+            list(changed_node_ids)
+        )
+        parent_ids_only = [p[0] for p in parents_with_level]
+
+        if not leaf_ids_to_bonus_with_depth and not parent_ids_only:
             logger.info("No propagation needed.")
             return
 
@@ -282,29 +422,29 @@ class MasteryService:
         # 2a. To calculate parents, we need their children's relationships
         # This query gets all (child_id, weight) for each parent
         subtopic_map = await mastery_crud.get_all_subtopics_for_parents_bulk(
-            db_session, node_answered.graph_id, list(parent_ids_to_recalc)
+            db_session,
+            node_answered.graph_id,
+            list(parent_ids_only)
         )
-        # subtopic_map looks like: {parent_id: [(child_id, weight), ...]}
 
-        # 2b. Get all children IDs needed for the parent calculations
+        # 2b. Identify all nodes involved (sources + parents + all children of parents)
         all_child_ids = set()
         for children_list in subtopic_map.values():
             for child_id, _ in children_list:
                 all_child_ids.add(child_id)
 
         # 2c. Final list of all nodes we need mastery for
-        all_nodes_to_fetch_ids = nodes_that_changed_ids | parent_ids_to_recalc | all_child_ids
+        all_nodes_to_fetch_ids = changed_node_ids | set(parent_ids_only) | all_child_ids
 
         # 2d. BULK FETCH all mastery records in one query
         mastery_map = await mastery_crud.get_masteries_by_nodes(
             db_session, user.id, node_answered.graph_id, list(all_nodes_to_fetch_ids)
         )
-        # mastery_map is {node_id: UserMastery object}
 
         # === 3. PROCESS PHASE: Calculate new scores in memory (NO AWAIT) ===
 
         # This dict will hold {node_id: new_score}
-        mastery_updates_to_write = {}
+        # mastery_updates_to_write = {}
 
         # 3a. Process prerequisite bonuses with depth-based damping
         for leaf_id, depth in leaf_ids_to_bonus_with_depth.items():
@@ -312,58 +452,66 @@ class MasteryService:
             if not mastery_rel:
                 # If it doesn't exist, use defaults for calculation
                 # NOTE: We must create this new relation
-                mastery_rel = UserMastery(score=0.1, p_l0=0.2, p_t=0.2)  # Default values
+                mastery_rel = UserMastery(
+                    user_id=user.id,
+                    graph_id=node_answered.graph_id,
+                    node_id=leaf_id,
+                    score=0.1,
+                    p_l0=0.2,
+                    p_t=0.2
+                )  # TODO: Default values, might need change later, but VERY LATER !
+                db_session.add(mastery_rel)
+
+            # Apply depth-based damping: bonus decreases with distance
+            new_score = self._calculate_damped_bkt_bonus(mastery_rel, p_g, p_s, depth)
 
             old_score = mastery_rel.score
-            # Apply depth-based damping: bonus decreases with distance
-            new_score = self._calculate_damped_bkt_bonus(mastery_rel, depth)
-
             if new_score > old_score:
-                mastery_updates_to_write[leaf_id] = (old_score, new_score, mastery_rel)
-                # IMPORTANT: Update the in-memory map so parent calcs are correct
                 mastery_rel.score = new_score
-                mastery_map[leaf_id] = mastery_rel  # Ensure it's in the map
 
         # 3b. Process parent recalculations
-        for parent_id in parent_ids_to_recalc:
+        for parent_id, level in parents_with_level:
+            # TODO: this has the N + 1 problem, but it should be ok for now
+
             child_relations = subtopic_map.get(parent_id, [])
 
             parent_mastery_rel = mastery_map.get(parent_id)
-            was_new_parent = False
+            # was_new_parent = False
             if not parent_mastery_rel:
-                parent_mastery_rel = UserMastery(score=0.1, p_l0=0.2, p_t=0.2)  # Default
-                was_new_parent = True
+                parent_mastery_rel = UserMastery(
+                    user_id=user.id,
+                    graph_id=node_answered.graph_id,
+                    node_id=parent_id,
+                    score=0.1,
+                    p_l0=0.2,
+                    p_t=0.2
+                )  # Default
+                # was_new_parent = True
+                db_session.add(parent_mastery_rel)
 
-            old_parent_score = parent_mastery_rel.score
             new_parent_score = self._calculate_parent_score(
                 child_relations, mastery_map
             )
 
+            old_parent_score = parent_mastery_rel.score
+
             # Update if: (1) new parent node, or (2) score actually changes
-            if was_new_parent or abs(new_parent_score - old_parent_score) > 1e-5:
-                mastery_updates_to_write[parent_id] = (old_parent_score, new_parent_score, parent_mastery_rel)
+            if abs(new_parent_score - old_parent_score) > 1e-5:
+                # mastery_updates_to_write[parent_id] = (old_parent_score, new_parent_score, parent_mastery_rel)
                 # IMPORTANT: Update in-memory map for grandparent calcs
                 parent_mastery_rel.score = new_parent_score
-                mastery_map[parent_id] = parent_mastery_rel
+                # mastery_map[parent_id] = parent_mastery_rel
+        await db_session.flush()
 
-        # === 4. WRITE PHASE: Save all changes in bulk ===
+        logger.info(f"Propagation complete for user {user.id}")
 
-        if mastery_updates_to_write:
-            logger.info(f"Bulk updating {len(mastery_updates_to_write)} mastery records.")
-            # This is a new, complex CRUD function you need to write
-            await mastery_crud.bulk_update_or_create_masteries(
-                db_session,
-                user.id,
-                node_answered.graph_id,
-                mastery_updates_to_write
-            )
-
-        logger.info(f"Completed propagation for user {user.id} on node {node_answered.id}")
-
-    #
-    # ADD THIS NEW HELPER FUNCTION (replaces _apply_damped_bkt_bonus)
-    #
-    def _calculate_damped_bkt_bonus(self, mastery_rel: UserMastery, depth: int = 1) -> float:
+    @staticmethod
+    def _calculate_damped_bkt_bonus(
+            mastery_rel: UserMastery,
+            p_g: float,
+            p_s: float,
+            depth: int = 1
+    ) -> float:
         """
         Calculates a "damped" BKT bonus with depth-based decay.
 
@@ -388,8 +536,6 @@ class MasteryService:
         old_score = mastery_rel.score
         p_l0 = old_score
         p_t = mastery_rel.p_t
-        p_g = 0.25  # Default
-        p_s = 0.1  # Default
 
         # Calculate BKT update
         tracker = BayesianKnowledgeTracer(p_l0, p_t, p_g, p_s)
@@ -406,11 +552,8 @@ class MasteryService:
 
         return new_score
 
-    #
-    # ADD THIS NEW HELPER FUNCTION (replaces logic in _propagate_to_parents)
-    #
+    @staticmethod
     def _calculate_parent_score(
-            self,
             child_relations: List[Tuple[UUID, float]],  # (child_id, weight)
             mastery_map: Dict[UUID, UserMastery]
     ) -> float:

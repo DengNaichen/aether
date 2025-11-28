@@ -33,7 +33,7 @@ from fastapi import UploadFile
 
 from app.core.config import Settings, settings
 from app.core.database import DatabaseManager
-from app.core.deps import get_db, get_redis_client, get_neo4j_driver
+from app.core.deps import get_db, get_redis_client
 from app.core.security import create_access_token, get_password_hash
 
 # Configure neomodel BEFORE importing app.main (which triggers lifespan)
@@ -127,15 +127,15 @@ async def test_redis(
     await redis_client.flushall()
 
 
-@pytest_asyncio.fixture(scope="function")
-async def neo4j_test_driver(
-    test_db_manager: DatabaseManager,
-) -> AsyncGenerator[AsyncDriver, None]:
-    neo4j_driver = test_db_manager.neo4j_driver
-    yield neo4j_driver
-
-    async with test_db_manager.get_neo4j_session() as session:
-        await session.run("MATCH (n) DETACH DELETE n")
+# @pytest_asyncio.fixture(scope="function")
+# async def neo4j_test_driver(
+#     test_db_manager: DatabaseManager,
+# ) -> AsyncGenerator[AsyncDriver, None]:
+#     neo4j_driver = test_db_manager.neo4j_driver
+#     yield neo4j_driver
+#
+#     async with test_db_manager.get_neo4j_session() as session:
+#         await session.run("MATCH (n) DETACH DELETE n")
 
 
 @pytest_asyncio.fixture(scope="function")
