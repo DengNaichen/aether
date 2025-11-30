@@ -50,7 +50,7 @@ app.add_middleware(
 
 app.include_router(user.router)
 app.include_router(question.router)
-app.include_router(admin.router)
+# app.include_router(admin.router)
 app.include_router(knowledge_node.router)
 app.include_router(knowledge_graph.router)
 app.include_router(knowledge_graph.public_router)  # Public endpoints for graphs

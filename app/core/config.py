@@ -7,9 +7,6 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        # Docker/local development: use .env.local
-        # Testing: use .env.test (set ENVIRONMENT=test)
-        # Production: use environment variables directly
         env_file=f".env.{os.getenv('ENVIRONMENT', 'local')}",
         env_file_encoding="utf-8",
         extra="ignore",
@@ -19,10 +16,8 @@ class Settings(BaseSettings):
 
     # sql config
     DATABASE_URL: str
-    SECRET_KEY: str
+    SUPABASE_JWT_SECRET: str
     ALGORITHM: ClassVar[str] = "HS256"
-    REFRESH_TOKEN_EXPIRE_DAYS: int
-    ACCESS_TOKEN_EXPIRE_MINUTES: int
 
     # redis config
     REDIS_URL: str = Field(default="redis://redis:6379/0")

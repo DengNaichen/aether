@@ -34,7 +34,7 @@ from fastapi import UploadFile
 from app.core.config import Settings, settings
 from app.core.database import DatabaseManager
 from app.core.deps import get_db, get_redis_client
-from app.core.security import create_access_token, get_password_hash
+# from app.core.security import create_access_token, get_password_hash
 
 # Configure neomodel BEFORE importing app.main (which triggers lifespan)
 # This ensures neomodel uses test database URL
@@ -80,21 +80,21 @@ async def test_db_manager() -> AsyncGenerator[DatabaseManager, Any]:
 
     await test_db_mgr.create_all_tables(Base)
 
-    try:
-        async with test_db_mgr.get_neo4j_session() as session:
-            await session.run("MATCH (n) DETACH DELETE n")
-    except Exception as e:
-        print(f"Warning: Failed to clean Neo4j before test: {e}")
+    # try:
+    #     async with test_db_mgr.get_neo4j_session() as session:
+    #         await session.run("MATCH (n) DETACH DELETE n")
+    # except Exception as e:
+    #     print(f"Warning: Failed to clean Neo4j before test: {e}")
 
     yield test_db_mgr
 
     await test_db_mgr.drop_all_tables(Base)
 
-    try:
-        async with test_db_mgr.get_neo4j_session() as session:
-            await session.run("MATCH (n) DETACH DELETE n")
-    except Exception as e:
-        print(f"Warning: Failed to clean Neo4j after test: {e}")
+    # try:
+    #     async with test_db_mgr.get_neo4j_session() as session:
+    #         await session.run("MATCH (n) DETACH DELETE n")
+    # except Exception as e:
+    #     print(f"Warning: Failed to clean Neo4j after test: {e}")
 
     await test_db_mgr.close()
 
@@ -149,12 +149,12 @@ async def client(
     async def override_get_redis_client() -> AsyncGenerator[Redis, None]:
         yield test_db_manager.redis_client
 
-    async def override_get_neo4j_driver() -> AsyncGenerator[AsyncDriver, None]:
-        yield test_db_manager.neo4j_driver
+    # async def override_get_neo4j_driver() -> AsyncGenerator[AsyncDriver, None]:
+    #     yield test_db_manager.neo4j_driver
 
     app.dependency_overrides[get_db] = override_get_db
     app.dependency_overrides[get_redis_client] = override_get_redis_client
-    app.dependency_overrides[get_neo4j_driver] = override_get_neo4j_driver
+    # app.dependency_overrides[get_neo4j_driver] = override_get_neo4j_driver
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
@@ -162,7 +162,7 @@ async def client(
 
     del app.dependency_overrides[get_db]
     del app.dependency_overrides[get_redis_client]
-    del app.dependency_overrides[get_neo4j_driver]
+    # del app.dependency_overrides[get_neo4j_driver]
 
 
 @pytest_asyncio.fixture(scope="function")
@@ -170,7 +170,7 @@ async def user_in_db(test_db: AsyncSession) -> User:
     """create a user in the database"""
     new_user = User(
         email=TEST_USER_EMAIL,
-        hashed_password=get_password_hash(TEST_USER_PASSWORD),
+        # hashed_password=get_password_hash(TEST_USER_PASSWORD),
         name=TEST_USER_NAME,
         is_active=True,
     )
@@ -184,7 +184,7 @@ async def user_in_db(test_db: AsyncSession) -> User:
 async def admin_in_db(test_db: AsyncSession) -> User:
     new_admin = User(
         email=TEST_ADMIN_EMAIL,
-        hashed_password=get_password_hash(TEST_ADMIN_PASSWORD),
+        # hashed_password=get_password_hash(TEST_ADMIN_PASSWORD),
         name=TEST_ADMIN_NAME,
         is_active=True,
         is_admin=True,
@@ -200,7 +200,7 @@ async def other_user_in_db(test_db: AsyncSession) -> User:
     """Create a second regular user for testing non-owner access scenarios."""
     other_user = User(
         email="other.user@example.com",
-        hashed_password=get_password_hash("other_secure_password_123@"),
+        # hashed_password=get_password_hash("other_secure_password_123@"),
         name="Other Test User",
         is_active=True,
     )
@@ -724,12 +724,12 @@ async def authenticated_client(
     return client
 
 
-@pytest_asyncio.fixture(scope="function")
-async def authenticated_admin_client(client: AsyncClient,
-                                     admin_in_db: User) -> AsyncClient:
-    token = create_access_token(admin_in_db)
-    client.headers["Authorization"] = f"Bearer {token}"
-    return client
+# @pytest_asyncio.fixture(scope="function")
+# async def authenticated_admin_client(client: AsyncClient,
+#                                      admin_in_db: User) -> AsyncClient:
+#     token = create_access_token(admin_in_db)
+#     client.headers["Authorization"] = f"Bearer {token}"
+#     return client
 
 
 @pytest_asyncio.fixture(scope="function")
