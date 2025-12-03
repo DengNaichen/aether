@@ -49,9 +49,9 @@ async def get_worker_context() -> AsyncGenerator[WorkerContext, None]:
 
 
 async def get_current_user(
-        request: Request,
-        db: AsyncSession = Depends(get_db),
-        credentials: HTTPAuthorizationCredentials = Depends(oauth2_scheme),
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials = Depends(oauth2_scheme),
 ) -> User:
     """
     TODO: update this docstring

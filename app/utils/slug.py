@@ -2,6 +2,7 @@ import re
 import unicodedata
 from pypinyin import slug, Style
 
+
 def slugify(text: str) -> str:
     """
     Converts text into a URL-friendly slug.
@@ -19,18 +20,18 @@ def slugify(text: str) -> str:
     text = slug(text, separator="-", style=Style.NORMAL)
 
     # Normalize unicode characters (handles accented characters)
-    text = unicodedata.normalize('NFKD', text)
-    text = text.encode('ascii', 'ignore').decode('ascii')
+    text = unicodedata.normalize("NFKD", text)
+    text = text.encode("ascii", "ignore").decode("ascii")
 
     # Convert to lowercase and replace non-alphanumeric characters with hyphens
     text = text.lower()
-    text = re.sub(r'[^a-z0-9]+', '-', text)
+    text = re.sub(r"[^a-z0-9]+", "-", text)
 
     # Remove leading/trailing hyphens
-    text = text.strip('-')
+    text = text.strip("-")
 
     # Limit length to 100 characters
     if len(text) > 100:
-        text = text[:100].rstrip('-')
+        text = text[:100].rstrip("-")
 
-    return text or 'untitled'
+    return text or "untitled"

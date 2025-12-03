@@ -25,10 +25,7 @@ from app.services.question_rec import QuestionService
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(
-    prefix="/me/graphs",
-    tags=["Question"]
-)
+router = APIRouter(prefix="/me/graphs", tags=["Question"])
 
 
 # ==================== Response Schemas ====================
@@ -36,21 +33,20 @@ router = APIRouter(
 
 class NextQuestionResponse(BaseModel):
     """Response for next question recommendation."""
+
     question: AnyQuestion | None = Field(
         None,
-        description="The recommended question, or null if no suitable question available"
+        description="The recommended question, or null if no suitable question available",
     )
     node_id: UUID | None = Field(
-        None,
-        description="The knowledge node ID this question tests"
+        None, description="The knowledge node ID this question tests"
     )
     selection_reason: str = Field(
         ...,
-        description="Why this question was selected (e.g., 'fsrs_due_review', 'new_learning', 'none_available')"
+        description="Why this question was selected (e.g., 'fsrs_due_review', 'new_learning', 'none_available')",
     )
     priority_score: float | None = Field(
-        None,
-        description="Priority score used for selection (lower is better)"
+        None, description="Priority score used for selection (lower is better)"
     )
 
 
@@ -98,23 +94,21 @@ async def get_next_question(
         HTTPException 404: Knowledge graph not found
         HTTPException 500: Recommendation service error
     """
-    logger.info(
-        f"User {current_user.id} requesting next question for graph {graph_id}"
-    )
+    logger.info(f"User {current_user.id} requesting next question for graph {graph_id}")
 
     # Verify the knowledge graph exists
     knowledge_graph = await get_graph_by_id(db_session=db, graph_id=graph_id)
     if not knowledge_graph:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Knowledge graph {graph_id} not found."
+            detail=f"Knowledge graph {graph_id} not found.",
         )
 
     # Verify user is the owner
     if knowledge_graph.owner_id != current_user.id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only the graph owner can use this endpoint. For enrolled graphs, use GET /graphs/{graph_id}/next-question."
+            detail="Only the graph owner can use this endpoint. For enrolled graphs, use GET /graphs/{graph_id}/next-question.",
         )
 
     # Use QuestionService to select the next knowledge node
@@ -122,9 +116,7 @@ async def get_next_question(
 
     try:
         selection_result = await question_service.select_next_node(
-            db_session=db,
-            user_id=current_user.id,
-            graph_id=graph_id
+            db_session=db, user_id=current_user.id, graph_id=graph_id
         )
 
         if not selection_result.knowledge_node:
@@ -136,7 +128,7 @@ async def get_next_question(
                 question=None,
                 node_id=None,
                 selection_reason=selection_result.selection_reason,
-                priority_score=None
+                priority_score=None,
             )
 
         # Get a random question from the selected node
@@ -144,9 +136,7 @@ async def get_next_question(
 
         # Get all questions for this node from CRUD layer
         questions = await get_questions_by_node(
-            db_session=db,
-            graph_id=graph_id,
-            node_id=node_id
+            db_session=db, graph_id=graph_id, node_id=node_id
         )
 
         if not questions:
@@ -158,7 +148,7 @@ async def get_next_question(
                 question=None,
                 node_id=node_id,
                 selection_reason="node_has_no_questions",
-                priority_score=selection_result.priority_score
+                priority_score=selection_result.priority_score,
             )
 
         # Randomly select one question from the list
@@ -176,7 +166,7 @@ async def get_next_question(
             question=question_schema,
             node_id=node_id,
             selection_reason=selection_result.selection_reason,
-            priority_score=selection_result.priority_score
+            priority_score=selection_result.priority_score,
         )
 
     except Exception as e:
@@ -186,7 +176,7 @@ async def get_next_question(
         )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get next question: {str(e)}"
+            detail=f"Failed to get next question: {str(e)}",
         )
 
 
@@ -224,18 +214,15 @@ def _convert_question_to_schema(question: Question) -> AnyQuestion:
 
     if question.question_type == QuestionType.MULTIPLE_CHOICE.value:
         return MultipleChoiceQuestion(
-            **base_data,
-            details=MultipleChoiceDetails(**question.details)
+            **base_data, details=MultipleChoiceDetails(**question.details)
         )
     elif question.question_type == QuestionType.FILL_BLANK.value:
         return FillInTheBlankQuestion(
-            **base_data,
-            details=FillInTheBlankDetails(**question.details)
+            **base_data, details=FillInTheBlankDetails(**question.details)
         )
     elif question.question_type == QuestionType.CALCULATION.value:
         return CalculationQuestion(
-            **base_data,
-            details=CalculationDetails(**question.details)
+            **base_data, details=CalculationDetails(**question.details)
         )
     else:
         raise ValueError(f"Unknown question type: {question.question_type}")

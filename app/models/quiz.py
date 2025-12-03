@@ -8,6 +8,7 @@ from sqlalchemy.orm import relationship
 
 from app.models import Base  # 或者 from .base import Base
 
+
 class SubmissionAnswer(Base):
     """Answer submission record for practice mode.
 
@@ -27,11 +28,14 @@ class SubmissionAnswer(Base):
         is_correct: Whether the answer was correct (graded result)
         created_at: When this answer was submitted
     """
+
     __tablename__ = "submission_answers"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
-    graph_id = Column(UUID(as_uuid=True), ForeignKey("knowledge_graphs.id"), nullable=False)
+    graph_id = Column(
+        UUID(as_uuid=True), ForeignKey("knowledge_graphs.id"), nullable=False
+    )
     question_id = Column(UUID(as_uuid=True), ForeignKey("questions.id"), nullable=False)
 
     user_answer = Column(JSON, nullable=False)

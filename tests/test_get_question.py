@@ -6,7 +6,7 @@ from app.routes.quiz import (
     get_validated_course_for_user,
     UserNotFoundInNeo4j,
     CourseNotFoundOrNotEnrolledInNeo4j,
-    get_random_question_for_user
+    get_random_question_for_user,
 )
 import app.models.neo4j_model as neo
 from app.core.database import DatabaseManager
@@ -14,9 +14,9 @@ from app.core.database import DatabaseManager
 
 @pytest.mark.asyncio
 async def test_get_validated_course_happy_path(
-        user_in_neo4j_db: neo.User,
-        course_in_neo4j_db: neo.Course,
-        test_db_manager: DatabaseManager,
+    user_in_neo4j_db: neo.User,
+    course_in_neo4j_db: neo.Course,
+    test_db_manager: DatabaseManager,
 ):
     neo_driver = test_db_manager.neo4j_driver
 
@@ -34,10 +34,10 @@ async def test_get_validated_course_happy_path(
 
 @pytest.mark.asyncio
 async def test_get_random_question_happy_path(
-        course_in_neo4j_db: neo.Course,
-        user_in_neo4j_db: neo.User,
-        questions_in_neo4j_db: tuple[neo.MultipleChoice, neo.FillInBlank],
-        test_db_manager: DatabaseManager,
+    course_in_neo4j_db: neo.Course,
+    user_in_neo4j_db: neo.User,
+    questions_in_neo4j_db: tuple[neo.MultipleChoice, neo.FillInBlank],
+    test_db_manager: DatabaseManager,
 ):
     neo_driver = test_db_manager.neo4j_driver
 
@@ -61,9 +61,3 @@ async def test_get_random_question_happy_path(
 
     except Exception as e:
         pytest.fail(f"happy path test failed: {e}")
-
-
-
-
-
-

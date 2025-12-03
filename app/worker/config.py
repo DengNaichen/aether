@@ -29,8 +29,10 @@ class WorkerContext:
         async with self.db_manager.get_sql_session() as session:
             yield session
 
+
 def register_handler(task_type: str):
     def decorator(func):
         TASK_HANDLERS[task_type] = func
         return func
+
     return decorator

@@ -75,9 +75,8 @@ async def test_update_mastery_from_grading_creates_new_mastery(
 
     # Verify mastery was created
     from app.crud import mastery as mastery_crud
-    mastery = await mastery_crud.get_mastery(
-        test_db, user_in_db.id, graph.id, node.id
-    )
+
+    mastery = await mastery_crud.get_mastery(test_db, user_in_db.id, graph.id, node.id)
 
     assert mastery is not None
     assert mastery.score > 0.1  # Should be higher after correct answer
@@ -117,9 +116,15 @@ async def test_update_mastery_from_grading_updates_existing_mastery(
 
     # Create existing mastery with low score
     from app.crud import mastery as mastery_crud
+
     initial_mastery, _ = await mastery_crud.get_or_create_mastery(
-        test_db, user_in_db.id, graph.id, node.id,
-        default_score=0.2, default_p_l0=0.2, default_p_t=0.1
+        test_db,
+        user_in_db.id,
+        graph.id,
+        node.id,
+        default_score=0.2,
+        default_p_l0=0.2,
+        default_p_t=0.1,
     )
     await test_db.commit()
     initial_score = initial_mastery.score
@@ -178,9 +183,15 @@ async def test_update_mastery_handles_incorrect_answer(
 
     # Create initial mastery
     from app.crud import mastery as mastery_crud
+
     initial_mastery, _ = await mastery_crud.get_or_create_mastery(
-        test_db, user_in_db.id, graph.id, node.id,
-        default_score=0.5, default_p_l0=0.5, default_p_t=0.1
+        test_db,
+        user_in_db.id,
+        graph.id,
+        node.id,
+        default_score=0.5,
+        default_p_l0=0.5,
+        default_p_t=0.1,
     )
     await test_db.commit()
     initial_score = initial_mastery.score
@@ -317,17 +328,15 @@ async def test_get_mastery_score_returns_existing_score(
 
     # Create mastery
     from app.crud import mastery as mastery_crud
+
     await mastery_crud.create_mastery(
-        test_db, user_in_db.id, graph.id, node.id,
-        score=0.75, p_l0=0.5, p_t=0.1
+        test_db, user_in_db.id, graph.id, node.id, score=0.75, p_l0=0.5, p_t=0.1
     )
     await test_db.commit()
 
     # Get score
     service = MasteryService()
-    score = await service.get_mastery_score(
-        test_db, user_in_db, node
-    )
+    score = await service.get_mastery_score(test_db, user_in_db, node)
 
     assert score == 0.75
 
@@ -343,9 +352,7 @@ async def test_get_mastery_score_returns_none_for_new_user(
     node = graph_data["nodes"]["derivatives"]
 
     service = MasteryService()
-    score = await service.get_mastery_score(
-        test_db, user_in_db, node
-    )
+    score = await service.get_mastery_score(test_db, user_in_db, node)
 
     assert score is None
 
@@ -366,15 +373,13 @@ async def test_initialize_mastery_creates_new_relationship(
 
     service = MasteryService()
     await service.initialize_mastery(
-        test_db, user_in_db, node,
-        initial_score=0.3, p_l0=0.4, p_t=0.15
+        test_db, user_in_db, node, initial_score=0.3, p_l0=0.4, p_t=0.15
     )
 
     # Verify mastery was created
     from app.crud import mastery as mastery_crud
-    mastery = await mastery_crud.get_mastery(
-        test_db, user_in_db.id, graph.id, node.id
-    )
+
+    mastery = await mastery_crud.get_mastery(test_db, user_in_db.id, graph.id, node.id)
 
     assert mastery is not None
     assert mastery.score == 0.3
@@ -395,23 +400,20 @@ async def test_initialize_mastery_updates_existing_relationship(
 
     # Create existing mastery
     from app.crud import mastery as mastery_crud
+
     await mastery_crud.create_mastery(
-        test_db, user_in_db.id, graph.id, node.id,
-        score=0.1, p_l0=0.2, p_t=0.1
+        test_db, user_in_db.id, graph.id, node.id, score=0.1, p_l0=0.2, p_t=0.1
     )
     await test_db.commit()
 
     # Re-initialize with different values
     service = MasteryService()
     await service.initialize_mastery(
-        test_db, user_in_db, node,
-        initial_score=0.8, p_l0=0.7, p_t=0.2
+        test_db, user_in_db, node, initial_score=0.8, p_l0=0.7, p_t=0.2
     )
 
     # Verify mastery was updated
-    mastery = await mastery_crud.get_mastery(
-        test_db, user_in_db.id, graph.id, node.id
-    )
+    mastery = await mastery_crud.get_mastery(test_db, user_in_db.id, graph.id, node.id)
 
     assert mastery.score == 0.8
     assert mastery.p_l0 == 0.7
@@ -436,9 +438,15 @@ async def test_propagate_to_prerequisites_boosts_prerequisite_scores(
     # Derivatives is prerequisite for Integrals
     # Create low mastery for derivatives
     from app.crud import mastery as mastery_crud
+
     prereq_mastery, _ = await mastery_crud.get_or_create_mastery(
-        test_db, user_in_db.id, graph.id, derivatives_node.id,
-        default_score=0.3, default_p_l0=0.3, default_p_t=0.2
+        test_db,
+        user_in_db.id,
+        graph.id,
+        derivatives_node.id,
+        default_score=0.3,
+        default_p_l0=0.3,
+        default_p_t=0.2,
     )
     await test_db.commit()
     initial_prereq_score = prereq_mastery.score
@@ -450,7 +458,8 @@ async def test_propagate_to_prerequisites_boosts_prerequisite_scores(
         user=user_in_db,
         node_answered=integrals_node,
         is_correct=True,
-        p_g=0.2, p_s=0.1
+        p_g=0.2,
+        p_s=0.1,
     )
 
     # Verify prerequisite score increased
@@ -474,9 +483,15 @@ async def test_propagate_to_prerequisites_skips_on_incorrect(
 
     # Create mastery for derivatives
     from app.crud import mastery as mastery_crud
+
     prereq_mastery, _ = await mastery_crud.get_or_create_mastery(
-        test_db, user_in_db.id, graph.id, derivatives_node.id,
-        default_score=0.3, default_p_l0=0.3, default_p_t=0.2
+        test_db,
+        user_in_db.id,
+        graph.id,
+        derivatives_node.id,
+        default_score=0.3,
+        default_p_l0=0.3,
+        default_p_t=0.2,
     )
     await test_db.commit()
     initial_prereq_score = prereq_mastery.score
@@ -488,7 +503,8 @@ async def test_propagate_to_prerequisites_skips_on_incorrect(
         user=user_in_db,
         node_answered=integrals_node,
         is_correct=False,
-        p_g=0.2, p_s=0.1
+        p_g=0.2,
+        p_s=0.1,
     )
 
     # Verify prerequisite score unchanged
@@ -519,11 +535,13 @@ async def test_propagate_creates_prerequisite_mastery_if_missing(
         user=user_in_db,
         node_answered=integrals_node,
         is_correct=True,
-        p_g=0.2, p_s=0.1
+        p_g=0.2,
+        p_s=0.1,
     )
 
     # Verify prerequisite mastery was created
     from app.crud import mastery as mastery_crud
+
     prereq_mastery = await mastery_crud.get_mastery(
         test_db, user_in_db.id, graph.id, derivatives_node.id
     )
@@ -552,13 +570,12 @@ async def test_propagate_to_parents_recalculates_parent_score(
 
     # Create mastery for both subtopics
     from app.crud import mastery as mastery_crud
+
     await mastery_crud.create_mastery(
-        test_db, user_in_db.id, graph.id, derivatives.id,
-        score=0.8, p_l0=0.5, p_t=0.1
+        test_db, user_in_db.id, graph.id, derivatives.id, score=0.8, p_l0=0.5, p_t=0.1
     )
     await mastery_crud.create_mastery(
-        test_db, user_in_db.id, graph.id, integrals.id,
-        score=0.6, p_l0=0.5, p_t=0.1
+        test_db, user_in_db.id, graph.id, integrals.id, score=0.6, p_l0=0.5, p_t=0.1
     )
     await test_db.commit()
 
@@ -569,7 +586,8 @@ async def test_propagate_to_parents_recalculates_parent_score(
         user=user_in_db,
         node_answered=derivatives,
         is_correct=True,
-        p_g=0.2, p_s=0.1
+        p_g=0.2,
+        p_s=0.1,
     )
 
     # Verify parent score is weighted average
@@ -596,9 +614,9 @@ async def test_propagate_to_parents_handles_missing_subtopic_mastery(
 
     # Create mastery only for derivatives
     from app.crud import mastery as mastery_crud
+
     await mastery_crud.create_mastery(
-        test_db, user_in_db.id, graph.id, derivatives.id,
-        score=0.8, p_l0=0.5, p_t=0.1
+        test_db, user_in_db.id, graph.id, derivatives.id, score=0.8, p_l0=0.5, p_t=0.1
     )
     await test_db.commit()
 
@@ -609,7 +627,8 @@ async def test_propagate_to_parents_handles_missing_subtopic_mastery(
         user=user_in_db,
         node_answered=derivatives,
         is_correct=True,
-        p_g=0.2, p_s=0.1
+        p_g=0.2,
+        p_s=0.1,
     )
 
     # Verify parent score
@@ -641,9 +660,9 @@ async def test_propagate_to_parents_is_recursive(
 
     # Create high mastery for chain-rule
     from app.crud import mastery as mastery_crud
+
     await mastery_crud.create_mastery(
-        test_db, user_in_db.id, graph.id, chain_rule.id,
-        score=0.9, p_l0=0.5, p_t=0.1
+        test_db, user_in_db.id, graph.id, chain_rule.id, score=0.9, p_l0=0.5, p_t=0.1
     )
     await test_db.commit()
 
@@ -654,7 +673,8 @@ async def test_propagate_to_parents_is_recursive(
         user=user_in_db,
         node_answered=chain_rule,
         is_correct=True,
-        p_g=0.2, p_s=0.1
+        p_g=0.2,
+        p_s=0.1,
     )
 
     # Verify derivatives was updated (chain-rule's parent)
@@ -694,9 +714,9 @@ async def test_full_propagation_correct_answer(
 
     # Create initial mastery for chain-rule
     from app.crud import mastery as mastery_crud
+
     await mastery_crud.create_mastery(
-        test_db, user_in_db.id, graph.id, chain_rule.id,
-        score=0.2, p_l0=0.2, p_t=0.2
+        test_db, user_in_db.id, graph.id, chain_rule.id, score=0.2, p_l0=0.2, p_t=0.2
     )
     await test_db.commit()
 
@@ -707,7 +727,8 @@ async def test_full_propagation_correct_answer(
         user=user_in_db,
         node_answered=chain_rule,
         is_correct=True,
-        p_g=0.2, p_s=0.1
+        p_g=0.2,
+        p_s=0.1,
     )
 
     # Verify derivatives (parent of chain-rule) was updated via upward propagation
@@ -745,14 +766,13 @@ async def test_full_propagation_incorrect_answer(
 
     # Create mastery for derivatives (prerequisite of integrals)
     from app.crud import mastery as mastery_crud
+
     await mastery_crud.create_mastery(
-        test_db, user_in_db.id, graph.id, derivatives.id,
-        score=0.3, p_l0=0.3, p_t=0.2
+        test_db, user_in_db.id, graph.id, derivatives.id, score=0.3, p_l0=0.3, p_t=0.2
     )
     # Create mastery for integrals
     await mastery_crud.create_mastery(
-        test_db, user_in_db.id, graph.id, integrals.id,
-        score=0.4, p_l0=0.4, p_t=0.2
+        test_db, user_in_db.id, graph.id, integrals.id, score=0.4, p_l0=0.4, p_t=0.2
     )
     await test_db.commit()
     initial_derivatives_score = 0.3
@@ -764,7 +784,8 @@ async def test_full_propagation_incorrect_answer(
         user=user_in_db,
         node_answered=integrals,
         is_correct=False,
-        p_g=0.2, p_s=0.1
+        p_g=0.2,
+        p_s=0.1,
     )
 
     # Verify derivatives (prerequisite) was NOT boosted
@@ -802,7 +823,8 @@ async def test_propagation_handles_node_with_no_prerequisites(
         user=user_in_db,
         node_answered=derivatives,
         is_correct=True,
-        p_g=0.2, p_s=0.1
+        p_g=0.2,
+        p_s=0.1,
     )
 
 
@@ -825,7 +847,8 @@ async def test_propagation_handles_node_with_no_parents(
         user=user_in_db,
         node_answered=calculus_basics,
         is_correct=True,
-        p_g=0.2, p_s=0.1
+        p_g=0.2,
+        p_s=0.1,
     )
 
 
@@ -874,9 +897,8 @@ async def test_bkt_score_bounds(
 
     # Verify score is within bounds
     from app.crud import mastery as mastery_crud
-    mastery = await mastery_crud.get_mastery(
-        test_db, user_in_db.id, graph.id, node.id
-    )
+
+    mastery = await mastery_crud.get_mastery(test_db, user_in_db.id, graph.id, node.id)
     assert 0 <= mastery.score <= 1
 
     # Answer incorrectly many times
@@ -892,9 +914,7 @@ async def test_bkt_score_bounds(
         )
 
     # Verify score is still within bounds
-    mastery = await mastery_crud.get_mastery(
-        test_db, user_in_db.id, graph.id, node.id
-    )
+    mastery = await mastery_crud.get_mastery(test_db, user_in_db.id, graph.id, node.id)
     assert 0 <= mastery.score <= 1
 
 
@@ -913,6 +933,7 @@ async def test_mastery_timestamp_updates(
 
     # Create initial mastery
     from app.crud import mastery as mastery_crud
+
     mastery, _ = await mastery_crud.get_or_create_mastery(
         test_db, user_in_db.id, graph.id, node.id
     )
@@ -961,9 +982,15 @@ async def test_recursive_prerequisite_propagation_with_depth_damping(
     node_d = await kg_crud.create_knowledge_node(test_db, graph.id, "Node D", "node_d")
 
     # Create prerequisite chain (all are leaf nodes, so this is valid)
-    await kg_crud.create_prerequisite(test_db, graph.id, node_a.id, node_b.id, weight=1.0)
-    await kg_crud.create_prerequisite(test_db, graph.id, node_b.id, node_c.id, weight=1.0)
-    await kg_crud.create_prerequisite(test_db, graph.id, node_c.id, node_d.id, weight=1.0)
+    await kg_crud.create_prerequisite(
+        test_db, graph.id, node_a.id, node_b.id, weight=1.0
+    )
+    await kg_crud.create_prerequisite(
+        test_db, graph.id, node_b.id, node_c.id, weight=1.0
+    )
+    await kg_crud.create_prerequisite(
+        test_db, graph.id, node_c.id, node_d.id, weight=1.0
+    )
 
     # Create initial low mastery for all nodes
     await mastery_crud.create_mastery(
@@ -991,7 +1018,8 @@ async def test_recursive_prerequisite_propagation_with_depth_damping(
         user=user_in_db,
         node_answered=node_d,
         is_correct=True,
-        p_g=0.2, p_s=0.1
+        p_g=0.2,
+        p_s=0.1,
     )
 
     # Verify depth-based damping
@@ -999,9 +1027,15 @@ async def test_recursive_prerequisite_propagation_with_depth_damping(
     # Node B (depth 2): should get 25% bonus
     # Node A (depth 3): should get 12.5% bonus
 
-    mastery_c = await mastery_crud.get_mastery(test_db, user_in_db.id, graph.id, node_c.id)
-    mastery_b = await mastery_crud.get_mastery(test_db, user_in_db.id, graph.id, node_b.id)
-    mastery_a = await mastery_crud.get_mastery(test_db, user_in_db.id, graph.id, node_a.id)
+    mastery_c = await mastery_crud.get_mastery(
+        test_db, user_in_db.id, graph.id, node_c.id
+    )
+    mastery_b = await mastery_crud.get_mastery(
+        test_db, user_in_db.id, graph.id, node_b.id
+    )
+    mastery_a = await mastery_crud.get_mastery(
+        test_db, user_in_db.id, graph.id, node_a.id
+    )
 
     # All should have increased
     assert mastery_c.score > initial_c_score
@@ -1036,9 +1070,15 @@ async def test_prerequisite_shortest_path_selection(
     node_b = await kg_crud.create_knowledge_node(test_db, graph.id, "Node B", "node_b")
     node_c = await kg_crud.create_knowledge_node(test_db, graph.id, "Node C", "node_c")
 
-    await kg_crud.create_prerequisite(test_db, graph.id, node_a.id, node_c.id, weight=1.0)
-    await kg_crud.create_prerequisite(test_db, graph.id, node_a.id, node_b.id, weight=1.0)
-    await kg_crud.create_prerequisite(test_db, graph.id, node_b.id, node_c.id, weight=1.0)
+    await kg_crud.create_prerequisite(
+        test_db, graph.id, node_a.id, node_c.id, weight=1.0
+    )
+    await kg_crud.create_prerequisite(
+        test_db, graph.id, node_a.id, node_b.id, weight=1.0
+    )
+    await kg_crud.create_prerequisite(
+        test_db, graph.id, node_b.id, node_c.id, weight=1.0
+    )
 
     await mastery_crud.create_mastery(
         test_db, user_in_db.id, graph.id, node_a.id, score=0.2, p_l0=0.2, p_t=0.2
@@ -1052,11 +1092,14 @@ async def test_prerequisite_shortest_path_selection(
         user=user_in_db,
         node_answered=node_c,
         is_correct=True,
-        p_g=0.2, p_s=0.1
+        p_g=0.2,
+        p_s=0.1,
     )
 
     # Node A should get depth 1 bonus (50%), not depth 2 (25%)
-    mastery_a = await mastery_crud.get_mastery(test_db, user_in_db.id, graph.id, node_a.id)
+    mastery_a = await mastery_crud.get_mastery(
+        test_db, user_in_db.id, graph.id, node_a.id
+    )
     # We can't assert exact score, but it should be boosted
     assert mastery_a.score > 0.2
 
@@ -1078,12 +1121,18 @@ async def test_leaf_only_prerequisite_constraint_rejects_parent_node(
     )
 
     # Create nodes
-    parent_node = await kg_crud.create_knowledge_node(test_db, graph.id, "Parent", "parent")
-    child_node = await kg_crud.create_knowledge_node(test_db, graph.id, "Child", "child")
+    parent_node = await kg_crud.create_knowledge_node(
+        test_db, graph.id, "Parent", "parent"
+    )
+    child_node = await kg_crud.create_knowledge_node(
+        test_db, graph.id, "Child", "child"
+    )
     leaf_node = await kg_crud.create_knowledge_node(test_db, graph.id, "Leaf", "leaf")
 
     # Create subtopic relationship (parent -> child)
-    await kg_crud.create_subtopic(test_db, graph.id, parent_node.id, child_node.id, weight=1.0)
+    await kg_crud.create_subtopic(
+        test_db, graph.id, parent_node.id, child_node.id, weight=1.0
+    )
 
     # Try to create prerequisite with parent_node (should fail)
     with pytest.raises(ValueError, match="not a leaf node"):
@@ -1093,8 +1142,12 @@ async def test_leaf_only_prerequisite_constraint_rejects_parent_node(
 
     # Try to create prerequisite with child_node as target (should also fail if it has children)
     # But in this case, child_node is a leaf, so create another subtopic
-    grandchild_node = await kg_crud.create_knowledge_node(test_db, graph.id, "Grandchild", "grandchild")
-    await kg_crud.create_subtopic(test_db, graph.id, child_node.id, grandchild_node.id, weight=1.0)
+    grandchild_node = await kg_crud.create_knowledge_node(
+        test_db, graph.id, "Grandchild", "grandchild"
+    )
+    await kg_crud.create_subtopic(
+        test_db, graph.id, child_node.id, grandchild_node.id, weight=1.0
+    )
 
     # Now child_node is also a parent, so prerequisite should fail
     with pytest.raises(ValueError, match="not a leaf node"):

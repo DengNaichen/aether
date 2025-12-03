@@ -11,9 +11,9 @@ class TestCreateKnowledgeGraph:
 
     @pytest.mark.asyncio
     async def test_create_graph_success(
-            self,
-            authenticated_client: AsyncClient,
-            test_db: AsyncSession,
+        self,
+        authenticated_client: AsyncClient,
+        test_db: AsyncSession,
     ):
         """Test successfully creating a new graph"""
         graph_data = {
@@ -45,8 +45,8 @@ class TestCreateKnowledgeGraph:
 
     @pytest.mark.asyncio
     async def test_create_graph_with_minimal_data(
-            self,
-            authenticated_client: AsyncClient,
+        self,
+        authenticated_client: AsyncClient,
     ):
         """Test creating a graph with only required fields"""
         graph_data = {
@@ -69,9 +69,9 @@ class TestCreateKnowledgeGraph:
 
     @pytest.mark.asyncio
     async def test_create_graph_with_duplicate_name_fails(
-            self,
-            authenticated_client: AsyncClient,
-            private_graph_in_db: KnowledgeGraph,
+        self,
+        authenticated_client: AsyncClient,
+        private_graph_in_db: KnowledgeGraph,
     ):
         """Test that creating a graph with duplicate name/slug fails"""
         # Try to create a graph with the same name (will generate same slug)
@@ -90,8 +90,8 @@ class TestCreateKnowledgeGraph:
 
     @pytest.mark.asyncio
     async def test_create_graph_without_authentication_fails(
-            self,
-            client: AsyncClient,
+        self,
+        client: AsyncClient,
     ):
         """Test that creating a graph without authentication fails"""
         graph_data = {
@@ -107,8 +107,8 @@ class TestCreateKnowledgeGraph:
 
     @pytest.mark.asyncio
     async def test_create_graph_with_empty_name_fails(
-            self,
-            authenticated_client: AsyncClient,
+        self,
+        authenticated_client: AsyncClient,
     ):
         """Test that creating a graph with empty name fails"""
         graph_data = {
@@ -124,8 +124,8 @@ class TestCreateKnowledgeGraph:
 
     @pytest.mark.asyncio
     async def test_create_graph_with_too_many_tags_fails(
-            self,
-            authenticated_client: AsyncClient,
+        self,
+        authenticated_client: AsyncClient,
     ):
         """Test that creating a graph with more than 20 tags fails"""
         graph_data = {
@@ -143,8 +143,8 @@ class TestCreateKnowledgeGraph:
 
     @pytest.mark.asyncio
     async def test_create_graph_with_special_characters_in_name(
-            self,
-            authenticated_client: AsyncClient,
+        self,
+        authenticated_client: AsyncClient,
     ):
         """Test that special characters in name are properly slugified"""
         graph_data = {
@@ -165,8 +165,8 @@ class TestCreateKnowledgeGraph:
 
     @pytest.mark.asyncio
     async def test_create_multiple_graphs_by_same_user(
-            self,
-            authenticated_client: AsyncClient,
+        self,
+        authenticated_client: AsyncClient,
     ):
         """Test that a user can create multiple graphs with different names"""
         graph_data_1 = {
@@ -199,8 +199,8 @@ class TestCreateKnowledgeGraph:
 
     @pytest.mark.asyncio
     async def test_create_graph_tags_are_normalized(
-            self,
-            authenticated_client: AsyncClient,
+        self,
+        authenticated_client: AsyncClient,
     ):
         """Test that tags are normalized (trimmed and lowercased)"""
         graph_data = {
@@ -223,10 +223,10 @@ class TestCreateKnowledgeGraph:
 
     @pytest.mark.asyncio
     async def test_different_users_can_create_graphs_with_same_name(
-            self,
-            client: AsyncClient,
-            user_in_db,
-            admin_in_db,
+        self,
+        client: AsyncClient,
+        user_in_db,
+        admin_in_db,
     ):
         """Test that different users can create graphs with the same name"""
         from app.core.security import create_access_token
@@ -266,8 +266,8 @@ class TestCreateKnowledgeGraph:
 
     @pytest.mark.asyncio
     async def test_create_private_graph(
-            self,
-            authenticated_client: AsyncClient,
+        self,
+        authenticated_client: AsyncClient,
     ):
         """Test creating a private knowledge graph"""
         graph_data = {
@@ -289,8 +289,8 @@ class TestCreateKnowledgeGraph:
 
     @pytest.mark.asyncio
     async def test_create_graph_with_long_name(
-            self,
-            authenticated_client: AsyncClient,
+        self,
+        authenticated_client: AsyncClient,
     ):
         """Test that graph name length is validated"""
         # Test with name that exceeds maximum length (200 characters)
@@ -309,8 +309,8 @@ class TestCreateKnowledgeGraph:
 
     @pytest.mark.asyncio
     async def test_create_graph_with_valid_long_name(
-            self,
-            authenticated_client: AsyncClient,
+        self,
+        authenticated_client: AsyncClient,
     ):
         """Test creating a graph with maximum valid name length"""
         # Test with name at maximum length (200 characters)

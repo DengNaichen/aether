@@ -23,12 +23,13 @@ class TestSubmitQuizAnswers:
     """
     Test suite for the 'POST /submissions/{submission_id}' endpoint.
     """
+
     async def test_submit_answers_success(
-            self,
-            enrolled_user_client: AsyncClient,
-            test_db: AsyncSession,
-            quiz_in_db: QuizAttempt,
-            test_redis: Redis,
+        self,
+        enrolled_user_client: AsyncClient,
+        test_db: AsyncSession,
+        quiz_in_db: QuizAttempt,
+        test_redis: Redis,
     ):
         """
         Tests the successful submission of answers for async grading.
@@ -39,15 +40,15 @@ class TestSubmitQuizAnswers:
                     "question_id": QUESTION_1_ID,
                     "answer": {
                         "question_type": QuestionType.MULTIPLE_CHOICE,
-                        "selected_option": 0
-                    }
+                        "selected_option": 0,
+                    },
                 },
                 {
                     "question_id": QUESTION_2_ID,
                     "answer": {
                         "question_type": QuestionType.MULTIPLE_CHOICE,
-                        "selected_option": 1
-                    }
+                        "selected_option": 1,
+                    },
                 },
             ]
         }
@@ -70,33 +71,26 @@ class TestSubmitQuizAnswers:
 
         # 5. 检查数据库状态: SubmissionAnswer
         answer_query = await test_db.execute(
-            select(SubmissionAnswer).where(
-                SubmissionAnswer.submission_id == db_attempt.attempt_id
-            ).order_by(SubmissionAnswer.question_id)  # 保证顺序
+            select(SubmissionAnswer)
+            .where(SubmissionAnswer.submission_id == db_attempt.attempt_id)
+            .order_by(SubmissionAnswer.question_id)  # 保证顺序
         )
         db_answers = answer_query.scalars().all()
         assert len(db_answers) == 2
 
         # 检查第一条答案是否被正确存储
-        answer_1 = next(
-            a for a in db_answers if a.question_id == UUID(QUESTION_1_ID)
-        )
+        answer_1 = next(a for a in db_answers if a.question_id == UUID(QUESTION_1_ID))
         assert answer_1.is_correct is None  # 关键：尚未批改
         assert answer_1.user_answer["question_type"] == "multiple_choice"
         assert answer_1.user_answer["selected_option"] == 0
 
-        queue_name, task_json = await test_redis.brpop(
-            "general_task_queue",
-            timeout=1
-        )
+        queue_name, task_json = await test_redis.brpop("general_task_queue", timeout=1)
 
         # brpop 返回的是 bytes，需要 decode
         assert queue_name == "general_task_queue"
         task_payload = json.loads(task_json)
         assert task_payload["task_type"] == "handle_grade_submission"
-        assert task_payload["payload"]["attempt_id"] == str(
-            db_attempt.attempt_id
-        )
+        assert task_payload["payload"]["attempt_id"] == str(db_attempt.attempt_id)
 
     # async def test_submit_to_nonexistent_submission(
     #         self, enrolled_user_client: AsyncClient

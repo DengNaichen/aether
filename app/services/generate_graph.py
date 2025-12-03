@@ -19,13 +19,16 @@ DEFAULT_MAX_RETRY_ATTEMPTS = 3
 @dataclass
 class PipelineConfig:
     """Configuration for the knowledge graph extraction pipeline."""
+
     model_name: str = DEFAULT_MODEL_NAME
     temperature: float = DEFAULT_MODEL_TEMPERATURE
     max_retry_attempts: int = DEFAULT_MAX_RETRY_ATTEMPTS
 
 
 # Configure Logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+)
 logger = logging.getLogger(__name__)
 
 # --- Extraction Prompt ---
@@ -67,8 +70,13 @@ Before creating a node, ask: "Can I write a meaningful quiz question to test thi
 """
 
 FEW_SHOT_EXAMPLES = [
-    ("human", "Text: The three primary colors are Red, Blue, and Yellow. Secondary colors are made by mixing two primary colors."),
-    ("ai", """{{
+    (
+        "human",
+        "Text: The three primary colors are Red, Blue, and Yellow. Secondary colors are made by mixing two primary colors.",
+    ),
+    (
+        "ai",
+        """{{
   "nodes": [
     {{"name": "Primary Colors", "description": "The three base colors (Red, Blue, Yellow) that cannot be created by mixing other colors."}},
     {{"name": "Secondary Colors", "description": "Colors created by mixing two primary colors together."}}
@@ -76,16 +84,28 @@ FEW_SHOT_EXAMPLES = [
   "relationships": [
     {{"source_name": "Primary Colors", "target_name": "Secondary Colors", "label": "IS_PREREQUISITE_FOR"}}
   ]
-}}"""),
-    ("human", "Text: Significant digits are the digits in a measurement that are known with certainty plus one estimated digit. Rules: All non-zero digits are significant. Zeros between non-zero digits are significant. Leading zeros are not significant."),
-    ("ai", """{{
+}}""",
+    ),
+    (
+        "human",
+        "Text: Significant digits are the digits in a measurement that are known with certainty plus one estimated digit. Rules: All non-zero digits are significant. Zeros between non-zero digits are significant. Leading zeros are not significant.",
+    ),
+    (
+        "ai",
+        """{{
   "nodes": [
     {{"name": "Significant Digits", "description": "The digits in a measurement that are known with certainty plus one estimated digit. Rules include: all non-zero digits are significant, zeros between non-zero digits are significant, and leading zeros are not significant."}}
   ],
   "relationships": []
-}}"""),
-    ("human", "Text: To understand Calculus, you must first learn Limits. Calculus includes Derivatives and Integrals. A derivative measures the rate of change of a function."),
-    ("ai", """{{
+}}""",
+    ),
+    (
+        "human",
+        "Text: To understand Calculus, you must first learn Limits. Calculus includes Derivatives and Integrals. A derivative measures the rate of change of a function.",
+    ),
+    (
+        "ai",
+        """{{
   "nodes": [
     {{"name": "Calculus", "description": "Branch of mathematics studying continuous change, built upon the concept of limits."}},
     {{"name": "Limits", "description": "Foundational concept describing the behavior of a function as its input approaches a particular value."}},
@@ -98,7 +118,8 @@ FEW_SHOT_EXAMPLES = [
     {{"parent_name": "Calculus", "child_name": "Derivatives", "label": "HAS_SUBTOPIC"}},
     {{"parent_name": "Calculus", "child_name": "Integrals", "label": "HAS_SUBTOPIC"}}
   ]
-}}"""),
+}}""",
+    ),
 ]
 
 # --- Refinement Prompt ---
@@ -126,6 +147,7 @@ Please generate corrected 'IS_PREREQUISITE_FOR' relationships connecting the Sou
 
 class MissingAPIKeyError(Exception):
     """Raised when the Google API key is not configured."""
+
     pass
 
 
@@ -139,23 +161,26 @@ def _get_llm(config: PipelineConfig):
         )
 
     llm = ChatGoogleGenerativeAI(
-        model=config.model_name,
-        temperature=config.temperature,
-        google_api_key=api_key
+        model=config.model_name, temperature=config.temperature, google_api_key=api_key
     )
     return llm.with_structured_output(GraphStructureLLM)
 
 
 def _create_extract_with_retry(max_attempts: int):
     """Factory function to create extract function with configurable retry."""
+
     @retry(
         stop=stop_after_attempt(max_attempts),
         wait=wait_exponential(multiplier=1, min=4, max=10),
         reraise=True,
     )
-    def _extract(llm_struct, content: str, user_guidance: str = "") -> GraphStructureLLM:
+    def _extract(
+        llm_struct, content: str, user_guidance: str = ""
+    ) -> GraphStructureLLM:
         formatted_system_prompt = SYSTEM_PROMPT.format(
-            user_guidance=f"### Extra Instructions:\n{user_guidance}" if user_guidance else ""
+            user_guidance=(
+                f"### Extra Instructions:\n{user_guidance}" if user_guidance else ""
+            )
         )
         prompt_messages = [("system", formatted_system_prompt)]
         prompt_messages.extend(FEW_SHOT_EXAMPLES)
@@ -164,6 +189,7 @@ def _create_extract_with_retry(max_attempts: int):
         prompt = ChatPromptTemplate.from_messages(prompt_messages)
         chain = prompt | llm_struct
         return chain.invoke({"text": content})
+
     return _extract
 
 
@@ -189,8 +215,7 @@ def merge_graphs(graphs: list[GraphStructureLLM]) -> GraphStructureLLM:
                 merged_rels.append(rel)
 
     return GraphStructureLLM(
-        nodes=list(merged_nodes.values()),
-        relationships=merged_rels
+        nodes=list(merged_nodes.values()), relationships=merged_rels
     )
 
 
@@ -205,7 +230,7 @@ def _get_relationship_signature(rel: RelationshipType) -> str:
 def refine_graph_with_llm(
     graph: GraphStructureLLM,
     llm_struct,
-    max_retry_attempts: int = DEFAULT_MAX_RETRY_ATTEMPTS
+    max_retry_attempts: int = DEFAULT_MAX_RETRY_ATTEMPTS,
 ) -> GraphStructureLLM:
     """
     1. Local Check: Finds prerequisites pointing to 'Parent Nodes'.
@@ -238,7 +263,9 @@ def refine_graph_with_llm(
     logger.info(f"Found {len(bad_rel_signatures)} violations. Asking AI to fix...")
 
     def filter_bad_rels(rels: list[RelationshipType]) -> list[RelationshipType]:
-        return [r for r in rels if _get_relationship_signature(r) not in bad_rel_signatures]
+        return [
+            r for r in rels if _get_relationship_signature(r) not in bad_rel_signatures
+        ]
 
     # Step C: AI Fix with retry
     @retry(
@@ -247,10 +274,9 @@ def refine_graph_with_llm(
         reraise=True,
     )
     def call_ai_fix(violations_text: str) -> GraphStructureLLM:
-        prompt = ChatPromptTemplate.from_messages([
-            ("system", FIX_SYSTEM_PROMPT),
-            ("human", FIX_USER_TEMPLATE)
-        ])
+        prompt = ChatPromptTemplate.from_messages(
+            [("system", FIX_SYSTEM_PROMPT), ("human", FIX_USER_TEMPLATE)]
+        )
         chain = prompt | llm_struct
         return chain.invoke({"violations": violations_text})
 
@@ -259,9 +285,13 @@ def refine_graph_with_llm(
 
         if not fix_result or not fix_result.relationships:
             logger.warning("AI returned no fixes. Falling back to simple removal.")
-            return GraphStructureLLM(nodes=graph.nodes, relationships=filter_bad_rels(graph.relationships))
+            return GraphStructureLLM(
+                nodes=graph.nodes, relationships=filter_bad_rels(graph.relationships)
+            )
 
-        logger.info(f"AI suggested {len(fix_result.relationships)} corrected relationships.")
+        logger.info(
+            f"AI suggested {len(fix_result.relationships)} corrected relationships."
+        )
 
         kept_rels = filter_bad_rels(graph.relationships)
         final_rels = kept_rels + fix_result.relationships
@@ -269,11 +299,16 @@ def refine_graph_with_llm(
         return GraphStructureLLM(nodes=graph.nodes, relationships=final_rels)
 
     except Exception as e:
-        logger.error(f"AI Refinement failed after {max_retry_attempts} attempts: {e}. Falling back to simple removal.")
-        return GraphStructureLLM(nodes=graph.nodes, relationships=filter_bad_rels(graph.relationships))
+        logger.error(
+            f"AI Refinement failed after {max_retry_attempts} attempts: {e}. Falling back to simple removal."
+        )
+        return GraphStructureLLM(
+            nodes=graph.nodes, relationships=filter_bad_rels(graph.relationships)
+        )
 
 
 # --- Main Process ---
+
 
 def process_markdown(
     md_path: str | Path,
@@ -316,7 +351,9 @@ def process_markdown(
 
     try:
         graph = extract(llm_struct, content, user_guidance)
-        logger.info(f"Extracted: {len(graph.nodes)} nodes, {len(graph.relationships)} relationships")
+        logger.info(
+            f"Extracted: {len(graph.nodes)} nodes, {len(graph.relationships)} relationships"
+        )
     except Exception as e:
         logger.error(f"Failed to extract graph: {e}")
         return None
@@ -325,5 +362,7 @@ def process_markdown(
     logger.info("Refining graph...")
     final_graph = refine_graph_with_llm(graph, llm_struct, config.max_retry_attempts)
 
-    logger.info(f"Final: {len(final_graph.nodes)} nodes, {len(final_graph.relationships)} relationships")
+    logger.info(
+        f"Final: {len(final_graph.nodes)} nodes, {len(final_graph.relationships)} relationships"
+    )
     return final_graph

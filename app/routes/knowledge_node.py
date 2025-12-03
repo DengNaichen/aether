@@ -4,6 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.deps import get_db, get_current_active_user
 from app.models.user import User
+
 # from app.helper.course_helper import assemble_course_id
 from app.schemas.knowledge_node import (
     KnowledgeNodeCreate,
@@ -20,7 +21,6 @@ from app.schemas.questions import QuestionCreateForGraph, QuestionResponseFromGr
 from app.core.deps import get_current_admin_user, get_worker_context
 
 
-
 router = APIRouter(
     prefix="/me/graphs",
     tags=["Knowledge Graph - Structure"],
@@ -34,10 +34,10 @@ router = APIRouter(
     response_model=KnowledgeNodeResponse,
 )
 async def create_knowledge_node_new(
-        graph_id: str,
-        node_data: KnowledgeNodeCreate,
-        db: AsyncSession = Depends(get_db),
-        current_user: User = Depends(get_current_active_user),
+    graph_id: str,
+    node_data: KnowledgeNodeCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
 ) -> KnowledgeNodeResponse:
     """
     Create a new knowledge node in a specific knowledge graph.
@@ -66,8 +66,7 @@ async def create_knowledge_node_new(
         graph_uuid = convert_UUID(graph_id)
     except ValueError:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid graph_id format"
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid graph_id format"
         )
 
     # Check if graph exists
@@ -75,14 +74,14 @@ async def create_knowledge_node_new(
     if not graph:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Knowledge graph {graph_id} not found"
+            detail=f"Knowledge graph {graph_id} not found",
         )
 
     # Check if user is the owner
     if graph.owner_id != current_user.id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only the graph owner can create nodes"
+            detail="Only the graph owner can create nodes",
         )
 
     # Create the node
@@ -97,7 +96,7 @@ async def create_knowledge_node_new(
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to create knowledge node: {str(e)}"
+            detail=f"Failed to create knowledge node: {str(e)}",
         )
 
 
@@ -108,10 +107,10 @@ async def create_knowledge_node_new(
     response_model=PrerequisiteResponse,
 )
 async def create_prerequisite_new(
-        graph_id: str,
-        prereq_data: PrerequisiteCreate,
-        db: AsyncSession = Depends(get_db),
-        current_user: User = Depends(get_current_active_user),
+    graph_id: str,
+    prereq_data: PrerequisiteCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
 ) -> PrerequisiteResponse:
     """
     Create a prerequisite relationship between two nodes in a graph.
@@ -148,8 +147,7 @@ async def create_prerequisite_new(
         graph_uuid = convert_UUID(graph_id)
     except ValueError:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid graph_id format"
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid graph_id format"
         )
 
     # Check if graph exists
@@ -157,14 +155,14 @@ async def create_prerequisite_new(
     if not graph:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Knowledge graph {graph_id} not found"
+            detail=f"Knowledge graph {graph_id} not found",
         )
 
     # Check if user is the owner
     if graph.owner_id != current_user.id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only the graph owner can create prerequisites"
+            detail="Only the graph owner can create prerequisites",
         )
 
     # Check if both nodes exist
@@ -174,24 +172,24 @@ async def create_prerequisite_new(
     if not from_node:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Node '{prereq_data.from_node_id}' not found"
+            detail=f"Node '{prereq_data.from_node_id}' not found",
         )
     if not to_node:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Node '{prereq_data.to_node_id}' not found"
+            detail=f"Node '{prereq_data.to_node_id}' not found",
         )
 
     # Verify both nodes belong to this graph
     if from_node.graph_id != graph_uuid:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Node '{prereq_data.from_node_id}' does not belong to this graph"
+            detail=f"Node '{prereq_data.from_node_id}' does not belong to this graph",
         )
     if to_node.graph_id != graph_uuid:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Node '{prereq_data.to_node_id}' does not belong to this graph"
+            detail=f"Node '{prereq_data.to_node_id}' does not belong to this graph",
         )
 
     # Create the prerequisite
@@ -206,20 +204,17 @@ async def create_prerequisite_new(
         return PrerequisiteResponse.model_validate(new_prereq)
     except ValueError as e:
         # Raised when nodes are not leaf nodes
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
         # Check if it's a duplicate key error (prerequisite already exists)
         if "duplicate key" in str(e).lower() or "unique constraint" in str(e).lower():
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail=f"Prerequisite from '{prereq_data.from_node_id}' to '{prereq_data.to_node_id}' already exists"
+                detail=f"Prerequisite from '{prereq_data.from_node_id}' to '{prereq_data.to_node_id}' already exists",
             )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to create prerequisite: {str(e)}"
+            detail=f"Failed to create prerequisite: {str(e)}",
         )
 
 
@@ -230,10 +225,10 @@ async def create_prerequisite_new(
     response_model=SubtopicResponse,
 )
 async def create_subtopic_new(
-        graph_id: str,
-        subtopic_data: SubtopicCreate,
-        db: AsyncSession = Depends(get_db),
-        current_user: User = Depends(get_current_active_user),
+    graph_id: str,
+    subtopic_data: SubtopicCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
 ) -> SubtopicResponse:
     """
     Create a subtopic relationship between two nodes in a graph.
@@ -266,8 +261,7 @@ async def create_subtopic_new(
         graph_uuid = convert_UUID(graph_id)
     except ValueError:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid graph_id format"
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid graph_id format"
         )
 
     # Check if graph exists
@@ -275,14 +269,14 @@ async def create_subtopic_new(
     if not graph:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Knowledge graph {graph_id} not found"
+            detail=f"Knowledge graph {graph_id} not found",
         )
 
     # Check if user is the owner
     if graph.owner_id != current_user.id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only the graph owner can create subtopics"
+            detail="Only the graph owner can create subtopics",
         )
 
     # Check if both nodes exist
@@ -292,24 +286,24 @@ async def create_subtopic_new(
     if not parent_node:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Node '{subtopic_data.parent_node_id}' not found"
+            detail=f"Node '{subtopic_data.parent_node_id}' not found",
         )
     if not child_node:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Node '{subtopic_data.child_node_id}' not found"
+            detail=f"Node '{subtopic_data.child_node_id}' not found",
         )
 
     # Verify both nodes belong to this graph
     if parent_node.graph_id != graph_uuid:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Node '{subtopic_data.parent_node_id}' does not belong to this graph"
+            detail=f"Node '{subtopic_data.parent_node_id}' does not belong to this graph",
         )
     if child_node.graph_id != graph_uuid:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Node '{subtopic_data.child_node_id}' does not belong to this graph"
+            detail=f"Node '{subtopic_data.child_node_id}' does not belong to this graph",
         )
 
     # Create the subtopic
@@ -327,11 +321,11 @@ async def create_subtopic_new(
         if "duplicate key" in str(e).lower() or "unique constraint" in str(e).lower():
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail=f"Subtopic from '{subtopic_data.parent_node_id}' to '{subtopic_data.child_node_id}' already exists"
+                detail=f"Subtopic from '{subtopic_data.parent_node_id}' to '{subtopic_data.child_node_id}' already exists",
             )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to create subtopic: {str(e)}"
+            detail=f"Failed to create subtopic: {str(e)}",
         )
 
 
@@ -342,10 +336,10 @@ async def create_subtopic_new(
     response_model=QuestionResponseFromGraph,
 )
 async def create_question_new(
-        graph_id: str,
-        question_data: QuestionCreateForGraph,
-        db: AsyncSession = Depends(get_db),
-        current_user: User = Depends(get_current_active_user),
+    graph_id: str,
+    question_data: QuestionCreateForGraph,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
 ) -> QuestionResponseFromGraph:
     """
     Create a new question for a knowledge node in a graph.
@@ -386,8 +380,7 @@ async def create_question_new(
         graph_uuid = convert_UUID(graph_id)
     except ValueError:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid graph_id format"
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid graph_id format"
         )
 
     # Check if graph exists
@@ -395,14 +388,14 @@ async def create_question_new(
     if not graph:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Knowledge graph {graph_id} not found"
+            detail=f"Knowledge graph {graph_id} not found",
         )
 
     # Check if user is the owner
     if graph.owner_id != current_user.id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only the graph owner can create questions"
+            detail="Only the graph owner can create questions",
         )
 
     # Check if node exists
@@ -410,14 +403,14 @@ async def create_question_new(
     if not node:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Node '{question_data.node_id}' not found"
+            detail=f"Node '{question_data.node_id}' not found",
         )
 
     # Verify node belongs to this graph
     if node.graph_id != graph_uuid:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Node '{question_data.node_id}' does not belong to this graph"
+            detail=f"Node '{question_data.node_id}' does not belong to this graph",
         )
 
     # Convert Pydantic details to dict for JSONB storage
@@ -440,5 +433,5 @@ async def create_question_new(
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to create question: {str(e)}"
+            detail=f"Failed to create question: {str(e)}",
         )

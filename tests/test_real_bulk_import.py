@@ -37,7 +37,7 @@ def copy_csv_to_temp(source_csv: Path) -> Path:
     Copy CSV file to a temporary location.
     This is necessary because handlers delete the file after processing.
     """
-    temp_file = NamedTemporaryFile(mode='w', suffix='.csv', delete=False)
+    temp_file = NamedTemporaryFile(mode="w", suffix=".csv", delete=False)
     temp_path = Path(temp_file.name)
     temp_file.close()
 
@@ -59,10 +59,7 @@ class TestRealBulkImport:
 
         async with test_db_manager.neo4j_scoped_connection():
             for course_id, course_name in courses_to_create:
-                course = neo.Course(
-                    course_id=course_id,
-                    course_name=course_name
-                )
+                course = neo.Course(course_id=course_id, course_name=course_name)
                 await asyncio.to_thread(course.save)
                 print(f"✅ Created course: {course_id} - {course_name}")
 
@@ -91,7 +88,9 @@ class TestRealBulkImport:
 
         # Verify CSV files exist
         assert NODES_CSV.exists(), f"Nodes CSV not found at {NODES_CSV}"
-        assert RELATIONSHIPS_CSV.exists(), f"Relationships CSV not found at {RELATIONSHIPS_CSV}"
+        assert (
+            RELATIONSHIPS_CSV.exists()
+        ), f"Relationships CSV not found at {RELATIONSHIPS_CSV}"
         assert QUESTIONS_CSV.exists(), f"Questions CSV not found at {QUESTIONS_CSV}"
 
         # =====================================================================
@@ -105,7 +104,7 @@ class TestRealBulkImport:
 
         nodes_payload = {
             "file_path": str(nodes_temp),
-            "requested_by": "test_admin@example.com"
+            "requested_by": "test_admin@example.com",
         }
 
         nodes_result = await handle_bulk_import_nodes(nodes_payload, worker_ctx)
@@ -123,17 +122,18 @@ class TestRealBulkImport:
         async with worker_ctx.neo4j_scoped_connection():
             # Physics nodes
             node = await asyncio.to_thread(
-                neo.KnowledgeNode.nodes.get_or_none,
-                node_id="node_speed_velocity"
+                neo.KnowledgeNode.nodes.get_or_none, node_id="node_speed_velocity"
             )
             assert node is not None
             assert node.node_name == "Speed and Velocity"
-            assert node.description == "Understanding the difference between speed and velocity"
+            assert (
+                node.description
+                == "Understanding the difference between speed and velocity"
+            )
 
             # Chemistry nodes
             node = await asyncio.to_thread(
-                neo.KnowledgeNode.nodes.get_or_none,
-                node_id="node_periodic_table"
+                neo.KnowledgeNode.nodes.get_or_none, node_id="node_periodic_table"
             )
             assert node is not None
             assert node.node_name == "Periodic Table"
@@ -155,10 +155,12 @@ class TestRealBulkImport:
 
         relations_payload = {
             "file_path": str(relations_temp),
-            "requested_by": "test_admin@example.com"
+            "requested_by": "test_admin@example.com",
         }
 
-        relations_result = await handle_bulk_import_relations(relations_payload, worker_ctx)
+        relations_result = await handle_bulk_import_relations(
+            relations_payload, worker_ctx
+        )
 
         print(f"\n📊 Relationships Import Summary:")
         print(f"   Total rows: {relations_result['total_rows']}")
@@ -173,33 +175,29 @@ class TestRealBulkImport:
         async with worker_ctx.neo4j_scoped_connection():
             # Verify HAS_PREREQUISITES relationship
             speed_node = await asyncio.to_thread(
-                neo.KnowledgeNode.nodes.get,
-                node_id="node_speed_velocity"
+                neo.KnowledgeNode.nodes.get, node_id="node_speed_velocity"
             )
             mechanics_node = await asyncio.to_thread(
-                neo.KnowledgeNode.nodes.get,
-                node_id="node_mechanics_basics"
+                neo.KnowledgeNode.nodes.get, node_id="node_mechanics_basics"
             )
 
             has_prereq = await asyncio.to_thread(
-                speed_node.prerequisites.is_connected,
-                mechanics_node
+                speed_node.prerequisites.is_connected, mechanics_node
             )
-            assert has_prereq, "Speed & Velocity should have Mechanics Basics as prerequisite"
+            assert (
+                has_prereq
+            ), "Speed & Velocity should have Mechanics Basics as prerequisite"
 
             # Verify HAS_SUBTOPIC relationship
             energy_node = await asyncio.to_thread(
-                neo.KnowledgeNode.nodes.get,
-                node_id="node_energy_basics"
+                neo.KnowledgeNode.nodes.get, node_id="node_energy_basics"
             )
             kinetic_node = await asyncio.to_thread(
-                neo.KnowledgeNode.nodes.get,
-                node_id="node_kinetic_energy"
+                neo.KnowledgeNode.nodes.get, node_id="node_kinetic_energy"
             )
 
             has_subtopic = await asyncio.to_thread(
-                energy_node.subtopic.is_connected,
-                kinetic_node
+                energy_node.subtopic.is_connected, kinetic_node
             )
             assert has_subtopic, "Energy Basics should have Kinetic Energy as subtopic"
 
@@ -216,10 +214,12 @@ class TestRealBulkImport:
 
         questions_payload = {
             "file_path": str(questions_temp),
-            "requested_by": "test_admin@example.com"
+            "requested_by": "test_admin@example.com",
         }
 
-        questions_result = await handle_bulk_import_question(questions_payload, worker_ctx)
+        questions_result = await handle_bulk_import_question(
+            questions_payload, worker_ctx
+        )
 
         print(f"\n📊 Questions Import Summary:")
         print(f"   Total rows: {questions_result['total_rows']}")
@@ -234,8 +234,7 @@ class TestRealBulkImport:
         async with worker_ctx.neo4j_scoped_connection():
             # Verify a physics question
             q1 = await asyncio.to_thread(
-                neo.MultipleChoice.nodes.get_or_none,
-                question_id="q_phys_speed_001"
+                neo.MultipleChoice.nodes.get_or_none, question_id="q_phys_speed_001"
             )
             assert q1 is not None
             assert "car travels 100 meters" in q1.text
@@ -249,8 +248,7 @@ class TestRealBulkImport:
 
             # Verify a chemistry question
             q_chem = await asyncio.to_thread(
-                neo.MultipleChoice.nodes.get_or_none,
-                question_id="q_chem_atom_001"
+                neo.MultipleChoice.nodes.get_or_none, question_id="q_chem_atom_001"
             )
             assert q_chem is not None
             assert "atomic number" in q_chem.text.lower()
@@ -337,7 +335,7 @@ class TestRealBulkImport:
         nodes_temp1 = copy_csv_to_temp(NODES_CSV)
         nodes_payload = {
             "file_path": str(nodes_temp1),
-            "requested_by": "test_admin@example.com"
+            "requested_by": "test_admin@example.com",
         }
         result1 = await handle_bulk_import_nodes(nodes_payload, worker_ctx)
         assert result1["successful"] == 15
@@ -354,7 +352,7 @@ class TestRealBulkImport:
         nodes_temp2 = copy_csv_to_temp(NODES_CSV)
         nodes_payload2 = {
             "file_path": str(nodes_temp2),
-            "requested_by": "test_admin@example.com"
+            "requested_by": "test_admin@example.com",
         }
         result2 = await handle_bulk_import_nodes(nodes_payload2, worker_ctx)
         assert result2["successful"] == 15
@@ -377,9 +375,13 @@ class TestRealBulkImport:
 @pytest.mark.asyncio
 async def test_csv_files_exist():
     """Quick test to verify CSV files are in the right location."""
-    assert EXAMPLE_DATA_DIR.exists(), f"Example data directory not found: {EXAMPLE_DATA_DIR}"
+    assert (
+        EXAMPLE_DATA_DIR.exists()
+    ), f"Example data directory not found: {EXAMPLE_DATA_DIR}"
     assert NODES_CSV.exists(), f"nodes.csv not found at {NODES_CSV}"
-    assert RELATIONSHIPS_CSV.exists(), f"relationships.csv not found at {RELATIONSHIPS_CSV}"
+    assert (
+        RELATIONSHIPS_CSV.exists()
+    ), f"relationships.csv not found at {RELATIONSHIPS_CSV}"
     assert QUESTIONS_CSV.exists(), f"questions.csv not found at {QUESTIONS_CSV}"
 
     print(f"\n✅ All CSV files found:")

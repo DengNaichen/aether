@@ -14,6 +14,7 @@ from pydantic import BaseModel, Field, ConfigDict, computed_field
 
 class RelationType(str, Enum):
     """Types of relationships between knowledge nodes (for API operations)."""
+
     HAS_PREREQUISITES = "HAS_PREREQUISITES"
     HAS_SUBTOPIC = "HAS_SUBTOPIC"
 
@@ -26,6 +27,7 @@ class EdgeType(str, Enum):
     - IS_PREREQUISITE_FOR: Prerequisite relationship (from_node -> to_node)
     - HAS_SUBTOPIC: Hierarchical relationship (parent_node -> child_node)
     """
+
     IS_PREREQUISITE_FOR = "IS_PREREQUISITE_FOR"
     HAS_SUBTOPIC = "HAS_SUBTOPIC"
 
@@ -43,6 +45,7 @@ class KnowledgeRelationCreate(BaseModel):
 
 class KnowledgeNodeCreate(BaseModel):
     """Schema for creating a new knowledge node."""
+
     node_name: str = Field(..., description="Display name (e.g., 'Derivative')")
     description: Optional[str] = Field(None, description="Detailed explanation")
 
@@ -51,10 +54,14 @@ class KnowledgeNodeCreateWithStrId(KnowledgeNodeCreate):
     """
     Schema for creating a new knowledge node with string id.
     """
+
     node_str_id: str
 
+
 class BulkNodeRequest(BaseModel):
-    nodes: List[KnowledgeNodeCreateWithStrId] # TODO: I need a new schema with node_str_id
+    nodes: List[
+        KnowledgeNodeCreateWithStrId
+    ]  # TODO: I need a new schema with node_str_id
 
 
 class KnowledgeNodeUpdate(BaseModel):
@@ -72,7 +79,9 @@ class KnowledgeNodeResponse(BaseModel):
     node_name: str
     description: Optional[str] = None
     level: int = Field(..., description="Topological level in prerequisite DAG")
-    dependents_count: int = Field(..., description="Number of nodes that depend on this")
+    dependents_count: int = Field(
+        ..., description="Number of nodes that depend on this"
+    )
     created_at: datetime
     updated_at: Optional[datetime] = None
 
@@ -90,9 +99,15 @@ class PrerequisiteCreate(BaseModel):
     The validation is enforced at the CRUD layer.
     """
 
-    from_node_id: UUID = Field(..., description="The prerequisite node UUID (must be a leaf node)")
-    to_node_id: UUID = Field(..., description="The target node UUID (must be a leaf node)")
-    weight: float = Field(1.0, ge=0.0, le=1.0, description="Importance (0.0-1.0, default 1.0 = critical)")
+    from_node_id: UUID = Field(
+        ..., description="The prerequisite node UUID (must be a leaf node)"
+    )
+    to_node_id: UUID = Field(
+        ..., description="The target node UUID (must be a leaf node)"
+    )
+    weight: float = Field(
+        1.0, ge=0.0, le=1.0, description="Importance (0.0-1.0, default 1.0 = critical)"
+    )
 
 
 class PrerequisiteResponse(BaseModel):
@@ -115,7 +130,9 @@ class SubtopicCreate(BaseModel):
 
     parent_node_id: UUID = Field(..., description="The parent topic UUID")
     child_node_id: UUID = Field(..., description="The subtopic UUID")
-    weight: float = Field(1.0, ge=0.0, le=1.0, description="Contribution to parent (0.0-1.0, default 1.0)")
+    weight: float = Field(
+        1.0, ge=0.0, le=1.0, description="Contribution to parent (0.0-1.0, default 1.0)"
+    )
 
 
 class SubtopicResponse(BaseModel):
@@ -145,9 +162,13 @@ class QuestionCreate(BaseModel):
     """
 
     node_id: UUID = Field(..., description="Which node UUID this question tests")
-    question_type: str = Field(..., description="Type: multiple_choice, fill_blank, calculation")
+    question_type: str = Field(
+        ..., description="Type: multiple_choice, fill_blank, calculation"
+    )
     text: str = Field(..., description="Question prompt/text")
-    details: Dict[str, Any] = Field(..., description="Question-specific data as JSON (includes p_g and p_s)")
+    details: Dict[str, Any] = Field(
+        ..., description="Question-specific data as JSON (includes p_g and p_s)"
+    )
     difficulty: str = Field(..., description="Difficulty: easy, medium, hard")
 
 
@@ -167,24 +188,34 @@ class QuestionResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-
 class GraphNode(BaseModel):
     """Node representation for knowledge graph visualization."""
+
     id: UUID
     name: str
     description: str
-    mastery_score: float = Field(ge=0.0, le=1.0, description="User's mastery score (0.0-1.0, default 0.2 if no mastery record exists)")
+    mastery_score: float = Field(
+        ge=0.0,
+        le=1.0,
+        description="User's mastery score (0.0-1.0, default 0.2 if no mastery record exists)",
+    )
 
 
 class GraphEdge(BaseModel):
     """Edge representation for knowledge graph visualization."""
-    source: UUID = Field(description="Source node UUID (from_node_id for prerequisites, parent_node_id for subtopics)")
-    target: UUID = Field(description="Target node UUID (to_node_id for prerequisites, child_node_id for subtopics)")
+
+    source: UUID = Field(
+        description="Source node UUID (from_node_id for prerequisites, parent_node_id for subtopics)"
+    )
+    target: UUID = Field(
+        description="Target node UUID (to_node_id for prerequisites, child_node_id for subtopics)"
+    )
     type: EdgeType = Field(description="Relationship type")
 
 
 class KnowledgeGraphVisualization(BaseModel):
     """Complete knowledge graph for visualization."""
+
     nodes: list[GraphNode]
     edges: list[GraphEdge]
 
@@ -199,9 +230,17 @@ class NodeImport(BaseModel):
     The node_id_str is generated from the node name (e.g., "Vector" -> "vector").
     This allows the AI to reference nodes by name in relationships.
     """
-    node_id_str: str = Field(..., description="String identifier for the node (e.g., 'vector', 'linear_algebra')")
-    node_name: str = Field(..., description="Display name (e.g., 'Vector', 'Linear Algebra')")
-    description: Optional[str] = Field(None, description="Detailed explanation of the concept")
+
+    node_id_str: str = Field(
+        ...,
+        description="String identifier for the node (e.g., 'vector', 'linear_algebra')",
+    )
+    node_name: str = Field(
+        ..., description="Display name (e.g., 'Vector', 'Linear Algebra')"
+    )
+    description: Optional[str] = Field(
+        None, description="Detailed explanation of the concept"
+    )
 
 
 class PrerequisiteImport(BaseModel):
@@ -209,9 +248,12 @@ class PrerequisiteImport(BaseModel):
 
     Uses string IDs to reference nodes, which will be resolved to UUIDs during import.
     """
+
     from_node_id_str: str = Field(..., description="String ID of the prerequisite node")
     to_node_id_str: str = Field(..., description="String ID of the dependent node")
-    weight: float = Field(1.0, ge=0.0, le=1.0, description="Importance weight (0.0-1.0)")
+    weight: float = Field(
+        1.0, ge=0.0, le=1.0, description="Importance weight (0.0-1.0)"
+    )
 
 
 class SubtopicImport(BaseModel):
@@ -219,9 +261,12 @@ class SubtopicImport(BaseModel):
 
     Uses string IDs to reference nodes, which will be resolved to UUIDs during import.
     """
+
     parent_node_id_str: str = Field(..., description="String ID of the parent topic")
     child_node_id_str: str = Field(..., description="String ID of the subtopic")
-    weight: float = Field(1.0, ge=0.0, le=1.0, description="Contribution weight (0.0-1.0)")
+    weight: float = Field(
+        1.0, ge=0.0, le=1.0, description="Contribution weight (0.0-1.0)"
+    )
 
 
 class GraphStructureImport(BaseModel):
@@ -253,19 +298,33 @@ class GraphStructureImport(BaseModel):
     )
     ```
     """
+
     nodes: List[NodeImport] = Field(..., description="List of nodes to import")
-    prerequisites: List[PrerequisiteImport] = Field(default_factory=list, description="Prerequisite relationships")
-    subtopics: List[SubtopicImport] = Field(default_factory=list, description="Subtopic relationships")
+    prerequisites: List[PrerequisiteImport] = Field(
+        default_factory=list, description="Prerequisite relationships"
+    )
+    subtopics: List[SubtopicImport] = Field(
+        default_factory=list, description="Subtopic relationships"
+    )
 
 
 class GraphStructureImportResponse(BaseModel):
     """Response schema for graph structure import."""
+
     nodes_created: int = Field(..., description="Number of nodes successfully created")
     nodes_skipped: int = Field(..., description="Number of nodes skipped (duplicates)")
-    prerequisites_created: int = Field(..., description="Number of prerequisite relationships created")
-    prerequisites_skipped: int = Field(..., description="Number of prerequisites skipped (invalid refs or duplicates)")
-    subtopics_created: int = Field(..., description="Number of subtopic relationships created")
-    subtopics_skipped: int = Field(..., description="Number of subtopics skipped (invalid refs or duplicates)")
+    prerequisites_created: int = Field(
+        ..., description="Number of prerequisite relationships created"
+    )
+    prerequisites_skipped: int = Field(
+        ..., description="Number of prerequisites skipped (invalid refs or duplicates)"
+    )
+    subtopics_created: int = Field(
+        ..., description="Number of subtopic relationships created"
+    )
+    subtopics_skipped: int = Field(
+        ..., description="Number of subtopics skipped (invalid refs or duplicates)"
+    )
     message: str = Field(..., description="Summary message")
 
 
@@ -288,25 +347,32 @@ def generate_id(text: str) -> str:
     s = re.sub(r"[^\w\u4e00-\u9fa5]", "", s)
     return s
 
+
 class KnowledgeNodeLLM(BaseModel):
     """
     Represents an 'Atomic Unit of Knowledge'.
     It should be indivisible and represent a single concept or fact.
     """
-    name: str = Field(description="The concise name of the concept. E.g., 'Photosynthesis' not 'Process of Photosynthesis'")
-    description: str = Field(description="A brief, atomic definition or fact about the node.")
-    
+
+    name: str = Field(
+        description="The concise name of the concept. E.g., 'Photosynthesis' not 'Process of Photosynthesis'"
+    )
+    description: str = Field(
+        description="A brief, atomic definition or fact about the node."
+    )
+
     @computed_field
     @property
     def id(self) -> str:
         return generate_id(self.name)
-    
+
     # Added for deduplication logic later
     def __hash__(self):
         return hash(self.id)
-    
+
     def __eq__(self, other):
         return isinstance(other, KnowledgeNodeLLM) and self.id == other.id
+
 
 class RelationshipLLM(BaseModel):
     """
@@ -318,15 +384,26 @@ class RelationshipLLM(BaseModel):
     - For IS_PREREQUISITE_FOR: use source_name and target_name
     - For HAS_SUBTOPIC: use parent_name and child_name
     """
+
     label: Literal["IS_PREREQUISITE_FOR", "HAS_SUBTOPIC"] = Field(
         description="Relationship type: 'IS_PREREQUISITE_FOR' or 'HAS_SUBTOPIC'"
     )
     # For IS_PREREQUISITE_FOR relationships
-    source_name: Optional[str] = Field(default=None, description="The prerequisite concept (use with IS_PREREQUISITE_FOR)")
-    target_name: Optional[str] = Field(default=None, description="The concept that depends on the source (use with IS_PREREQUISITE_FOR)")
+    source_name: Optional[str] = Field(
+        default=None,
+        description="The prerequisite concept (use with IS_PREREQUISITE_FOR)",
+    )
+    target_name: Optional[str] = Field(
+        default=None,
+        description="The concept that depends on the source (use with IS_PREREQUISITE_FOR)",
+    )
     # For HAS_SUBTOPIC relationships
-    parent_name: Optional[str] = Field(default=None, description="The broader topic (use with HAS_SUBTOPIC)")
-    child_name: Optional[str] = Field(default=None, description="The specific sub-concept (use with HAS_SUBTOPIC)")
+    parent_name: Optional[str] = Field(
+        default=None, description="The broader topic (use with HAS_SUBTOPIC)"
+    )
+    child_name: Optional[str] = Field(
+        default=None, description="The specific sub-concept (use with HAS_SUBTOPIC)"
+    )
 
     weight: float = Field(default=1.0)
 
@@ -362,7 +439,9 @@ class RelationshipLLM(BaseModel):
         if self.label != other.label:
             return False
         if self.label == "IS_PREREQUISITE_FOR":
-            return self.source_id == other.source_id and self.target_id == other.target_id
+            return (
+                self.source_id == other.source_id and self.target_id == other.target_id
+            )
         else:
             return self.parent_id == other.parent_id and self.child_id == other.child_id
 
@@ -371,6 +450,7 @@ class RelationshipLLM(BaseModel):
 IsPrerequisiteForRelLLM = RelationshipLLM
 HasSubtopicRelLLM = RelationshipLLM
 RelationshipType = RelationshipLLM
+
 
 class GraphStructureLLM(BaseModel):
     nodes: List[KnowledgeNodeLLM] = Field(default_factory=list)

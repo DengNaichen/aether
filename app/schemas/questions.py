@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field, ConfigDict
 
 from app.models.question import QuestionType, QuestionDifficulty
 
+
 class MultipleChoiceDetails(BaseModel):
     """
     Details for multiple choice questions.
@@ -20,6 +21,7 @@ class MultipleChoiceDetails(BaseModel):
     Note: question_type is used for discriminated union validation,
     but is also stored at the model level for efficient querying.
     """
+
     question_type: Literal[QuestionType.MULTIPLE_CHOICE] = QuestionType.MULTIPLE_CHOICE
     options: List[str]
     correct_answer: int
@@ -35,6 +37,7 @@ class FillInTheBlankDetails(BaseModel):
     Note: question_type is used for discriminated union validation,
     but is also stored at the model level for efficient querying.
     """
+
     question_type: Literal[QuestionType.FILL_BLANK] = QuestionType.FILL_BLANK
     # TODO: need to do this problems
     expected_answer: List[str]
@@ -49,6 +52,7 @@ class CalculationDetails(BaseModel):
     Note: question_type is used for discriminated union validation,
     but is also stored at the model level for efficient querying.
     """
+
     question_type: Literal[QuestionType.CALCULATION] = QuestionType.CALCULATION
     # TODO: need to do this problems
     expected_answer: List[str]
@@ -63,7 +67,7 @@ QuestionDetails = Annotated[
         FillInTheBlankDetails,
         CalculationDetails,
     ],
-    Field(discriminator="question_type")
+    Field(discriminator="question_type"),
 ]
 
 
@@ -72,11 +76,12 @@ class BaseQuestion(BaseModel):
     Base model for questions.
     args:
         id: UUID
-        text: the question text, e.g. "What is 2+2?", any kind of questions 
+        text: the question text, e.g. "What is 2+2?", any kind of questions
             has the text field
         difficulty: the difficulty of the question
         knowledge_point_id: the knowledge point id the question belongs to
     """
+
     question_id: uuid.UUID = Field(default_factory=uuid.uuid4)
     text: str
     difficulty: QuestionDifficulty
@@ -87,6 +92,7 @@ class MultipleChoiceQuestion(BaseQuestion):
     """
     Model for multiple choice questions.
     """
+
     question_type: Literal[QuestionType.MULTIPLE_CHOICE] = QuestionType.MULTIPLE_CHOICE
     details: MultipleChoiceDetails
 
@@ -95,6 +101,7 @@ class FillInTheBlankQuestion(BaseQuestion):
     """
     Model for fill in the blank questions.
     """
+
     question_type: Literal[QuestionType.FILL_BLANK] = QuestionType.FILL_BLANK
     details: FillInTheBlankDetails
 
@@ -103,6 +110,7 @@ class CalculationQuestion(BaseQuestion):
     """
     Model for calculation questions.
     """
+
     question_type: Literal[QuestionType.CALCULATION] = QuestionType.CALCULATION
     details: CalculationDetails
 
@@ -124,7 +132,7 @@ class CalculationAnswer(BaseModel):
 
 AnyAnswer = Annotated[
     Union[MultipleChoiceAnswer, FillInTheBlankAnswer, CalculationAnswer],
-    Field(discriminator="question_type")
+    Field(discriminator="question_type"),
 ]
 
 AnyQuestion = Annotated[
@@ -143,6 +151,7 @@ class QuestionCreateForGraph(BaseModel):
     This schema is used for the new POST /graphs/{graph_id}/questions endpoint.
     The details will be stored as JSONB in PostgreSQL.
     """
+
     node_id: UUID = Field(..., description="Which node UUID this question tests")
     question_type: QuestionType = Field(..., description="Type of question")
     text: str = Field(..., description="Question text/prompt")
@@ -156,6 +165,7 @@ class QuestionResponseFromGraph(BaseModel):
     """
     Schema for question response from PostgreSQL knowledge graph.
     """
+
     id: uuid.UUID
     graph_id: uuid.UUID
     node_id: UUID

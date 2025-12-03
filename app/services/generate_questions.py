@@ -269,9 +269,9 @@ def _create_generate_with_retry(max_attempts: int):
             type_str = f"\nPreferred question types: {', '.join(question_types)}"
 
         formatted_system_prompt = SYSTEM_PROMPT.format(
-            user_guidance=f"### Extra Instructions:\n{user_guidance}"
-            if user_guidance
-            else ""
+            user_guidance=(
+                f"### Extra Instructions:\n{user_guidance}" if user_guidance else ""
+            )
         )
 
         user_message = f"""
@@ -404,9 +404,7 @@ def generate_questions_for_nodes(
         else:
             logger.warning(f"Failed to generate questions for: {name}")
 
-    logger.info(
-        f"Completed: Generated questions for {len(results)}/{len(nodes)} nodes"
-    )
+    logger.info(f"Completed: Generated questions for {len(results)}/{len(nodes)} nodes")
     return results
 
 
@@ -542,7 +540,9 @@ async def generate_questions_for_graph(
                 stats["nodes_skipped"] += 1
                 continue
 
-            logger.info(f"[{i}/{len(leaf_nodes)}] Generating questions for: {node.node_name}")
+            logger.info(
+                f"[{i}/{len(leaf_nodes)}] Generating questions for: {node.node_name}"
+            )
 
             try:
                 result = generate_questions_for_node(
@@ -565,7 +565,9 @@ async def generate_questions_for_graph(
                         all_questions_data.append(q_data)
                 else:
                     stats["nodes_skipped"] += 1
-                    stats["errors"].append(f"No questions generated for: {node.node_name}")
+                    stats["errors"].append(
+                        f"No questions generated for: {node.node_name}"
+                    )
 
             except Exception as e:
                 stats["nodes_skipped"] += 1

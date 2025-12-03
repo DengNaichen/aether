@@ -17,9 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 class TestRegister:
     @pytest.mark.asyncio
     async def test_register_failed_with_exsited_user(
-            self,
-            client: AsyncClient,
-            user_in_db: "User"
+        self, client: AsyncClient, user_in_db: "User"
     ):
         user_data = {
             "name": TEST_USER_NAME,
@@ -32,10 +30,7 @@ class TestRegister:
         assert response.json() == {"detail": "Email already registered"}
 
     @pytest.mark.asyncio
-    async def test_registration_success_with_empty_db(
-            self,
-            client: AsyncClient
-    ):
+    async def test_registration_success_with_empty_db(self, client: AsyncClient):
         # a successful registration student data
         new_student = {
             "name": "test user",
@@ -73,7 +68,7 @@ class TestRegister:
     )
     @pytest.mark.asyncio
     async def test_registration_fails_for_syntactically_invalid_email_with_empty_db(
-            self, client: AsyncClient, syntactically_invalid_email: str
+        self, client: AsyncClient, syntactically_invalid_email: str
     ):
         """
         for syntactically invalid email, API will return 422 error.
@@ -99,7 +94,7 @@ class TestRegister:
     )
     @pytest.mark.asyncio
     async def test_registration_succeeds_for_parseable_email(
-            self, parseable_email: str, client: AsyncClient
+        self, parseable_email: str, client: AsyncClient
     ):
         """
         for parseable email, API will return 201 created.
@@ -122,8 +117,7 @@ class TestLogin:
         client: AsyncClient,
         user_in_db: "User",
     ):
-        login_data = {"username": TEST_USER_EMAIL,
-                      "password": TEST_USER_PASSWORD}
+        login_data = {"username": TEST_USER_EMAIL, "password": TEST_USER_PASSWORD}
         # if my api want the from_data(form data), I need to use data
         response = await client.post("/users/login", data=login_data)
         assert response.status_code == 200
@@ -132,12 +126,10 @@ class TestLogin:
         assert "access_token" in result
         assert result["token_type"] == "bearer"
 
-
     @pytest.mark.asyncio
     async def test_login_failed_with_nonexist(
-            self,
-            client: AsyncClient,
-            user_in_db: "User"):
+        self, client: AsyncClient, user_in_db: "User"
+    ):
         login_data = {
             "username": "no_exist_student@example.com",
             "password": "invalid_password",
@@ -145,37 +137,32 @@ class TestLogin:
         response = await client.post("/users/login", data=login_data)
         assert response.status_code == 401
 
-
     @pytest.mark.asyncio
     async def test_login_failed_with_incorrect_password(
-            self,
-            client: AsyncClient,
-            user_in_db: "User"
+        self, client: AsyncClient, user_in_db: "User"
     ):
-        login_data = {"username": TEST_USER_EMAIL,
-                      "password": "a-wrong-password123456"}
+        login_data = {"username": TEST_USER_EMAIL, "password": "a-wrong-password123456"}
         response = await client.post("/users/login", data=login_data)
         assert response.status_code == 401
 
-
     @pytest.mark.asyncio
     async def test_access_protected_route_with_expired_token(
-            self,
-            client: AsyncClient,
-            user_in_db: "User"
+        self, client: AsyncClient, user_in_db: "User"
     ):
-        login_data = {"username": "refresh@test.com",
-                      "password": "a-secure-password123456"}
+        login_data = {
+            "username": "refresh@test.com",
+            "password": "a-secure-password123456",
+        }
 
         # create an expired token
-        expired_token = create_access_token(user=user_in_db,
-                                            expires_delta=timedelta(minutes=-1))
+        expired_token = create_access_token(
+            user=user_in_db, expires_delta=timedelta(minutes=-1)
+        )
         headers = {"Authorization": f"Bearer {expired_token}"}
         response = await client.get("users/me", headers=headers)
 
         assert response.status_code == 401
         assert response.json()["detail"] == "Could not validate credentials"
-
 
     @pytest.mark.asyncio
     async def test_refresh_with_invalid_token(self, client: AsyncClient):
@@ -184,7 +171,6 @@ class TestLogin:
 
         assert response.status_code == 401
         assert "Invalid refresh token" in response.json()["detail"]
-
 
     # @pytest.mark.asyncio
     # async def test_refresh_with_expired_refresh_token(client: AsyncClient):
@@ -229,9 +215,7 @@ class TestLogout:
 
     @pytest.mark.asyncio
     async def test_access_protected_route_after_logout(
-            self,
-            client: AsyncClient,
-            user_in_db: "User"
+        self, client: AsyncClient, user_in_db: "User"
     ):
         """
         测试登出后，refresh_token 是否失效。
@@ -241,8 +225,7 @@ class TestLogout:
         4. 断言刷新被拒绝 (401 Unauthorized)。
         """
         # 步骤 1: 登录
-        login_data = {"username": TEST_USER_EMAIL,
-                      "password": TEST_USER_PASSWORD}
+        login_data = {"username": TEST_USER_EMAIL, "password": TEST_USER_PASSWORD}
         login_response = await client.post("/users/login", data=login_data)
         assert login_response.status_code == 200
         tokens = login_response.json()
@@ -256,8 +239,7 @@ class TestLogout:
 
         # 步骤 3: 使用已登出的 refresh_token 尝试刷新
         refresh_data = {"refresh_token": refresh_token}
-        refresh_response = await client.post("/users/refresh",
-                                             json=refresh_data)
+        refresh_response = await client.post("/users/refresh", json=refresh_data)
 
         # 步骤 4: 断言刷新失败
         assert refresh_response.status_code == 401

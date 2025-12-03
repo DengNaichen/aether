@@ -22,6 +22,7 @@ class EnrollmentResponse(BaseModel):
 
 class GraphEnrollmentResponse(BaseModel):
     """Response schema for graph enrollment."""
+
     id: UUID
     user_id: UUID
     graph_id: UUID

@@ -93,26 +93,36 @@ class KnowledgeNode(Base):
 
     # Cached graph structure info (computed by service layer)
     level = Column(Integer, default=-1, index=True)  # Topological level
-    dependents_count = Column(Integer, default=0, index=True)  # How many nodes depend on this
+    dependents_count = Column(
+        Integer, default=0, index=True
+    )  # How many nodes depend on this
 
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    created_at = Column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
     # Relationships
     graph = relationship("KnowledgeGraph", backref="nodes")
-    questions = relationship("Question", back_populates="node", cascade="all, delete-orphan")
+    questions = relationship(
+        "Question", back_populates="node", cascade="all, delete-orphan"
+    )
 
     __table_args__ = (
         UniqueConstraint("graph_id", "id", name="uq_graph_node_uuid"),
         UniqueConstraint("graph_id", "node_id_str", name="uq_graph_node_str"),
         Index("idx_nodes_graph", "graph_id"),
         Index("idx_nodes_graph_id", "graph_id", "id"),
-        Index("idx_nodes_graph_str", "graph_id", "node_id_str"),  # For node_id_str lookups
+        Index(
+            "idx_nodes_graph_str", "graph_id", "node_id_str"
+        ),  # For node_id_str lookups
         Index("idx_nodes_level", "graph_id", "level"),  # For topological queries
     )
 
     def __repr__(self):
-        return f"<KnowledgeNode {self.node_name} (id={self.id}) in graph {self.graph_id}>"
+        return (
+            f"<KnowledgeNode {self.node_name} (id={self.id}) in graph {self.graph_id}>"
+        )
 
 
 class Prerequisite(Base):
@@ -171,7 +181,9 @@ class Prerequisite(Base):
             ["knowledge_nodes.graph_id", "knowledge_nodes.id"],
             ondelete="CASCADE",
         ),
-        CheckConstraint("weight >= 0.0 AND weight <= 1.0", name="ck_prerequisite_weight"),
+        CheckConstraint(
+            "weight >= 0.0 AND weight <= 1.0", name="ck_prerequisite_weight"
+        ),
         CheckConstraint("from_node_id != to_node_id", name="ck_no_self_prerequisite"),
         Index("idx_prereq_graph_from", "graph_id", "from_node_id"),
         Index("idx_prereq_graph_to", "graph_id", "to_node_id"),
@@ -183,7 +195,9 @@ class Prerequisite(Base):
     # Use DFS algorithm to check if adding this edge would create a cycle
 
     def __repr__(self):
-        return f"<Prerequisite {self.from_node_id} -> {self.to_node_id} (w={self.weight})>"
+        return (
+            f"<Prerequisite {self.from_node_id} -> {self.to_node_id} (w={self.weight})>"
+        )
 
 
 class Subtopic(Base):

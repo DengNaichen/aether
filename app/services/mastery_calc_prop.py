@@ -118,7 +118,7 @@ class MasteryService:
 
         # Build card dict for FSRS
         # Use node_id hash as card_id for consistency
-        card_id = hash(mastery.node_id) % (10 ** 12)  # Keep it within reasonable range
+        card_id = hash(mastery.node_id) % (10**12)  # Keep it within reasonable range
 
         card_dict = {
             "card_id": card_id,
@@ -127,7 +127,9 @@ class MasteryService:
             "stability": mastery.fsrs_stability or 0.0,
             "difficulty": mastery.fsrs_difficulty or 0.0,
             "due": mastery.due_date.isoformat() if mastery.due_date else None,
-            "last_review": mastery.last_review.isoformat() if mastery.last_review else None,
+            "last_review": (
+                mastery.last_review.isoformat() if mastery.last_review else None
+            ),
         }
 
         return Card.from_dict(card_dict)
@@ -137,7 +139,7 @@ class MasteryService:
         db_session: AsyncSession,
         user: User,
         question_id: UUID,
-        grading_result: GradingResult
+        grading_result: GradingResult,
     ) -> Optional[KnowledgeNode]:
         """Update mastery level based on a grading result.
 
@@ -168,7 +170,9 @@ class MasteryService:
             return None
 
         # Get the knowledge node associated with this question
-        knowledge_node = await mastery_crud.get_node_by_question(db_session, question_in_db)
+        knowledge_node = await mastery_crud.get_node_by_question(
+            db_session, question_in_db
+        )
 
         if not knowledge_node:
             logger.warning(
@@ -183,7 +187,7 @@ class MasteryService:
             knowledge_node=knowledge_node,
             is_correct=grading_result.is_correct,
             p_g=grading_result.p_g,
-            p_s=grading_result.p_s
+            p_s=grading_result.p_s,
         )
 
         return knowledge_node
@@ -196,7 +200,7 @@ class MasteryService:
         knowledge_node: KnowledgeNode,
         is_correct: bool,
         p_g: float,
-        p_s: float
+        p_s: float,
     ) -> None:
         """Update the mastery relationship between user and knowledge node.
 
@@ -220,7 +224,7 @@ class MasteryService:
             db_session=db_session,
             user_id=user.id,
             graph_id=knowledge_node.graph_id,
-            node_id=knowledge_node.id
+            node_id=knowledge_node.id,
         )
 
         # ==================== BKT Update ====================
@@ -237,7 +241,7 @@ class MasteryService:
             # if not, we use the previous score.
             prior_belief = mastery_rel.score
 
-        p_t = mastery_rel.p_t    # Probability of learning/transition
+        p_t = mastery_rel.p_t  # Probability of learning/transition
 
         # Apply Bayesian Knowledge Tracing algorithm
         tracker = BayesianKnowledgeTracer(prior_belief, p_t, p_g, p_s)
@@ -271,11 +275,13 @@ class MasteryService:
         # Append to review log (for FSRS history)
         if mastery_rel.review_log is None:
             mastery_rel.review_log = []
-        mastery_rel.review_log = mastery_rel.review_log + [{
-            "rating": rating.value,
-            "review_datetime": now.isoformat(),
-            "state_after": new_fsrs_state.value,
-        }]
+        mastery_rel.review_log = mastery_rel.review_log + [
+            {
+                "rating": rating.value,
+                "review_datetime": now.isoformat(),
+                "state_after": new_fsrs_state.value,
+            }
+        ]
 
         await db_session.flush()
 
@@ -287,9 +293,7 @@ class MasteryService:
 
     @staticmethod
     async def get_mastery_score(
-        db_session: AsyncSession,
-        user: User,
-        knowledge_node: KnowledgeNode
+        db_session: AsyncSession, user: User, knowledge_node: KnowledgeNode
     ) -> Optional[float]:
         """Get the current mastery score for a user-knowledge node pair.
 
@@ -305,7 +309,7 @@ class MasteryService:
             db_session=db_session,
             user_id=user.id,
             graph_id=knowledge_node.graph_id,
-            node_id=knowledge_node.id
+            node_id=knowledge_node.id,
         )
 
         if not mastery_rel:
@@ -320,7 +324,7 @@ class MasteryService:
         knowledge_node: KnowledgeNode,
         initial_score: float = 0.2,
         p_l0: float = 0.3,
-        p_t: float = 0.1
+        p_t: float = 0.1,
     ) -> None:
         """Initialize a mastery relationship with custom parameters.
 
@@ -341,7 +345,7 @@ class MasteryService:
             db_session=db_session,
             user_id=user.id,
             graph_id=knowledge_node.graph_id,
-            node_id=knowledge_node.id
+            node_id=knowledge_node.id,
         )
 
         if mastery_rel:
@@ -362,7 +366,7 @@ class MasteryService:
                 node_id=knowledge_node.id,
                 score=initial_score,
                 p_l0=p_l0,
-                p_t=p_t
+                p_t=p_t,
             )
 
         logger.info(
@@ -372,13 +376,13 @@ class MasteryService:
     # ==================== Mastery Propagation ====================
 
     async def propagate_mastery(
-            self,
-            db_session: AsyncSession,
-            user: User,
-            node_answered: KnowledgeNode,  # The node that was just updated
-            is_correct: bool,
-            p_g: float,
-            p_s: float,
+        self,
+        db_session: AsyncSession,
+        user: User,
+        node_answered: KnowledgeNode,  # The node that was just updated
+        is_correct: bool,
+        p_g: float,
+        p_s: float,
     ) -> None:
         """
         Propagates mastery updates using a "Fetch-Process-Write" pattern
@@ -387,7 +391,9 @@ class MasteryService:
         SIMPLIFIED: Since prerequisites only exist between leaf nodes,
         we directly get the prerequisite leaves without hierarchy traversal.
         """
-        logger.info(f"Starting propagation for user {user.id} on node {node_answered.id}")
+        logger.info(
+            f"Starting propagation for user {user.id} on node {node_answered.id}"
+        )
 
         # === 1. FETCH IDs PHASE: Get all affected node IDs ===
         # 1a: Get Bonus Leaf Nodes (prerequisites)
@@ -395,8 +401,10 @@ class MasteryService:
         if is_correct:
             # Get prerequisite leaf nodes with their depth in the prerequisite chain
             # Depth 1 = direct prerequisite, depth 2 = prerequisite of prerequisite, etc.
-            leaf_ids_to_bonus_with_depth = await mastery_crud.get_prerequisite_roots_to_bonus(
-                db_session, node_answered.graph_id, node_answered.id
+            leaf_ids_to_bonus_with_depth = (
+                await mastery_crud.get_prerequisite_roots_to_bonus(
+                    db_session, node_answered.graph_id, node_answered.id
+                )
             )
 
         # 1b. Get all affected parents that need recalculating (with hierarchy level)
@@ -407,9 +415,7 @@ class MasteryService:
         # This return a LIST of (id, level) tuples, sorted by level ASC(1, 2, 3 ...)
         # This sort order is critical for correct math.
         parents_with_level = await mastery_crud.get_all_affected_parent_ids(
-            db_session,
-            node_answered.graph_id,
-            list(changed_node_ids)
+            db_session, node_answered.graph_id, list(changed_node_ids)
         )
         parent_ids_only = [p[0] for p in parents_with_level]
 
@@ -422,9 +428,7 @@ class MasteryService:
         # 2a. To calculate parents, we need their children's relationships
         # This query gets all (child_id, weight) for each parent
         subtopic_map = await mastery_crud.get_all_subtopics_for_parents_bulk(
-            db_session,
-            node_answered.graph_id,
-            list(parent_ids_only)
+            db_session, node_answered.graph_id, list(parent_ids_only)
         )
 
         # 2b. Identify all nodes involved (sources + parents + all children of parents)
@@ -458,7 +462,7 @@ class MasteryService:
                     node_id=leaf_id,
                     score=0.1,
                     p_l0=0.2,
-                    p_t=0.2
+                    p_t=0.2,
                 )  # TODO: Default values, might need change later, but VERY LATER !
                 db_session.add(mastery_rel)
 
@@ -484,7 +488,7 @@ class MasteryService:
                     node_id=parent_id,
                     score=0.1,
                     p_l0=0.2,
-                    p_t=0.2
+                    p_t=0.2,
                 )  # Default
                 # was_new_parent = True
                 db_session.add(parent_mastery_rel)
@@ -507,10 +511,7 @@ class MasteryService:
 
     @staticmethod
     def _calculate_damped_bkt_bonus(
-            mastery_rel: UserMastery,
-            p_g: float,
-            p_s: float,
-            depth: int = 1
+        mastery_rel: UserMastery, p_g: float, p_s: float, depth: int = 1
     ) -> float:
         """
         Calculates a "damped" BKT bonus with depth-based decay.
@@ -531,7 +532,7 @@ class MasteryService:
             New mastery score after applying depth-damped bonus
         """
         # All prerequisite nodes get 50% reduction per level
-        damping_factor = 0.5 ** depth
+        damping_factor = 0.5**depth
 
         old_score = mastery_rel.score
         p_l0 = old_score
@@ -554,8 +555,8 @@ class MasteryService:
 
     @staticmethod
     def _calculate_parent_score(
-            child_relations: List[Tuple[UUID, float]],  # (child_id, weight)
-            mastery_map: Dict[UUID, UserMastery]
+        child_relations: List[Tuple[UUID, float]],  # (child_id, weight)
+        mastery_map: Dict[UUID, UserMastery],
     ) -> float:
         """
         Calculates a parent's weighted mastery score.

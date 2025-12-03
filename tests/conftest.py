@@ -27,6 +27,7 @@ import pytest_asyncio
 import pytest
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
+
 # from neo4j import AsyncGraphDatabase, AsyncDriver
 from unittest.mock import MagicMock, AsyncMock
 from fastapi import UploadFile
@@ -34,6 +35,7 @@ from fastapi import UploadFile
 from app.core.config import Settings, settings
 from app.core.database import DatabaseManager
 from app.core.deps import get_db, get_redis_client
+
 # from app.core.security import create_access_token, get_password_hash
 
 # Configure neomodel BEFORE importing app.main (which triggers lifespan)
@@ -44,6 +46,7 @@ from app.core.deps import get_db, get_redis_client
 
 from app.main import app
 from app.models.base import Base
+
 # from app.models.course import Course
 # from app.models.enrollment import Enrollment
 from app.models.knowledge_graph import KnowledgeGraph
@@ -76,6 +79,7 @@ TEST_RELATION = RelationType.HAS_SUBTOPIC
 async def test_db_manager() -> AsyncGenerator[DatabaseManager, Any]:
     """为测试创建独立的数据库管理器"""
     from app.core.config import settings
+
     test_db_mgr = DatabaseManager(settings)
 
     await test_db_mgr.create_all_tables(Base)
@@ -113,7 +117,7 @@ async def test_db(
 
 @pytest_asyncio.fixture(scope="function")
 async def test_redis(
-        test_db_manager: DatabaseManager,
+    test_db_manager: DatabaseManager,
 ) -> AsyncGenerator[Redis, None]:
     """
     provide a redis client for each test function, and clean after
@@ -140,8 +144,7 @@ async def test_redis(
 
 @pytest_asyncio.fixture(scope="function")
 async def client(
-    test_db: AsyncSession,
-    test_db_manager: DatabaseManager
+    test_db: AsyncSession, test_db_manager: DatabaseManager
 ) -> AsyncGenerator[AsyncClient, None]:
     def override_get_db() -> AsyncGenerator[AsyncSession, None]:
         yield test_db
@@ -229,6 +232,7 @@ async def other_user_in_db(test_db: AsyncSession) -> User:
 #     await test_db.refresh(new_course_2)
 #     return new_course_1, new_course_2
 
+
 @pytest_asyncio.fixture(scope="function")
 async def private_graph_in_db(test_db: AsyncSession, user_in_db: User):
     new_graph = KnowledgeGraph(
@@ -243,6 +247,7 @@ async def private_graph_in_db(test_db: AsyncSession, user_in_db: User):
     await test_db.commit()
     await test_db.refresh(new_graph)
     return new_graph
+
 
 @pytest_asyncio.fixture(scope="function")
 async def private_graph_with_few_nodes_and_relations_in_db(
@@ -405,9 +410,9 @@ async def private_graph_with_few_nodes_and_relations_in_db(
 
 @pytest_asyncio.fixture(scope="function")
 async def graph_enrollment_owner_in_db(
-        test_db: AsyncSession,
-        user_in_db: User,
-        private_graph_in_db: KnowledgeGraph,
+    test_db: AsyncSession,
+    user_in_db: User,
+    private_graph_in_db: KnowledgeGraph,
 ) -> GraphEnrollment:
     """
     Owner enrolls in their own private graph to track learning progress.
@@ -430,8 +435,8 @@ async def graph_enrollment_owner_in_db(
 
 @pytest_asyncio.fixture(scope="function")
 async def template_graph_in_db(
-        test_db: AsyncSession,
-        admin_in_db: User,
+    test_db: AsyncSession,
+    admin_in_db: User,
 ) -> KnowledgeGraph:
     """
     Create an official template graph that students can enroll in.
@@ -461,9 +466,9 @@ async def template_graph_in_db(
 
 @pytest_asyncio.fixture(scope="function")
 async def graph_enrollment_student_in_db(
-        test_db: AsyncSession,
-        user_in_db: User,  # Regular user acts as student
-        template_graph_in_db: KnowledgeGraph,
+    test_db: AsyncSession,
+    user_in_db: User,  # Regular user acts as student
+    template_graph_in_db: KnowledgeGraph,
 ) -> GraphEnrollment:
     """
     Student enrolls in an official template graph.
@@ -715,10 +720,7 @@ async def graph_enrollment_student_in_db(
 
 
 @pytest_asyncio.fixture(scope="function")
-async def authenticated_client(
-        client: AsyncClient,
-        user_in_db: User
-) -> AsyncClient:
+async def authenticated_client(client: AsyncClient, user_in_db: User) -> AsyncClient:
     token = create_access_token(user_in_db)
     client.headers["Authorization"] = f"Bearer {token}"
     return client
@@ -733,10 +735,7 @@ async def authenticated_client(
 
 
 @pytest_asyncio.fixture(scope="function")
-async def other_user_client(
-    client: AsyncClient,
-    other_user_in_db: User
-) -> AsyncClient:
+async def other_user_client(client: AsyncClient, other_user_in_db: User) -> AsyncClient:
     """Create an authenticated client for the second user (for testing non-owner access)."""
     token = create_access_token(other_user_in_db)
     client.headers["Authorization"] = f"Bearer {token}"
@@ -774,4 +773,3 @@ async def cleanup_test_db():
 
     if os.path.exists("./test_db.sqlite"):
         os.remove("./test_db.sqlite")
-

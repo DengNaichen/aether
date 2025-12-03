@@ -47,7 +47,9 @@ async def send_password_reset_email(email: str, reset_token: str) -> None:
         }
 
         email_response = resend.Emails.send(params)
-        logger.info(f"Password reset email sent to {email} (ID: {email_response['id']})")
+        logger.info(
+            f"Password reset email sent to {email} (ID: {email_response['id']})"
+        )
 
     except Exception as e:
         logger.error(f"Failed to send password reset email to {email}: {e}")
