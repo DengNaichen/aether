@@ -3,8 +3,6 @@ services:
   web:
     build:
       context: .
-    # Use .env.local for local development configuration
-    # Copy .env.example to .env.local and fill in your team's values
     env_file:
       - .env.local
     ports:
@@ -12,36 +10,3 @@ services:
     volumes:
       - .:/app
     # No database dependency - using Supabase
-
-  # redis:
-  #   image: redis:7-alpine
-  #   container_name: aether-redis
-  #   volumes:
-  #     - redis_data:/data
-  #   healthcheck:
-  #     test: ["CMD", "redis-cli", "ping"]
-  #     interval: 5s
-  #     timeout: 3s
-  #     retries: 5
-  #   restart: unless-stopped
-
-  # worker:
-  #   build:
-  #     context: .
-  #   env_file:
-  #     - .env.local
-  #   environment:
-  #     - PYTHONUNBUFFERED=1
-  #   command: ["sh", "-c", "uv run python -u -m app.worker"]
-  #   volumes:
-  #     - .:/app
-  #   depends_on:
-  #     db:
-  #       condition: service_healthy
-  #     redis:
-  #       condition: service_healthy
-  #   restart: unless-stopped
-
-
-# volumes:
-#   redis_data:
