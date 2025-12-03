@@ -67,6 +67,7 @@ MANIFEST
 .env
 .env.*
 *.env
+env.yaml
 
 # Exception: Allow the template file to be committed
 !.env.example
