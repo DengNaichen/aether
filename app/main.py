@@ -5,7 +5,7 @@ from fastapi import FastAPI
 import app.models as models
 from app.core.config import settings
 from app.core.database import db_manager
-from app.routes import question, user, admin, knowledge_node, knowledge_graph, answer
+from app.routes import question, user, knowledge_node, knowledge_graph, answer
 from fastapi.middleware.cors import CORSMiddleware
 
 
@@ -37,7 +37,11 @@ app = FastAPI(lifespan=lifespan)
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=[
+        "http://localhost:5173",
+        "http://localhost:3000",
+        "https://learning-project-fronted.vercel.app",  # Production frontend
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -46,7 +50,7 @@ app.add_middleware(
 
 app.include_router(user.router)
 app.include_router(question.router)
-app.include_router(admin.router)
+# app.include_router(admin.router)
 app.include_router(knowledge_node.router)
 app.include_router(knowledge_graph.router)
 app.include_router(knowledge_graph.public_router)  # Public endpoints for graphs

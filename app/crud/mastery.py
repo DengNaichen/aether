@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 from typing import List, Optional, Tuple, Dict, Set
 from uuid import UUID
 
-from sqlalchemy import select, func, Integer, literal_column
+from sqlalchemy import select, func, Integer, literal_column, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
@@ -257,9 +257,10 @@ async def get_all_affected_parent_ids(
         db_session: AsyncSession,
         graph_id: UUID,
         start_node_ids: List[UUID]
-) -> Set[UUID]:
+) -> List[Tuple[UUID, int]]:
     """
     Finds all parent/ancestor nodes above a set of start nodes.
+    (distance from start nodes)
 
     Uses a recursive CTE to traverse the SUBTOPIC relationships upward.
     (start_node) <- [Subtopic] - (parent) <- [Subtopic] - (grandparent) ...
@@ -270,14 +271,16 @@ async def get_all_affected_parent_ids(
         start_node_ids: List of start node UUIDs
 
     Returns:
-        A set of all unique parent/ancestor node UUIDs
+        A list of (node_id, level) tuples, not a set
+
     """
     if not start_node_ids:
-        return set()
+        return []
 
     # Base case: direct parents
     cte_base = select(
-        Subtopic.parent_node_id.label("node_id")
+        Subtopic.parent_node_id.label("node_id"),
+        literal_column("1", type_=Integer).label("level")
     ).where(
         Subtopic.graph_id == graph_id,
         Subtopic.child_node_id.in_(start_node_ids)
@@ -288,7 +291,8 @@ async def get_all_affected_parent_ids(
 
     # Recursive case: parents of parents
     cte_recursive = select(
-        Subtopic.parent_node_id.label("node_id")
+        Subtopic.parent_node_id.label("node_id"),
+        (upward_cte.c.level + 1).label("level") #
     ).join(
         upward_cte,
         Subtopic.child_node_id == upward_cte.c.node_id
@@ -296,9 +300,16 @@ async def get_all_affected_parent_ids(
 
     # Combine base and recursive
     upward_cte = upward_cte.union_all(cte_recursive)
-    stmt = select(upward_cte.c.node_id).distinct()
+
+
+    stmt = select(
+        upward_cte.c.node_id,
+        func.max(upward_cte.c.level).label("max_level")
+    ).group_by(upward_cte.c.node_id).order_by(text("max_level ASC"))
+
+    # stmt = select(upward_cte.c.node_id).distinct()
     result = await db_session.execute(stmt)
-    return set(result.scalars().all())
+    return result.all()
 
 
 async def get_prerequisite_roots_to_bonus(
@@ -393,60 +404,3 @@ async def get_all_subtopics_for_parents_bulk(
         subtopic_map[rel.parent_node_id].append((rel.child_node_id, rel.weight))
 
     return subtopic_map
-
-
-async def bulk_update_or_create_masteries(
-    db_session: AsyncSession,
-    user_id: UUID,
-    graph_id: UUID,
-    updates: Dict[UUID, Tuple[float, float, UserMastery]]
-):
-    """
-    Performs a bulk update/insert of mastery scores.
-
-    Args:
-        - db_session: Database session
-        - user_id: User UUID
-        - graph_id: Knowledge graph UUID
-        - updates: Dict of {node_id: (old_score, new_score, mastery_rel_obj)}
-    """
-    if not updates:
-        return
-
-    to_upsert = []
-
-    now = datetime.now(timezone.utc)
-
-    for node_id, (old_score, new_score, mastery_rel) in updates.items():
-        # Check if this is an existing DB record by checking if it's in the session
-        # and has a primary key value
-        if hasattr(mastery_rel, 'user_id') and mastery_rel.user_id is not None:
-            # Existing record - update in place
-            mastery_rel.score = new_score
-            mastery_rel.last_updated = now
-            db_session.add(mastery_rel)
-        else:
-            # New record - prepare for upsert
-            to_upsert.append({
-                "user_id": user_id,
-                "graph_id": graph_id,
-                "node_id": node_id,
-                "score": new_score,
-                "p_l0": mastery_rel.p_l0 if hasattr(mastery_rel, 'p_l0') and mastery_rel.p_l0 is not None else 0.2,
-                "p_t": mastery_rel.p_t if hasattr(mastery_rel, 'p_t') and mastery_rel.p_t is not None else 0.2,
-                "last_updated": now
-            })
-
-    # Bulk upsert for new records
-    if to_upsert:
-        stmt = pg_insert(UserMastery).values(to_upsert)
-        stmt = stmt.on_conflict_do_update(
-            index_elements=[UserMastery.user_id, UserMastery.graph_id, UserMastery.node_id],
-            set_={
-                "score": stmt.excluded.score,
-                "last_updated": stmt.excluded.last_updated
-            }
-        )
-        await db_session.execute(stmt)
-
-    await db_session.flush()

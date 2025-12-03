@@ -14,7 +14,6 @@ from app.schemas.knowledge_node import (
     PrerequisiteResponse,
     SubtopicCreate,
     SubtopicResponse,
-    KnowledgeGraphVisualization
 )
 from app.schemas.questions import QuestionCreateForGraph, QuestionResponseFromGraph
 
@@ -23,13 +22,13 @@ from app.core.deps import get_current_admin_user, get_worker_context
 
 
 router = APIRouter(
-    prefix="",
+    prefix="/me/graphs",
     tags=["Knowledge Graph - Structure"],
 )
 
 
 @router.post(
-    "/graphs/{graph_id}/nodes",
+    "/{graph_id}/nodes",
     status_code=status.HTTP_201_CREATED,
     summary="Create a new knowledge node in a graph",
     response_model=KnowledgeNodeResponse,
@@ -103,7 +102,7 @@ async def create_knowledge_node_new(
 
 
 @router.post(
-    "/graphs/{graph_id}/prerequisites",
+    "/{graph_id}/prerequisites",
     status_code=status.HTTP_201_CREATED,
     summary="Create a prerequisite relationship",
     response_model=PrerequisiteResponse,
@@ -225,7 +224,7 @@ async def create_prerequisite_new(
 
 
 @router.post(
-    "/graphs/{graph_id}/subtopics",
+    "/{graph_id}/subtopics",
     status_code=status.HTTP_201_CREATED,
     summary="Create a subtopic relationship",
     response_model=SubtopicResponse,
@@ -337,7 +336,7 @@ async def create_subtopic_new(
 
 
 @router.post(
-    "/graphs/{graph_id}/questions",
+    "/{graph_id}/questions",
     status_code=status.HTTP_201_CREATED,
     summary="Create a new question for a knowledge node",
     response_model=QuestionResponseFromGraph,
@@ -443,163 +442,3 @@ async def create_question_new(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to create question: {str(e)}"
         )
-
-
-async def fetch_pg_knowledge_graph(
-    graph_id: str, user_id: str, db: AsyncSession
-) -> "KnowledgeGraphVisualization":
-    """
-    Fetch the knowledge graph with user mastery scores from PostgreSQL.
-
-    Returns a graph visualization with:
-    - All knowledge nodes belonging to the graph
-    - All relationships (IS_PREREQUISITE_FOR and HAS_SUBTOPIC)
-    - User mastery scores (default 0.2 if no mastery relationship exists)
-
-    Args:
-        graph_id: The knowledge graph identifier (UUID)
-        user_id: The user identifier (UUID)
-        db: Database session
-
-    Returns:
-        KnowledgeGraphVisualization with nodes and edges
-    """
-    from uuid import UUID
-    from sqlalchemy import select, union_all, literal
-    from app.models.knowledge_node import KnowledgeNode, Prerequisite, Subtopic
-    from app.models.user import UserMastery
-    from app.schemas.knowledge_node import (
-        KnowledgeGraphVisualization,
-        GraphNode,
-        GraphEdge,
-        EdgeType,
-    )
-
-    graph_uuid = UUID(graph_id)
-    user_uuid = UUID(user_id)
-
-    # Fetch all knowledge nodes with user mastery scores
-    nodes_stmt = (
-        select(
-            KnowledgeNode.id,
-            KnowledgeNode.node_name,
-            KnowledgeNode.description,
-            UserMastery.score,
-        )
-        .where(KnowledgeNode.graph_id == graph_uuid)
-        .outerjoin(
-            UserMastery,
-            (UserMastery.graph_id == KnowledgeNode.graph_id)
-            & (UserMastery.node_id == KnowledgeNode.id)
-            & (UserMastery.user_id == user_uuid),
-        )
-    )
-
-    nodes_result = await db.execute(nodes_stmt)
-    nodes_rows = nodes_result.all()
-
-    # Build nodes list with default mastery score of 0.2
-    nodes = [
-        GraphNode(
-            id=row.id,  # UUID type, no need to convert to string
-            name=row.node_name,
-            description=row.description or "",
-            mastery_score=row.score if row.score is not None else 0.2,
-        )
-        for row in nodes_rows
-    ]
-
-    # Fetch prerequisite relationships
-    prereq_stmt = (
-        select(
-            Prerequisite.from_node_id,
-            Prerequisite.to_node_id,
-            literal(EdgeType.IS_PREREQUISITE_FOR.value).label("type"),
-        )
-        .where(Prerequisite.graph_id == graph_uuid)
-    )
-
-    # Fetch subtopic relationships
-    subtopic_stmt = (
-        select(
-            Subtopic.parent_node_id,
-            Subtopic.child_node_id,
-            literal(EdgeType.HAS_SUBTOPIC.value).label("type"),
-        )
-        .where(Subtopic.graph_id == graph_uuid)
-    )
-
-    # Combine both relationship types
-    edges_stmt = union_all(prereq_stmt, subtopic_stmt)
-    edges_result = await db.execute(edges_stmt)
-    edges_rows = edges_result.all()
-
-    # Build edges list
-    edges = [
-        GraphEdge(
-            source=row[0],  # UUID type, no need to convert to string
-            target=row[1],  # UUID type, no need to convert to string
-            type=EdgeType(row[2]),  # Convert string to EdgeType enum
-        )
-        for row in edges_rows
-    ]
-
-    return KnowledgeGraphVisualization(nodes=nodes, edges=edges)
-
-
-@router.get(
-    "/graphs/{graph_id}/knowledge_graph",
-    summary="Retrieve knowledge graph visualization",
-    response_model=KnowledgeGraphVisualization,
-)
-async def fetch_knowledge_graph(
-    graph_id: str,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_active_user),
-):
-    """
-    Retrieve the knowledge graph with user mastery scores.
-
-    Returns all knowledge nodes belonging to the graph along with their
-    relationships (IS_PREREQUISITE_FOR and HAS_SUBTOPIC) and the current
-    user's mastery scores for each node.
-
-    Args:
-        graph_id: The knowledge graph identifier (UUID as string)
-        db: Database session
-        current_user: The authenticated user
-
-    Returns:
-        KnowledgeGraphVisualization: Graph structure with nodes and edges
-
-    Raises:
-        HTTPException 404: If the knowledge graph does not exist
-    """
-    from uuid import UUID
-    from app.crud.knowledge_graph import get_graph_by_id
-
-    # Validate and convert graph_id to UUID
-    try:
-        graph_uuid = UUID(graph_id)
-    except ValueError:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid graph_id format. Must be a valid UUID.",
-        )
-
-    # Check if graph exists in PostgreSQL
-    graph = await get_graph_by_id(db, graph_uuid)
-    if not graph:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Knowledge graph does not exist",
-        )
-
-    # Fetch the knowledge graph from PostgreSQL
-    result = await fetch_pg_knowledge_graph(
-        graph_id,
-        str(current_user.id),
-        db
-    )
-
-    return result

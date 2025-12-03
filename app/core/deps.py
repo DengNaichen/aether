@@ -2,7 +2,7 @@ import uuid
 from typing import AsyncGenerator
 
 from fastapi import Depends, HTTPException, status, Request
-from fastapi.security import OAuth2PasswordBearer
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import JWTError, jwt
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -13,7 +13,8 @@ from app.crud.user import get_user_by_id
 from app.models.user import User
 from app.worker.config import WorkerContext
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
+
+oauth2_scheme = HTTPBearer()
 
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
@@ -48,11 +49,12 @@ async def get_worker_context() -> AsyncGenerator[WorkerContext, None]:
 
 
 async def get_current_user(
-    request: Request,
-    db: AsyncSession = Depends(get_db),
-    token: str = Depends(oauth2_scheme),
+        request: Request,
+        db: AsyncSession = Depends(get_db),
+        credentials: HTTPAuthorizationCredentials = Depends(oauth2_scheme),
 ) -> User:
     """
+    TODO: update this docstring
     Retrieves the current authenticated user from a JWT access token.
 
     This asynchronously dependency decodes and validates the provided JWT token,
@@ -74,6 +76,7 @@ async def get_current_user(
         ValueError: If user ID is not a valid UUID
     """
     # Debug: Log raw Authorization header
+    token = credentials.credentials
     auth_header = request.headers.get("Authorization", "NOT FOUND")
     print(
         f"🔍 [deps] Authorization header: {auth_header[:50] if len(auth_header) > 50 else auth_header}..."
@@ -91,7 +94,10 @@ async def get_current_user(
         print(f"🔍 [deps] Validating token: {token_preview}...")
 
         payload = jwt.decode(
-            token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM]
+            token,
+            settings.SUPABASE_JWT_SECRET,
+            algorithms=[settings.ALGORITHM],
+            audience="authenticated",
         )
 
         # Debug: Log successful decode

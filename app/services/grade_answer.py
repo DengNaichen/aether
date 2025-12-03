@@ -19,6 +19,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.question import Question, QuestionType
 
 
+class GradingError(Exception):
+    """Custom exception for errors during the grading process."""
+    pass
+
 @dataclass
 class GradingResult:
     """Result of grading a single answer.
@@ -124,22 +128,21 @@ class GradingService:
         type and extracts BKT parameters (p_g, p_s) from the question details.
 
         Args:
-            question: The Question model from PostgreSQL (already fetched)
-            user_answer_json: Dictionary containing the user's answer with
+            - question: The Question model from PostgreSQL (already fetched)
+            - user_answer_json: Dictionary containing the user's answer with
                             key 'user_answer'
 
         Returns:
-            Tuple of (is_correct, p_g, p_s)
-            Returns (False, -1.0, -1.0) for errors or unknown question types
+            A tuple containing (is_correct, p_g, p_s).
+
+        Raises:
+            GradingError: If there's an issue with grading logic or data.
         """
         try:
             user_ans = user_answer_json.get("user_answer")
-
             if user_ans is None:
-                logging.warning(
-                    f"Missing user_answer for question {question.id}"
-                )
-                return False, -1.0, -1.0
+                raise GradingError(f"Missing 'user_answer' "
+                                   f"in payload for question {question.id}")
 
             # Extract details from JSONB field
             details = question.details
@@ -152,10 +155,8 @@ class GradingService:
             if question.question_type == QuestionType.MULTIPLE_CHOICE.value:
                 correct_answer = details.get("correct_answer")
                 if correct_answer is None:
-                    logging.error(
-                        f"Missing correct_answer in details for question {question.id}"
-                    )
-                    return False, -1.0, -1.0
+                    raise GradingError(f"Missing 'correct_answer' "
+                                       f"in details for question {question.id}")
 
                 is_correct = self._grade_multiple_choice(user_ans, correct_answer)
                 return is_correct, p_g, p_s
@@ -163,44 +164,44 @@ class GradingService:
             elif question.question_type == QuestionType.FILL_BLANK.value:
                 expected_answers = details.get("expected_answer", [])
                 if not expected_answers:
-                    logging.error(
-                        f"Missing expected_answer in details for question {question.id}"
-                    )
-                    return False, -1.0, -1.0
+                    raise GradingError(f"Missing 'expected_answer'"
+                                       f" in details for question {question.id}")
 
                 is_correct = self._grade_fill_in_blank(user_ans, expected_answers)
                 return is_correct, p_g, p_s
 
             elif question.question_type == QuestionType.CALCULATION.value:
                 expected_answers = details.get("expected_answer", [])
-                precision = details.get("precision", 2)
-
                 if not expected_answers:
-                    logging.error(
-                        f"Missing expected_answer in details for question {question.id}"
-                    )
-                    return False, -1.0, -1.0
+                    raise GradingError(f"Missing 'expected_answer'"
+                                       f" in details for question {question.id}")
+                
+                # Safely get the first expected answer
+                expected_answer = expected_answers[0]
+                precision = details.get("precision", 2)
 
                 is_correct = self._grade_calculation(
                     user_ans,
-                    expected_answers[0],
+                    expected_answer,
                     precision
                 )
                 return is_correct, p_g, p_s
 
             else:
-                logging.warning(
-                    f"Unknown question type: question {question.id}: "
-                    f"{question.question_type}"
-                )
-                return False, -1.0, -1.0
+                raise GradingError(f"Unknown question type "
+                                   f"'{question.question_type}' "
+                                   f"for question {question.id}")
 
-        except (TypeError, ValueError, AttributeError, KeyError) as e:
+        except GradingError:
+            # Re-raise custom exceptions to be handled by the caller
+            raise
+        except (ValueError, TypeError, AttributeError, KeyError) as e:
             logging.error(
                 f"Grading error for question {question.id}: {e}",
                 exc_info=True
             )
-            return False, -1.0, -1.0
+            raise GradingError(f"Internal grading error for question "
+                               f"{question.id}") from e
 
     async def fetch_and_grade(
         self,
@@ -216,11 +217,11 @@ class GradingService:
         3. Packaging the result with BKT parameters
 
         Args:
-            question_id: UUID of the question to grade
-            user_answer: Dictionary containing the user's answer
+            - question_id: UUID of the question to grade
+            - user_answer: Dictionary containing the user's answer
 
         Returns:
-            GradingResult if question exists, None if not found
+            - GradingResult if question exists, None if not found
         """
         try:
             # Fetch question from PostgreSQL
@@ -236,7 +237,15 @@ class GradingService:
                 return None
 
             # Grade the answer
-            is_correct, p_g, p_s = self.grade_answer(question, user_answer)
+            try:
+                is_correct, p_g, p_s = self.grade_answer(question, user_answer)
+            except GradingError as e:
+                logging.error(f"Failed to grade question {question_id}:"
+                              f" {e}", exc_info=True)
+                # Return a default GradingResult indicating failure but not crashing
+                # The is_correct=False ensures user doesn't get points for system error
+                return GradingResult(question_id=str(question_id),
+                                     is_correct=False, p_g=0.0, p_s=0.1)
 
             return GradingResult(
                 question_id=str(question_id),

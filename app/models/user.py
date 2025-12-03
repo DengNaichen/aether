@@ -51,25 +51,17 @@ class User(Base):
 
     __tablename__ = "users"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    name = Column(String, nullable=False)
+    id = Column(UUID(as_uuid=True), primary_key=True)
+    name = Column(String, nullable=True)
     email = Column(String, unique=True, nullable=False)
-    hashed_password = Column(String, nullable=False)
     is_active = Column(Boolean, default=True)
     is_admin = Column(Boolean, default=False, nullable=False)
 
-    oauth_provider = Column(String, nullable=True)
-    oauth_id = Column(String, nullable=True)
 
     created_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
     updated_at = Column(
         TIMESTAMP(timezone=True), server_default=func.now(), onupdate=func.now()
     )
-    refresh_token = Column(String, nullable=True, index=True)
-
-    # Password reset fields
-    reset_token = Column(String, nullable=True, index=True)
-    reset_token_expires_at = Column(TIMESTAMP(timezone=True), nullable=True)
 
     # Knowledge graph enrollments
     graph_enrollments = relationship("GraphEnrollment", back_populates="user")
