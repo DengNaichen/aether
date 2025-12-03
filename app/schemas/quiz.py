@@ -46,4 +46,4 @@ class SingleAnswerSubmitResponse(BaseModel):
     answer_id: UUID
     is_correct: bool
     mastery_updated: bool
-    next_question_id: Optional[UUID] = None
+    correct_answer: AnyAnswer

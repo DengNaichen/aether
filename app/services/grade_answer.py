@@ -17,6 +17,12 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.question import Question, QuestionType
+from app.schemas.quiz import AnyAnswer
+from app.schemas.questions import (
+    MultipleChoiceAnswer,
+    FillInTheBlankAnswer,
+    CalculationAnswer,
+)
 
 
 class GradingError(Exception):
@@ -38,6 +44,7 @@ class GradingResult:
 
     question_id: str
     is_correct: bool
+    correct_answer: AnyAnswer
     p_g: float
     p_s: float
 
@@ -119,6 +126,40 @@ class GradingService:
         expected_val = float(expected_answer)
         user_val = float(user_answer)
         return abs(user_val - expected_val) < precision_tolerance
+
+    def _get_correct_answer_schema(self, question: Question) -> AnyAnswer:
+        """Helper to extract correct answer schema from question details."""
+        details = question.details
+        q_type = question.question_type
+
+        if q_type == QuestionType.MULTIPLE_CHOICE.value:
+            return MultipleChoiceAnswer(
+                question_type=QuestionType.MULTIPLE_CHOICE,
+                selected_option=details.get("correct_answer", -1),
+            )
+        elif q_type == QuestionType.FILL_BLANK.value:
+            expected = details.get("expected_answer", [])
+            return FillInTheBlankAnswer(
+                question_type=QuestionType.FILL_BLANK,
+                text_answer=expected[0] if expected else "",
+            )
+        elif q_type == QuestionType.CALCULATION.value:
+            expected = details.get("expected_answer", [])
+            val = 0
+            if expected:
+                try:
+                    val = int(float(expected[0]))
+                except ValueError:
+                    pass
+            return CalculationAnswer(
+                question_type=QuestionType.CALCULATION,
+                numeric_answer=val,
+            )
+
+        # Fallback
+        return MultipleChoiceAnswer(
+            question_type=QuestionType.MULTIPLE_CHOICE, selected_option=-1
+        )
 
     def grade_answer(
         self, question: Question, user_answer_json: dict
@@ -252,11 +293,19 @@ class GradingService:
                 # Return a default GradingResult indicating failure but not crashing
                 # The is_correct=False ensures user doesn't get points for system error
                 return GradingResult(
-                    question_id=str(question_id), is_correct=False, p_g=0.0, p_s=0.1
+                    question_id=str(question_id),
+                    is_correct=False,
+                    correct_answer=self._get_correct_answer_schema(question),
+                    p_g=0.0,
+                    p_s=0.1,
                 )
 
             return GradingResult(
-                question_id=str(question_id), is_correct=is_correct, p_g=p_g, p_s=p_s
+                question_id=str(question_id),
+                is_correct=is_correct,
+                correct_answer=self._get_correct_answer_schema(question),
+                p_g=p_g,
+                p_s=p_s,
             )
 
         except Exception as e:

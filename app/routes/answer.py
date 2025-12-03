@@ -191,5 +191,5 @@ async def submit_single_answer(
         answer_id=submission_answer.id,
         is_correct=grading_result.is_correct,
         mastery_updated=mastery_updated,
-        next_question_id=None,  # TODO: Implement recommendation
+        correct_answer=grading_result.correct_answer,
     )
