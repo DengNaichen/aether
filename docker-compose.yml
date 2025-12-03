@@ -11,28 +11,7 @@ services:
       - "8000:8000"
     volumes:
       - .:/app
-    # ensure the database start before the backend
-    depends_on:
-      db:
-        condition: service_healthy
-      # redis:
-      #   condition: service_healthy
-
-  db:
-    image: postgres:15-alpine
-    env_file:
-      - .env.local
-    environment:
-      POSTGRES_USER: ${POSTGRES_USER:-aether_user}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-aether_password}
-      POSTGRES_DB: ${POSTGRES_DB:-aether_db}
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-aether_user} -d $${POSTGRES_DB:-aether_db}"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
+    # No database dependency - using Supabase
 
   # redis:
   #   image: redis:7-alpine
@@ -64,6 +43,5 @@ services:
   #   restart: unless-stopped
 
 
-volumes:
-  postgres_data:
-  redis_data:
+# volumes:
+#   redis_data:

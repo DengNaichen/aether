@@ -5,7 +5,7 @@ from fastapi import FastAPI
 import app.models as models
 from app.core.config import settings
 from app.core.database import db_manager
-from app.routes import question, user, admin, knowledge_node, knowledge_graph, answer
+from app.routes import question, user, knowledge_node, knowledge_graph, answer
 from fastapi.middleware.cors import CORSMiddleware
 
 

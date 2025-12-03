@@ -123,3 +123,6 @@ playground.xcworkspace
 # ===================================================================
 temp/
 **/temp/
+
+**/scripts
+scripts/
