@@ -8,7 +8,6 @@ options:
 substitutions:
   _REGION: 'northamerica-northeast2'
   _REPOSITORY: 'aether'
-  _IMAGE_BASE: '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}'
 
 steps:
   # Build the main application image (used for both web and worker)
@@ -16,9 +15,9 @@ steps:
     args:
       - 'build'
       - '-t'
-      - '${_IMAGE_BASE}/aether-app:${SHORT_SHA}'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/aether-app:${BUILD_ID}'
       - '-t'
-      - '${_IMAGE_BASE}/aether-app:latest'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/aether-app:latest'
       - '--platform'
       - 'linux/amd64'
       - '.'
@@ -29,12 +28,12 @@ steps:
     args:
       - 'push'
       - '--all-tags'
-      - '${_IMAGE_BASE}/aether-app'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/aether-app'
     id: 'push-app'
     waitFor: ['build-app']
 
 images:
-  - '${_IMAGE_BASE}/aether-app:${SHORT_SHA}'
-  - '${_IMAGE_BASE}/aether-app:latest'
+  - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/aether-app:${BUILD_ID}'
+  - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/aether-app:latest'
 
 timeout: '1200s'
