@@ -124,6 +124,14 @@ async def get_my_graph(
     node_count_result = await db_session.execute(node_count_stmt)
     node_count = node_count_result.scalar() or 0
 
+    # Check if owner is enrolled in their own graph
+    enrollment_stmt = select(GraphEnrollment).where(
+        GraphEnrollment.user_id == current_user.id,
+        GraphEnrollment.graph_id == graph_id
+    )
+    enrollment_result = await db_session.execute(enrollment_stmt)
+    is_enrolled = enrollment_result.scalar_one_or_none() is not None
+
     return {
         "id": knowledge_graph.id,
         "name": knowledge_graph.name,
@@ -135,7 +143,7 @@ async def get_my_graph(
         "owner_id": knowledge_graph.owner_id,
         "enrollment_count": knowledge_graph.enrollment_count,
         "node_count": node_count,
-        "is_enrolled": None,
+        "is_enrolled": is_enrolled,
         "created_at": knowledge_graph.created_at,
     }
 
@@ -227,6 +235,14 @@ async def get_my_graph_content(
     # Count nodes
     node_count = len(nodes)
 
+    # Check if owner is enrolled in their own graph
+    enrollment_stmt = select(GraphEnrollment).where(
+        GraphEnrollment.user_id == current_user.id,
+        GraphEnrollment.graph_id == graph_id
+    )
+    enrollment_result = await db_session.execute(enrollment_stmt)
+    is_enrolled = enrollment_result.scalar_one_or_none() is not None
+
     # Build graph response
     graph_response = KnowledgeGraphResponse(
         id=knowledge_graph.id,
@@ -239,7 +255,7 @@ async def get_my_graph_content(
         owner_id=knowledge_graph.owner_id,
         enrollment_count=knowledge_graph.enrollment_count,
         node_count=node_count,
-        is_enrolled=None,
+        is_enrolled=is_enrolled,
         created_at=knowledge_graph.created_at,
     )
 
