@@ -2,24 +2,24 @@
 
 This service implements a hybrid recommendation algorithm:
 - Phase 1 (FSRS Filtering): Find nodes due for review (Spaced Repetition).
-- Phase 2 (BKT Sorting): Prioritize reviews based on graph dependencies and mastery.
-- Phase 3 (BKT New Knowledge): Recommend new content, ensuring prerequisites are met.
+- Phase 2 (Topology + Urgency Sorting): Prioritize reviews based on graph dependencies and urgency.
+- Phase 3 (Stability-based New Knowledge): Recommend new content, ensuring prerequisites are learned.
 
 Migrated from Neo4j to PostgreSQL.
 """
 
 import logging
-from datetime import datetime, timezone
-from typing import Optional, List, Tuple, Dict
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from uuid import UUID
 
-from sqlalchemy import select, and_, func
+from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.knowledge_node import KnowledgeNode, Prerequisite
-from app.models.user import UserMastery
 from app.models.question import Question
+from app.models.user import UserMastery
+from app.utils.question_rec_logic import QuestionRecLogic
 
 logger = logging.getLogger(__name__)
 
@@ -34,31 +34,34 @@ class NodeSelectionResult:
         - priority_score: Optional priority score used for selection/logging
     """
 
-    knowledge_node: Optional[KnowledgeNode]
+    knowledge_node: KnowledgeNode | None
     selection_reason: str
-    priority_score: Optional[float] = None
+    priority_score: float | None = None
 
 
 class QuestionService:
-    """Service for selecting the next knowledge node using hybrid BKT + FSRS algorithm.
+    """Service for selecting the next knowledge node using hybrid FSRS + Topology algorithm.
 
     This service implements the two-phase hybrid recommendation:
     1. Phase 1 (FSRS Filtering): Find all nodes with due_date <= today.
-    2. Phase 2 (BKT Sorting): Sort reviews by dependency priority (Parents first), Level, and Score.
-    3. Phase 3 (BKT New Knowledge): Find new nodes where prerequisites are mastered.
+    2. Phase 2 (Topology + Urgency Sorting): Sort reviews by (Prerequisite, Urgency, Level, R(t)).
+    3. Phase 3 (Stability-based New Knowledge): Find new nodes where prerequisites are learned.
 
     Includes a fallback mechanism to prevent "cold start" deadlocks.
     """
 
-    # Mastery threshold for considering a prerequisite "mastered"
-    MASTERY_THRESHOLD = 0.6
+    # Stability threshold for considering a prerequisite "learned" (in days)
+    # S >= 3.0 means the user has reviewed the concept 1-2 times and it's transitioning
+    # from "just encountered" to "initially understood". This is more robust than R(t)
+    # as it doesn't fluctuate with time between logins.
+    STABILITY_THRESHOLD = 3.0
 
     # ==================== Phase 1: FSRS Filtering ====================
 
     @staticmethod
     async def find_due_nodes(
         db_session: AsyncSession, user_id: UUID, graph_id: UUID
-    ) -> List[Tuple[KnowledgeNode, dict]]:
+    ) -> list[tuple[KnowledgeNode, dict]]:
         """Phase 1: Find all knowledge nodes due for review based on FSRS.
 
         Identifies nodes where UserMastery.due_date <= current_timestamp.
@@ -71,7 +74,7 @@ class QuestionService:
         Returns:
             List of tuples: (KnowledgeNode, mastery_data_dict)
         """
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         # Subquery: Only consider nodes that actually have questions.
         # We should not recommend a node for review if it has no content.
@@ -123,21 +126,25 @@ class QuestionService:
 
         return nodes_with_data
 
-    # ==================== Phase 2: BKT Sorting ====================
+    # ==================== Phase 2: Topology + Urgency Sorting ====================
 
     @staticmethod
     async def sort_due_nodes_by_priority(
         db_session: AsyncSession,
         user_id: UUID,
         graph_id: UUID,
-        nodes_with_data: List[Tuple[KnowledgeNode, dict]],
-    ) -> List[Tuple[KnowledgeNode, dict, float]]:
-        """Phase 2: Sort due nodes by learning priority using Tuple Sorting.
+        nodes_with_data: list[tuple[KnowledgeNode, dict]],
+    ) -> list[tuple[KnowledgeNode, dict, float]]:
+        """Phase 2: Sort due nodes by learning priority using Hybrid FSRS + Topology Sorting.
 
         Priority Logic (Tuple Sort Order):
         1. Is Prerequisite? (True first): Review fundamental concepts before dependent ones.
-        2. Level (Ascending): Lower levels first.
-        3. Score (Ascending): Weaker mastery first.
+        2. Urgency Tier (Ascending): Prioritize severely overdue nodes to prevent complete forgetting.
+           - Tier 0: >72h overdue (severe)
+           - Tier 1: 24-72h overdue (moderate)
+           - Tier 2: 0-24h overdue (normal)
+        3. Level (Ascending): Lower levels first (foundational knowledge).
+        4. Score (Ascending): Lower R(t) first (more forgotten content needs review).
 
         Args:
             nodes_with_data: Result from find_due_nodes
@@ -148,6 +155,7 @@ class QuestionService:
         if not nodes_with_data:
             return []
 
+        now = datetime.now(UTC)
         due_node_ids = {node.id for node, _ in nodes_with_data}
 
         # Batch query: Find which due nodes are prerequisites for OTHER due nodes.
@@ -169,23 +177,21 @@ class QuestionService:
         for node, mastery_data in nodes_with_data:
             is_prerequisite = node.id in nodes_that_are_prerequisites
 
-            # --- SORT KEY CONSTRUCTION ---
-            # Python sorts tuples element by element. We want:
-            # 1. Prerequisite nodes FIRST. (True=0, False=1)
-            rank_is_prereq = 0 if is_prerequisite else 1
-
-            # 2. Lower levels FIRST. (None treated as high number)
-            rank_level = (
-                mastery_data["level"] if mastery_data["level"] is not None else 999
+            # Use Logic layer to calculate urgency tier
+            urgency_tier = QuestionRecLogic.calculate_urgency_tier(
+                mastery_data["due_date"], now
             )
 
-            # 3. Lower score FIRST.
-            rank_score = mastery_data["score"]
-
-            sort_key = (rank_is_prereq, rank_level, rank_score)
+            # Use Logic layer to generate sort key
+            sort_key = QuestionRecLogic.calculate_priority_sort_key(
+                is_prerequisite=is_prerequisite,
+                urgency_tier=urgency_tier,
+                level=mastery_data["level"],
+                score=mastery_data["score"],
+            )
 
             # Simple score for logging/frontend (1000 = high priority)
-            display_score = 1000 if is_prerequisite else (100 - rank_level)
+            display_score = 1000 if is_prerequisite else (100 - (mastery_data["level"] or 0))
 
             nodes_with_priority.append((node, mastery_data, display_score, sort_key))
 
@@ -197,14 +203,18 @@ class QuestionService:
 
     # ==================== Helper: Batch Prerequisite Checking ====================
 
-    @staticmethod
     async def _batch_filter_by_prerequisites(
+        self,
         db_session: AsyncSession,
         user_id: UUID,
         graph_id: UUID,
-        candidates: List[KnowledgeNode],
-    ) -> List[Tuple[KnowledgeNode, float]]:
+        candidates: list[KnowledgeNode],
+    ) -> list[tuple[KnowledgeNode, float]]:
         """Batch filter candidate nodes by prerequisite satisfaction.
+
+        Uses Stability-based "learned readiness" rather than dynamic R(t).
+        This ensures that once a prerequisite is learned (Stability >= threshold),
+        it remains satisfied even if R(t) decays over time.
 
         CRITICAL FIX: This method ignores "ghost" prerequisites (parents with no questions).
         If a parent node exists in the graph but has no questions, it cannot be mastered.
@@ -236,63 +246,54 @@ class QuestionService:
         )
         result_prereqs = await db_session.execute(stmt_blocking_prereqs)
 
-        # Map: Child Node ID -> List of [Parent Node IDs that must be mastered]
-        prereq_map: Dict[UUID, List[UUID]] = {c.id: [] for c in candidates}
+        # Map: Child Node ID -> List of [Parent Node IDs that must be learned]
+        prereq_map: dict[UUID, list[UUID]] = {c.id: [] for c in candidates}
         all_relevant_prereq_ids = set()
 
         for to_node_id, from_node_id in result_prereqs:
             prereq_map[to_node_id].append(from_node_id)
             all_relevant_prereq_ids.add(from_node_id)
 
-        # 2. Batch fetch mastery scores for these parents
-        mastery_scores = {}
+        # 2. Batch fetch mastery stability for these parents
+        stability_map = {}
         if all_relevant_prereq_ids:
-            stmt_all_mastery = select(UserMastery.node_id, UserMastery.score).where(
+            stmt_all_mastery = select(
+                UserMastery.node_id, UserMastery.fsrs_stability
+            ).where(
                 UserMastery.user_id == user_id,
                 UserMastery.graph_id == graph_id,
                 UserMastery.node_id.in_(list(all_relevant_prereq_ids)),
             )
             result_mastery = await db_session.execute(stmt_all_mastery)
-            mastery_scores = {node_id: score for node_id, score in result_mastery}
+            stability_map = {node_id: stability for node_id, stability in result_mastery}
 
-        # 3. Filter candidates in memory
-        valid_candidates = []
+        # 3. Use Logic layer to filter candidates
+        valid_candidate_tuples = QuestionRecLogic.filter_by_stability(
+            candidate_ids=candidate_ids,
+            prerequisite_map=prereq_map,
+            stability_map=stability_map,
+            threshold=self.STABILITY_THRESHOLD,
+        )
 
-        for candidate in candidates:
-            prereq_ids = prereq_map[candidate.id]
-
-            # If no RELEVANT prerequisites, the node is available.
-            if not prereq_ids:
-                valid_candidates.append((candidate, 1.0))
-                continue
-
-            # Check if all relevant prerequisites are mastered
-            all_mastered = True
-            scores = []
-
-            for pid in prereq_ids:
-                score = mastery_scores.get(pid, 0.0)  # Default to 0 if not found
-                if score < QuestionService.MASTERY_THRESHOLD:
-                    all_mastered = False
-                    break
-                scores.append(score)
-
-            if all_mastered:
-                # Quality = average mastery of prerequisites
-                quality = sum(scores) / len(scores) if scores else 1.0
-                valid_candidates.append((candidate, quality))
+        # Convert back to (KnowledgeNode, quality) format
+        valid_id_to_quality = {node_id: quality for node_id, quality in valid_candidate_tuples}
+        valid_candidates = [
+            (candidate, valid_id_to_quality[candidate.id])
+            for candidate in candidates
+            if candidate.id in valid_id_to_quality
+        ]
 
         return valid_candidates
 
-    # ==================== Phase 3: BKT New Knowledge ====================
+    # ==================== Phase 3: Stability-based New Knowledge ====================
 
     async def find_new_knowledge_node(
         self, db_session: AsyncSession, user_id: UUID, graph_id: UUID
-    ) -> Optional[KnowledgeNode]:
+    ) -> KnowledgeNode | None:
         """Phase 3: Find a new knowledge node when no reviews are due.
 
         Selection Priority:
-        1. Strict Prerequisite Check (Parents must be mastered).
+        1. Strict Prerequisite Check (Parents must be learned - Stability >= 3.0).
         2. Fallback (Deadlock Breaker): If strict check fails for ALL nodes,
            return the lowest Level node available to ensure the user isn't blocked.
 
@@ -300,7 +301,7 @@ class QuestionService:
             KnowledgeNode or None (if absolutely no questions exist).
         """
         logger.info(
-            f"Phase 3 (BKT New): Starting new knowledge search for user {user_id}"
+            f"Phase 3 (Stability-based New): Starting new knowledge search for user {user_id}"
         )
 
         # Subquery: Nodes already mastered by user
@@ -338,19 +339,16 @@ class QuestionService:
             db_session, user_id, graph_id, candidates
         )
 
-        # Step 3: Return best valid candidate
+        # Step 3: Return best valid candidate using Logic layer
         if valid_candidates:
-            # Sort by: Level (ASC), Dependents (DESC), Quality (DESC)
-            valid_candidates.sort(
-                key=lambda x: (
-                    x[0].level if x[0].level is not None else 999,
-                    -(x[0].dependents_count or 0),
-                    -x[1],
-                )
-            )
-            selected_node = valid_candidates[0][0]
-            logger.info(f"Phase 3: Selected valid node {selected_node.node_name}")
-            return selected_node
+            # Extract just the nodes and valid IDs
+            valid_nodes = [node for node, _ in valid_candidates]
+            valid_ids = {node.id for node in valid_nodes}
+            
+            selected_node = QuestionRecLogic.select_best_new_node(valid_nodes, valid_ids)
+            if selected_node:
+                logger.info(f"Phase 3: Selected valid node {selected_node.node_name}")
+                return selected_node
 
         # ==================== FALLBACK STRATEGY ====================
         # If we reach here, we have candidates, but ALL of them are blocked by prerequisites.
@@ -363,15 +361,14 @@ class QuestionService:
             f"Activating Fallback Strategy."
         )
 
-        # Fallback: Ignore prerequisites, just pick the lowest Level node.
-        candidates.sort(key=lambda x: (x.level if x.level is not None else 999))
+        # Use Logic layer for fallback selection
+        fallback_node = QuestionRecLogic.select_fallback_node(candidates)
 
-        fallback_node = candidates[0]
-
-        logger.info(
-            f"Phase 3 Fallback: Forcing recommendation of {fallback_node.node_name} "
-            f"(Level {fallback_node.level}) to break deadlock."
-        )
+        if fallback_node:
+            logger.info(
+                f"Phase 3 Fallback: Forcing recommendation of {fallback_node.node_name} "
+                f"(Level {fallback_node.level}) to break deadlock."
+            )
 
         return fallback_node
 
@@ -410,7 +407,7 @@ class QuestionService:
                 )
 
         # Phase 3: BKT New Knowledge
-        logger.info(f"No due nodes. Proceeding to Phase 3 (New Learning).")
+        logger.info("No due nodes. Proceeding to Phase 3 (New Learning).")
         new_node = await self.find_new_knowledge_node(db_session, user_id, graph_id)
 
         if new_node:
