@@ -29,6 +29,7 @@ Future: Fork, PR, and collaboration features can be added.
 """
 
 import uuid
+
 from sqlalchemy import (
     Boolean,
     Column,

@@ -1,9 +1,14 @@
-import enum
 import uuid
 
-from sqlalchemy import JSON, Boolean, Column, DateTime, UniqueConstraint
-from sqlalchemy import Enum as SQLAlchemyEnum
-from sqlalchemy import ForeignKey, Integer, String, func, UUID
+from sqlalchemy import (
+    JSON,
+    UUID,
+    Boolean,
+    Column,
+    DateTime,
+    ForeignKey,
+    func,
+)
 from sqlalchemy.orm import relationship
 
 from app.models import Base  # 或者 from .base import Base

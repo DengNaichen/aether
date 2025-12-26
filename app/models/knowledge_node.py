@@ -48,7 +48,6 @@ from sqlalchemy.sql import func
 
 from app.models.base import Base
 
-
 # ==================== Graph Content Models ====================
 
 
