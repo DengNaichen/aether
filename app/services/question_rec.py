@@ -191,7 +191,9 @@ class QuestionService:
             )
 
             # Simple score for logging/frontend (1000 = high priority)
-            display_score = 1000 if is_prerequisite else (100 - (mastery_data["level"] or 0))
+            display_score = (
+                1000 if is_prerequisite else (100 - (mastery_data["level"] or 0))
+            )
 
             nodes_with_priority.append((node, mastery_data, display_score, sort_key))
 
@@ -265,7 +267,10 @@ class QuestionService:
                 UserMastery.node_id.in_(list(all_relevant_prereq_ids)),
             )
             result_mastery = await db_session.execute(stmt_all_mastery)
-            stability_map = {node_id: stability for node_id, stability in result_mastery}
+            stability_map = dict(result_mastery)
+            # stability_map = {
+            #     node_id: stability for node_id, stability in result_mastery
+            # }
 
         # 3. Use Logic layer to filter candidates
         valid_candidate_tuples = QuestionRecLogic.filter_by_stability(
@@ -276,7 +281,10 @@ class QuestionService:
         )
 
         # Convert back to (KnowledgeNode, quality) format
-        valid_id_to_quality = {node_id: quality for node_id, quality in valid_candidate_tuples}
+        valid_id_to_quality = dict(valid_candidate_tuples)
+        # valid_id_to_quality = {
+        #     node_id: quality for node_id, quality in valid_candidate_tuples
+        # }
         valid_candidates = [
             (candidate, valid_id_to_quality[candidate.id])
             for candidate in candidates
@@ -344,8 +352,10 @@ class QuestionService:
             # Extract just the nodes and valid IDs
             valid_nodes = [node for node, _ in valid_candidates]
             valid_ids = {node.id for node in valid_nodes}
-            
-            selected_node = QuestionRecLogic.select_best_new_node(valid_nodes, valid_ids)
+
+            selected_node = QuestionRecLogic.select_best_new_node(
+                valid_nodes, valid_ids
+            )
             if selected_node:
                 logger.info(f"Phase 3: Selected valid node {selected_node.node_name}")
                 return selected_node

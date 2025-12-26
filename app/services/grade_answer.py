@@ -103,7 +103,9 @@ class GradingService:
                     raise GradingError(
                         f"Missing 'correct_answer' in details for question {question.id}"
                     )
-                is_correct = GradingLogic.grade_multiple_choice(user_ans, correct_answer)
+                is_correct = GradingLogic.grade_multiple_choice(
+                    user_ans, correct_answer
+                )
 
             elif question.question_type == QuestionType.FILL_BLANK.value:
                 expected_answers = details.get("expected_answer", [])
@@ -111,7 +113,9 @@ class GradingService:
                     raise GradingError(
                         f"Missing 'expected_answer' in details for question {question.id}"
                     )
-                is_correct = GradingLogic.grade_fill_in_blank(user_ans, expected_answers)
+                is_correct = GradingLogic.grade_fill_in_blank(
+                    user_ans, expected_answers
+                )
 
             elif question.question_type == QuestionType.CALCULATION.value:
                 expected_answers = details.get("expected_answer", [])
