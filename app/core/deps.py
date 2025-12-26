@@ -1,8 +1,9 @@
+import logging
 import uuid
-from typing import AsyncGenerator
+from collections.abc import AsyncGenerator
 
-from fastapi import Depends, HTTPException, status, Request
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi import Depends, HTTPException, Request, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -13,8 +14,9 @@ from app.crud.user import get_user_by_id
 from app.models.user import User
 from app.worker.config import WorkerContext
 
+logger = logging.getLogger(__name__)
 
-oauth2_scheme = HTTPBearer()
+oauth2_scheme = HTTPBearer(auto_error=False)
 
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
@@ -78,10 +80,10 @@ async def get_current_user(
     # Debug: Log raw Authorization header
     token = credentials.credentials
     auth_header = request.headers.get("Authorization", "NOT FOUND")
-    print(
-        f"🔍 [deps] Authorization header: {auth_header[:50] if len(auth_header) > 50 else auth_header}..."
+    logger.debug(
+        f"Authorization header: {auth_header[:50] if len(auth_header) > 50 else auth_header}..."
     )
-    print(f"🔍 [deps] get_current_user called!")
+    logger.debug("get_current_user called")
 
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -91,7 +93,7 @@ async def get_current_user(
     try:
         # Debug: Log token validation attempt
         token_preview = token[:20] if len(token) > 20 else token
-        print(f"🔍 [deps] Validating token: {token_preview}...")
+        logger.debug(f"Validating token: {token_preview}...")
 
         payload = jwt.decode(
             token,
@@ -102,27 +104,27 @@ async def get_current_user(
 
         # Debug: Log successful decode
         user_id: str = payload.get("sub")
-        print(f"✅ [deps] Token decoded successfully, user_id: {user_id}")
+        logger.debug(f"Token decoded successfully, user_id: {user_id}")
 
         if user_id is None:
-            print(f"❌ [deps] No user_id in token payload")
+            logger.error("No user_id in token payload")
             raise credentials_exception
     except JWTError as e:
-        print(f"❌ [deps] JWT decode error: {e}")
-        raise credentials_exception
+        logger.error(f"JWT decode error: {e}")
+        raise credentials_exception from e
 
     try:
         user_uuid = uuid.UUID(user_id)
     except ValueError as e:
-        print(f"❌ [deps] Invalid UUID format: {e}")
-        raise credentials_exception
+        logger.error(f"Invalid UUID format: {e}")
+        raise credentials_exception from e
 
     user = await get_user_by_id(db=db, user_id=user_uuid)
     if user is None:
-        print(f"❌ [deps] User not found in database: {user_uuid}")
+        logger.error(f"User not found in database: {user_uuid}")
         raise credentials_exception
 
-    print(f"✅ [deps] User authenticated successfully: {user.email}")
+    logger.info(f"User authenticated successfully: {user.email}")
     return user
 
 
@@ -164,3 +166,34 @@ async def get_current_admin_user(
             status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient privileges"
         )
     return current_user
+
+
+async def get_optional_user(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials | None = Depends(oauth2_scheme),
+) -> User | None:
+    """
+    Retrieves the current authenticated user from a JWT access token if present.
+    Returns None if no token or invalid token.
+    """
+    if not credentials:
+        return None
+
+    token = credentials.credentials
+    try:
+        payload = jwt.decode(
+            token,
+            settings.SUPABASE_JWT_SECRET,
+            algorithms=[settings.ALGORITHM],
+            audience="authenticated",
+        )
+        user_id: str = payload.get("sub")
+        if user_id is None:
+            return None
+
+        user_uuid = uuid.UUID(user_id)
+        user = await get_user_by_id(db=db, user_id=user_uuid)
+        return user
+    except (JWTError, ValueError):
+        return None

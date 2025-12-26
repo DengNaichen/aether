@@ -1,7 +1,8 @@
-from typing import ClassVar, Literal
-from pydantic import Field
+import logging
 import os
+from typing import ClassVar, Literal
 
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -22,10 +23,8 @@ class Settings(BaseSettings):
     # redis config
     REDIS_URL: str = Field(default="redis://redis:6379/0")
 
-    # Email config (Resend)
-    RESEND_API_KEY: str
-    FRONTEND_URL: str = Field(default="http://localhost:3000")  # Default for local dev
-    EMAIL_FROM: str
+    # AI API key
+    GOOGLE_API_KEY: str
 
     @property
     def is_testing(self) -> bool:
@@ -33,7 +32,6 @@ class Settings(BaseSettings):
 
 
 settings = Settings()  # type: ignore
-import logging
 
 logging.basicConfig(level=logging.INFO)
 logging.info(f"Settings loaded for ENVIRONMENT: {settings.ENVIRONMENT}")

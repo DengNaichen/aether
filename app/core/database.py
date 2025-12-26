@@ -1,6 +1,7 @@
 import asyncio
+import logging
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from typing import AsyncGenerator, Optional
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import (
@@ -13,11 +14,13 @@ from sqlalchemy.ext.asyncio import (
 from app.core.config import Settings, settings
 from app.models.base import Base
 
+logger = logging.getLogger(__name__)
+
 
 class DatabaseManager:
     def __init__(self, settings: Settings):
         self.settings = settings
-        self._sql_engine: Optional[AsyncEngine] = None
+        self._sql_engine: AsyncEngine | None = None
         self._session_local = None
 
     # ==================== PostgreSQL ====================
@@ -88,13 +91,13 @@ class DatabaseManager:
         }
         results = await asyncio.gather(*(check() for check in checks.values()))
         errors = []
-        for (is_ok, error_msg), name in zip(results, checks.keys()):
+        for (is_ok, error_msg), name in zip(results, checks.keys(), strict=True):
             if is_ok:
-                print(f"✅ {name} connected successfully")
+                logger.info(f"✅ {name} connected successfully")
             else:
                 errors.append(error_msg)
         if errors:
-            raise RuntimeError(f"Database initialization failed:\n" + "\n".join(errors))
+            raise RuntimeError("Database initialization failed:\n" + "\n".join(errors))
 
     async def health_check(self) -> dict:
         sql_status = await self._check_sql()
@@ -109,13 +112,13 @@ class DatabaseManager:
         """create all tables."""
         async with self.sql_engine.begin() as conn:
             await conn.run_sync(base.metadata.create_all)
-        print(f"✅ All SQL tables created.")
+        logger.info("✅ All SQL tables created.")
 
     async def drop_all_tables(self, base: Base):
         """drop all tables."""
         async with self.sql_engine.begin() as conn:
             await conn.run_sync(base.metadata.drop_all)
-        print(f"✅ All SQL tables Dropped.")
+        logger.info("✅ All SQL tables Dropped.")
 
     # ==================== Cleanup ====================
     async def close(self):
@@ -126,7 +129,7 @@ class DatabaseManager:
         if self._sql_engine:
             try:
                 await self._sql_engine.dispose()
-                print("✅ SQL engine closed")
+                logger.info("✅ SQL engine closed")
             except Exception as e:
                 errors.append(f"SQL close error: {e}")
 
