@@ -1,28 +1,22 @@
-"""Grading Service - Responsible for determining answer correctness.
+"""Grading Service - Orchestrator for grading operations.
 
-This service handles all grading logic for different question types:
-- Multiple Choice questions
-- Fill-in-the-Blank questions
-- Calculation questions
-
-It fetches question data from PostgreSQL and evaluates user answers.
+This service handles:
+- DB Transaction management
+- Data fetching (Question from PostgreSQL)
+- Calling GradingLogic for grading calculations
+- Packaging results
 """
 
 import logging
 from dataclasses import dataclass
 from uuid import UUID
-from typing import Optional
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.question import Question, QuestionType
 from app.schemas.quiz import AnyAnswer
-from app.schemas.questions import (
-    MultipleChoiceAnswer,
-    FillInTheBlankAnswer,
-    CalculationAnswer,
-)
+from app.utils.grading_logic import GradingLogic
 
 
 class GradingError(Exception):
@@ -38,6 +32,7 @@ class GradingResult:
     Attributes:
         question_id: The ID of the question that was graded
         is_correct: Whether the answer was correct
+        correct_answer: The correct answer schema
         p_g: Probability of guessing correctly (from question)
         p_s: Probability of slip (from question)
     """
@@ -54,10 +49,11 @@ class GradingService:
 
     This service is responsible for:
     1. Fetching question data from PostgreSQL
-    2. Determining correctness based on question type
-    3. Extracting BKT parameters (p_g, p_s) for mastery updates
+    2. Delegating to GradingLogic for grading
+    3. Packaging results with BKT parameters
 
     It does NOT:
+    - Contain grading algorithms (that's GradingLogic's job)
     - Update mastery levels (that's MasteryService's job)
     - Update quiz attempts (that's the handler's job)
     """
@@ -70,109 +66,16 @@ class GradingService:
         """
         self.db = db_session
 
-    @staticmethod
-    def _grade_multiple_choice(user_answer, correct_answer: int) -> bool:
-        """Grade a multiple choice question.
-
-        Args:
-            user_answer: The user's selected answer (int or string)
-            correct_answer: The correct answer (int)
-
-        Returns:
-            True if the answer is correct, False otherwise
-        """
-        # Handle string input from frontend
-        try:
-            user_answer_int = (
-                int(user_answer) if isinstance(user_answer, str) else user_answer
-            )
-            return user_answer_int == correct_answer
-        except (ValueError, TypeError):
-            return False
-
-    @staticmethod
-    def _grade_fill_in_blank(user_answer: str, expected_answers: list[str]) -> bool:
-        """Grade a fill-in-the-blank question.
-
-        Args:
-            user_answer: The user's answer
-            expected_answers: List of acceptable answers
-
-        Returns:
-            True if the user's answer matches any expected answer (case-insensitive)
-        """
-        normalized_user_answer = user_answer.lower().strip()
-        normalized_expected_answers = [ea.lower().strip() for ea in expected_answers]
-        return normalized_user_answer in normalized_expected_answers
-
-    @staticmethod
-    def _grade_calculation(
-        user_answer: str, expected_answer: str, precision: int
-    ) -> bool:
-        """Grade a calculation question with precision tolerance.
-
-        Args:
-            user_answer: The user's numerical answer
-            expected_answer: The expected numerical answer
-            precision: Number of decimal places for precision
-
-        Returns:
-            True if the answer is within tolerance, False otherwise
-
-        Raises:
-            ValueError: If the answers cannot be converted to float
-        """
-        precision_tolerance = 10**-precision
-        expected_val = float(expected_answer)
-        user_val = float(user_answer)
-        return abs(user_val - expected_val) < precision_tolerance
-
-    def _get_correct_answer_schema(self, question: Question) -> AnyAnswer:
-        """Helper to extract correct answer schema from question details."""
-        details = question.details
-        q_type = question.question_type
-
-        if q_type == QuestionType.MULTIPLE_CHOICE.value:
-            return MultipleChoiceAnswer(
-                question_type=QuestionType.MULTIPLE_CHOICE,
-                selected_option=details.get("correct_answer", -1),
-            )
-        elif q_type == QuestionType.FILL_BLANK.value:
-            expected = details.get("expected_answer", [])
-            return FillInTheBlankAnswer(
-                question_type=QuestionType.FILL_BLANK,
-                text_answer=expected[0] if expected else "",
-            )
-        elif q_type == QuestionType.CALCULATION.value:
-            expected = details.get("expected_answer", [])
-            val = 0
-            if expected:
-                try:
-                    val = int(float(expected[0]))
-                except ValueError:
-                    pass
-            return CalculationAnswer(
-                question_type=QuestionType.CALCULATION,
-                numeric_answer=val,
-            )
-
-        # Fallback
-        return MultipleChoiceAnswer(
-            question_type=QuestionType.MULTIPLE_CHOICE, selected_option=-1
-        )
-
     def grade_answer(
         self, question: Question, user_answer_json: dict
     ) -> tuple[bool, float, float]:
         """Grade a single answer based on the question type.
 
-        This function delegates to specific grading functions based on question
-        type and extracts BKT parameters (p_g, p_s) from the question details.
+        Delegates to GradingLogic for actual grading computation.
 
         Args:
-            - question: The Question model from PostgreSQL (already fetched)
-            - user_answer_json: Dictionary containing the user's answer with
-                            key 'user_answer'
+            question: The Question model from PostgreSQL (already fetched)
+            user_answer_json: Dictionary containing the user's answer with key 'user_answer'
 
         Returns:
             A tuple containing (is_correct, p_g, p_s).
@@ -184,62 +87,51 @@ class GradingService:
             user_ans = user_answer_json.get("user_answer")
             if user_ans is None:
                 raise GradingError(
-                    f"Missing 'user_answer' " f"in payload for question {question.id}"
+                    f"Missing 'user_answer' in payload for question {question.id}"
                 )
 
             # Extract details from JSONB field
             details = question.details
 
-            # Extract BKT parameters from details
-            p_g = details.get("p_g", 0.0)
-            p_s = details.get("p_s", 0.1)
+            # Extract BKT parameters using GradingLogic
+            p_g, p_s = GradingLogic.extract_bkt_parameters(details)
 
-            # Grade based on question type
+            # Grade based on question type - delegate to GradingLogic
             if question.question_type == QuestionType.MULTIPLE_CHOICE.value:
                 correct_answer = details.get("correct_answer")
                 if correct_answer is None:
                     raise GradingError(
-                        f"Missing 'correct_answer' "
-                        f"in details for question {question.id}"
+                        f"Missing 'correct_answer' in details for question {question.id}"
                     )
-
-                is_correct = self._grade_multiple_choice(user_ans, correct_answer)
-                return is_correct, p_g, p_s
+                is_correct = GradingLogic.grade_multiple_choice(user_ans, correct_answer)
 
             elif question.question_type == QuestionType.FILL_BLANK.value:
                 expected_answers = details.get("expected_answer", [])
                 if not expected_answers:
                     raise GradingError(
-                        f"Missing 'expected_answer'"
-                        f" in details for question {question.id}"
+                        f"Missing 'expected_answer' in details for question {question.id}"
                     )
-
-                is_correct = self._grade_fill_in_blank(user_ans, expected_answers)
-                return is_correct, p_g, p_s
+                is_correct = GradingLogic.grade_fill_in_blank(user_ans, expected_answers)
 
             elif question.question_type == QuestionType.CALCULATION.value:
                 expected_answers = details.get("expected_answer", [])
                 if not expected_answers:
                     raise GradingError(
-                        f"Missing 'expected_answer'"
-                        f" in details for question {question.id}"
+                        f"Missing 'expected_answer' in details for question {question.id}"
                     )
-
-                # Safely get the first expected answer
                 expected_answer = expected_answers[0]
                 precision = details.get("precision", 2)
-
-                is_correct = self._grade_calculation(
+                is_correct = GradingLogic.grade_calculation(
                     user_ans, expected_answer, precision
                 )
-                return is_correct, p_g, p_s
 
             else:
                 raise GradingError(
-                    f"Unknown question type "
-                    f"'{question.question_type}' "
+                    f"Unknown question type '{question.question_type}' "
                     f"for question {question.id}"
                 )
+
+            return is_correct, p_g, p_s
 
         except GradingError:
             # Re-raise custom exceptions to be handled by the caller
@@ -249,26 +141,26 @@ class GradingService:
                 f"Grading error for question {question.id}: {e}", exc_info=True
             )
             raise GradingError(
-                f"Internal grading error for question " f"{question.id}"
+                f"Internal grading error for question {question.id}"
             ) from e
 
     async def fetch_and_grade(
         self, question_id: UUID, user_answer: dict
-    ) -> Optional[GradingResult]:
+    ) -> GradingResult | None:
         """Fetch question from PostgreSQL and grade the answer.
 
         This is the main entry point for grading a single answer.
         It handles:
         1. Fetching the question from PostgreSQL
-        2. Grading the answer
+        2. Grading the answer via GradingLogic
         3. Packaging the result with BKT parameters
 
         Args:
-            - question_id: UUID of the question to grade
-            - user_answer: Dictionary containing the user's answer
+            question_id: UUID of the question to grade
+            user_answer: Dictionary containing the user's answer
 
         Returns:
-            - GradingResult if question exists, None if not found
+            GradingResult if question exists, None if not found
         """
         try:
             # Fetch question from PostgreSQL
@@ -288,22 +180,30 @@ class GradingService:
                 is_correct, p_g, p_s = self.grade_answer(question, user_answer)
             except GradingError as e:
                 logging.error(
-                    f"Failed to grade question {question_id}:" f" {e}", exc_info=True
+                    f"Failed to grade question {question_id}: {e}", exc_info=True
                 )
                 # Return a default GradingResult indicating failure but not crashing
                 # The is_correct=False ensures user doesn't get points for system error
+                correct_answer = GradingLogic.build_correct_answer_schema(
+                    question.question_type, question.details
+                )
                 return GradingResult(
                     question_id=str(question_id),
                     is_correct=False,
-                    correct_answer=self._get_correct_answer_schema(question),
+                    correct_answer=correct_answer,
                     p_g=0.0,
                     p_s=0.1,
                 )
 
+            # Build correct answer schema using GradingLogic
+            correct_answer = GradingLogic.build_correct_answer_schema(
+                question.question_type, question.details
+            )
+
             return GradingResult(
                 question_id=str(question_id),
                 is_correct=is_correct,
-                correct_answer=self._get_correct_answer_schema(question),
+                correct_answer=correct_answer,
                 p_g=p_g,
                 p_s=p_s,
             )
