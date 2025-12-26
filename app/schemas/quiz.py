@@ -1,14 +1,8 @@
-from datetime import datetime
-from typing import List, Optional, Union
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel
 
 from app.schemas.questions import (
-    MultipleChoiceQuestion,
-    FillInTheBlankQuestion,
-    CalculationQuestion,
-    AnyQuestion,
     AnyAnswer,
 )
 

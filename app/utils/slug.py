@@ -1,6 +1,7 @@
 import re
 import unicodedata
-from pypinyin import slug, Style
+
+from pypinyin import Style, slug
 
 
 def slugify(text: str) -> str:
