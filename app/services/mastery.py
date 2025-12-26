@@ -7,9 +7,10 @@ This service handles:
 - Calling MasteryLogic for calculations
 - Saving results
 """
+
 import logging
 from datetime import UTC, datetime
-from typing import Dict, Any
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -28,11 +29,11 @@ class MasteryService:
     # === Core Update Flow ===
 
     async def update_mastery_from_grading(
-            self,
-            db_session: AsyncSession,
-            user: User,
-            question_id: UUID,
-            grading_result: GradingResult,
+        self,
+        db_session: AsyncSession,
+        user: User,
+        question_id: UUID,
+        grading_result: GradingResult,
     ) -> KnowledgeNode | None:
         """
         Orchestrates the update process:
@@ -44,34 +45,44 @@ class MasteryService:
             logger.warning(f"Question {question_id} not found")
             return None
 
-        knowledge_node = await mastery_crud.get_node_by_question(db_session, question_in_db)
+        knowledge_node = await mastery_crud.get_node_by_question(
+            db_session, question_in_db
+        )
         if not knowledge_node:
             logger.warning(f"Node not found for question {question_id}")
             return None
 
         # 2. Update the direct node
         await self._update_single_node_mastery(
-            db_session, user, knowledge_node,
-            grading_result.is_correct, grading_result.p_g, grading_result.p_s
+            db_session,
+            user,
+            knowledge_node,
+            grading_result.is_correct,
+            grading_result.p_g,
+            grading_result.p_s,
         )
 
         # 3. Trigger Propagation (Ideally this should be a background task!)
         # For now, we keep it inline but call the modularized version
         await self.propagate_mastery(
-            db_session, user, knowledge_node,
-            grading_result.is_correct, grading_result.p_g, grading_result.p_s
+            db_session,
+            user,
+            knowledge_node,
+            grading_result.is_correct,
+            grading_result.p_g,
+            grading_result.p_s,
         )
 
         return knowledge_node
 
     async def _update_single_node_mastery(
-            self,
-            db_session: AsyncSession,
-            user: User,
-            knowledge_node: KnowledgeNode,
-            is_correct: bool,
-            p_g: float,
-            p_s: float
+        self,
+        db_session: AsyncSession,
+        user: User,
+        knowledge_node: KnowledgeNode,
+        is_correct: bool,
+        p_g: float,
+        p_s: float,
     ) -> None:
         """Helper to update a single node's mastery."""
         now = datetime.now(UTC)
@@ -83,29 +94,27 @@ class MasteryService:
 
         # Call Pure Logic
         updates = MasteryLogic.calculate_next_state(
-            mastery=mastery_rel,
-            is_correct=is_correct,
-            p_g=p_g,
-            p_s=p_s,
-            now=now
+            mastery=mastery_rel, is_correct=is_correct, p_g=p_g, p_s=p_s, now=now
         )
 
         # Apply Updates to DB Model
         self._apply_updates_to_model(mastery_rel, updates)
 
         await db_session.flush()
-        logger.info(f"Updated mastery for node {knowledge_node.id}, Score: {updates['score']:.2f}")
+        logger.info(
+            f"Updated mastery for node {knowledge_node.id}, Score: {updates['score']:.2f}"
+        )
 
     # === Propagation Flow ===
 
     async def propagate_mastery(
-            self,
-            db_session: AsyncSession,
-            user: User,
-            node_answered: KnowledgeNode,
-            is_correct: bool,
-            p_g: float,
-            p_s: float,
+        self,
+        db_session: AsyncSession,
+        user: User,
+        node_answered: KnowledgeNode,
+        is_correct: bool,
+        p_g: float,
+        p_s: float,
     ) -> None:
         """
         Handles bulk propagation:
@@ -119,8 +128,10 @@ class MasteryService:
         # 1. FETCH IDs PHASE
         leaf_ids_to_bonus_with_depth = {}
         if is_correct:
-            leaf_ids_to_bonus_with_depth = await mastery_crud.get_prerequisite_roots_to_bonus(
-                db_session, node_answered.graph_id, node_answered.id
+            leaf_ids_to_bonus_with_depth = (
+                await mastery_crud.get_prerequisite_roots_to_bonus(
+                    db_session, node_answered.graph_id, node_answered.id
+                )
             )
 
         changed_node_ids = {node_answered.id} | set(leaf_ids_to_bonus_with_depth.keys())
@@ -137,7 +148,9 @@ class MasteryService:
             db_session, node_answered.graph_id, list(parent_ids_only)
         )
 
-        all_child_ids = {child_id for children in subtopic_map.values() for child_id, _ in children}
+        all_child_ids = {
+            child_id for children in subtopic_map.values() for child_id, _ in children
+        }
         all_nodes_to_fetch = changed_node_ids | set(parent_ids_only) | all_child_ids
 
         mastery_map = await mastery_crud.get_masteries_by_nodes(
@@ -177,7 +190,7 @@ class MasteryService:
             logger.debug(f"Implicit Review applied for {leaf_id}")
 
         # 3b. Upward Propagation (Parent Aggregation)
-        for parent_id, level in parents_with_level:
+        for parent_id, _level in parents_with_level:
             child_relations = subtopic_map.get(parent_id, [])
 
             parent_mastery_rel = mastery_map.get(parent_id)
@@ -212,7 +225,7 @@ class MasteryService:
     # === Read Operations ===
 
     async def get_retrievability(
-            self, db_session: AsyncSession, user: User, knowledge_node: KnowledgeNode
+        self, db_session: AsyncSession, user: User, knowledge_node: KnowledgeNode
     ) -> float | None:
         """Get dynamic retrievability."""
         mastery_rel = await mastery_crud.get_mastery(
@@ -226,7 +239,7 @@ class MasteryService:
     # === Utilities ===
 
     @staticmethod
-    def _apply_updates_to_model(model: UserMastery, updates: Dict[str, Any]) -> None:
+    def _apply_updates_to_model(model: UserMastery, updates: dict[str, Any]) -> None:
         """Helper to apply dictionary updates to SQLAlchemy model."""
         review_log_entry = updates.pop("review_log_entry", None)
 
