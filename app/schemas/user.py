@@ -14,6 +14,7 @@ class UserBase(BaseModel):
         email (EmailStr): The user's email address.
         name (str): The user's full name.
     """
+
     email: EmailStr
     name: str
 
@@ -55,6 +56,7 @@ class UserRead(UserBase):
         created_at (datetime.datetime): Timestamp of when the user was created.
         updated_at (datetime.datetime): Timestamp of the last update to user.
     """
+
     id: uuid.UUID
     is_active: bool
     is_admin: bool

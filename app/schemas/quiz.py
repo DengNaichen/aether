@@ -4,9 +4,16 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict
 
-from app.schemas.questions import MultipleChoiceQuestion, FillInTheBlankQuestion, CalculationQuestion, AnyQuestion, AnyAnswer
+from app.schemas.questions import (
+    MultipleChoiceQuestion,
+    FillInTheBlankQuestion,
+    CalculationQuestion,
+    AnyQuestion,
+    AnyAnswer,
+)
 
 # ==================== Single Answer Submission Schemas ====================
+
 
 class SingleAnswerSubmitRequest(BaseModel):
     """Request schema for submitting a single answer.
@@ -18,6 +25,7 @@ class SingleAnswerSubmitRequest(BaseModel):
         user_answer: The user's answer (discriminated union based on question type)
         graph_id: UUID of the knowledge graph (to track which graph this practice belongs to)
     """
+
     question_id: UUID
     user_answer: AnyAnswer
     graph_id: UUID
@@ -34,7 +42,8 @@ class SingleAnswerSubmitResponse(BaseModel):
         mastery_updated: Whether mastery level was updated successfully
         next_question_id: Optional UUID of recommended next question
     """
+
     answer_id: UUID
     is_correct: bool
     mastery_updated: bool
-    next_question_id: Optional[UUID] = None
+    correct_answer: AnyAnswer

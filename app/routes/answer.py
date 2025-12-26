@@ -86,15 +86,14 @@ async def submit_single_answer(
         answer_value = user_answer_dict
 
     grading_result = await grading_service.fetch_and_grade(
-        question_id=answer_data.question_id,
-        user_answer={"user_answer": answer_value}
+        question_id=answer_data.question_id, user_answer={"user_answer": answer_value}
     )
 
     if not grading_result:
         logger.error(f"Question {answer_data.question_id} not found")
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Question {answer_data.question_id} not found"
+            detail=f"Question {answer_data.question_id} not found",
         )
 
     logger.info(
@@ -122,7 +121,7 @@ async def submit_single_answer(
             db_session=db,
             user=current_user,
             question_id=answer_data.question_id,
-            grading_result=grading_result
+            grading_result=grading_result,
         )
 
         if knowledge_node_result:
@@ -137,7 +136,7 @@ async def submit_single_answer(
                 new_score = await mastery_service.get_mastery_score(
                     db_session=db,
                     user=current_user,
-                    knowledge_node=knowledge_node_result
+                    knowledge_node=knowledge_node_result,
                 )
 
                 await mastery_service.propagate_mastery(
@@ -148,14 +147,12 @@ async def submit_single_answer(
                     p_g=grading_result.p_g,
                     p_s=grading_result.p_s,
                 )
-                logger.info(
-                    f"Propagated mastery for node {knowledge_node_result.id}"
-                )
+                logger.info(f"Propagated mastery for node {knowledge_node_result.id}")
             except Exception as e:
                 # Don't fail the entire request if propagation fails
                 logger.error(
                     f"Mastery propagation failed for node {knowledge_node_result.id}: {e}",
-                    exc_info=True
+                    exc_info=True,
                 )
         else:
             logger.warning(
@@ -166,7 +163,7 @@ async def submit_single_answer(
     except Exception as e:
         logger.error(
             f"Mastery update failed for question {answer_data.question_id}: {e}",
-            exc_info=True
+            exc_info=True,
         )
         # Continue to save the answer even if mastery update fails
         mastery_updated = False
@@ -182,7 +179,7 @@ async def submit_single_answer(
         logger.error(f"Failed to save answer: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to save answer"
+            detail="Failed to save answer",
         )
 
     # Step 6: (Future) Get next question recommendation
@@ -194,5 +191,5 @@ async def submit_single_answer(
         answer_id=submission_answer.id,
         is_correct=grading_result.is_correct,
         mastery_updated=mastery_updated,
-        next_question_id=None  # TODO: Implement recommendation
+        correct_answer=grading_result.correct_answer,
     )

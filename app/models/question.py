@@ -79,7 +79,9 @@ class Question(Base):
 
     # Optional: track who created this question (for future PR features)
     created_by = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"))
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    created_at = Column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
 
     # Relationships
     node = relationship("KnowledgeNode", back_populates="questions")

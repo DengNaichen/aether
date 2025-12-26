@@ -21,9 +21,7 @@ class TestTokenRefresh:
 
     @pytest.mark.asyncio
     async def test_refresh_token_returns_both_tokens(
-        self,
-        client: AsyncClient,
-        user_in_db: User
+        self, client: AsyncClient, user_in_db: User
     ):
         """
         Test that /users/refresh returns both access_token and refresh_token
@@ -32,10 +30,7 @@ class TestTokenRefresh:
         implementation only returns access_token.
         """
         # Step 1: Login to get initial tokens
-        login_data = {
-            "username": TEST_USER_EMAIL,
-            "password": TEST_USER_PASSWORD
-        }
+        login_data = {"username": TEST_USER_EMAIL, "password": TEST_USER_PASSWORD}
         login_response = await client.post("/users/login", data=login_data)
         assert login_response.status_code == 200
 
@@ -63,9 +58,7 @@ class TestTokenRefresh:
 
     @pytest.mark.asyncio
     async def test_refresh_token_invalidates_old_token(
-        self,
-        client: AsyncClient,
-        user_in_db: User
+        self, client: AsyncClient, user_in_db: User
     ):
         """
         Test that after refreshing, the old refresh_token becomes invalid
@@ -73,10 +66,7 @@ class TestTokenRefresh:
         This ensures token rotation is working properly.
         """
         # Login to get initial tokens
-        login_data = {
-            "username": TEST_USER_EMAIL,
-            "password": TEST_USER_PASSWORD
-        }
+        login_data = {"username": TEST_USER_EMAIL, "password": TEST_USER_PASSWORD}
         login_response = await client.post("/users/login", data=login_data)
         old_refresh_token = login_response.json()["refresh_token"]
 
@@ -94,10 +84,7 @@ class TestTokenRefresh:
         assert "Invalid refresh token" in response_data["detail"]
 
     @pytest.mark.asyncio
-    async def test_refresh_token_with_invalid_token(
-        self,
-        client: AsyncClient
-    ):
+    async def test_refresh_token_with_invalid_token(self, client: AsyncClient):
         """
         Test that an invalid/fake refresh token is rejected
         """
@@ -113,21 +100,16 @@ class TestTokenRefresh:
 
     @pytest.mark.asyncio
     async def test_refresh_token_with_expired_token(
-        self,
-        client: AsyncClient,
-        user_in_db: User
+        self, client: AsyncClient, user_in_db: User
     ):
         """
         Test that an expired refresh token is rejected
         """
         # Create an expired refresh token (expired 1 day ago)
         expired_token = jwt.encode(
-            {
-                "sub": str(user_in_db.id),
-                "exp": timedelta(days=-1)
-            },
+            {"sub": str(user_in_db.id), "exp": timedelta(days=-1)},
             settings.SECRET_KEY,
-            algorithm=settings.ALGORITHM
+            algorithm=settings.ALGORITHM,
         )
 
         refresh_payload = {"refresh_token": expired_token}
@@ -140,20 +122,14 @@ class TestTokenRefresh:
 
     @pytest.mark.asyncio
     async def test_refresh_token_saves_new_token_to_db(
-        self,
-        client: AsyncClient,
-        user_in_db: User,
-        db_session: AsyncSession
+        self, client: AsyncClient, user_in_db: User, db_session: AsyncSession
     ):
         """
         Test that the new refresh_token is saved to the database
         and the old one is replaced
         """
         # Login to get initial tokens
-        login_data = {
-            "username": TEST_USER_EMAIL,
-            "password": TEST_USER_PASSWORD
-        }
+        login_data = {"username": TEST_USER_EMAIL, "password": TEST_USER_PASSWORD}
         login_response = await client.post("/users/login", data=login_data)
         old_refresh_token = login_response.json()["refresh_token"]
 
@@ -174,22 +150,16 @@ class TestTokenRefresh:
         assert user_in_db.refresh_token != old_refresh_token
 
     @pytest.mark.asyncio
-    async def test_refresh_token_with_nonexistent_user(
-        self,
-        client: AsyncClient
-    ):
+    async def test_refresh_token_with_nonexistent_user(self, client: AsyncClient):
         """
         Test that a valid token for a non-existent user is rejected
         """
         # Create a token for a non-existent user ID
         fake_user_id = "00000000-0000-0000-0000-000000000000"
         fake_token = jwt.encode(
-            {
-                "sub": fake_user_id,
-                "exp": timedelta(days=7)
-            },
+            {"sub": fake_user_id, "exp": timedelta(days=7)},
             settings.SECRET_KEY,
-            algorithm=settings.ALGORITHM
+            algorithm=settings.ALGORITHM,
         )
 
         refresh_payload = {"refresh_token": fake_token}

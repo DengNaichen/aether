@@ -1,7 +1,8 @@
-import uuid
 from enum import Enum
 
 from sqlalchemy import (
+    TIMESTAMP,
+    Boolean,
     CheckConstraint,
     Column,
     DateTime,
@@ -9,9 +10,7 @@ from sqlalchemy import (
     ForeignKey,
     ForeignKeyConstraint,
     Index,
-    TIMESTAMP,
     String,
-    Boolean,
 )
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import relationship
@@ -56,7 +55,6 @@ class User(Base):
     email = Column(String, unique=True, nullable=False)
     is_active = Column(Boolean, default=True)
     is_admin = Column(Boolean, default=False, nullable=False)
-
 
     created_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
     updated_at = Column(
@@ -131,10 +129,9 @@ class UserMastery(Base):
     )
     node_id = Column(UUID(as_uuid=True), primary_key=True, nullable=False)
 
-    # BKT parameters
-    score = Column(Float, default=0.1, nullable=False)
-    p_l0 = Column(Float, default=0.2, nullable=False)
-    p_t = Column(Float, default=0.2, nullable=False)
+    # BKT parameters - REMOVED
+    # score is now "Cached Retrievability" (FSRS) instead of BKT Probability
+    score = Column(Float, default=0.0, nullable=False)
 
     # FSRS parameters
     fsrs_state = Column(String, default=FSRSState.LEARNING.value, nullable=False)
@@ -161,10 +158,8 @@ class UserMastery(Base):
             ["knowledge_nodes.graph_id", "knowledge_nodes.id"],
             ondelete="CASCADE",
         ),
-        # BKT constraints
+        # Constraints
         CheckConstraint("score >= 0.0 AND score <= 1.0", name="ck_mastery_score"),
-        CheckConstraint("p_l0 >= 0.0 AND p_l0 <= 1.0", name="ck_mastery_p_l0"),
-        CheckConstraint("p_t >= 0.0 AND p_t <= 1.0", name="ck_mastery_p_t"),
         # FSRS constraints
         CheckConstraint(
             f"fsrs_state IN ('{FSRSState.LEARNING.value}', "

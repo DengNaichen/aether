@@ -58,7 +58,9 @@ class TestQuestionServiceRecommendation:
         due_nodes = await service.find_due_nodes(test_db, user.id, graph.id)
 
         # Verify
-        assert len(due_nodes) >= 1, f"Should find at least one due node (got {len(due_nodes)})"
+        assert (
+            len(due_nodes) >= 1
+        ), f"Should find at least one due node (got {len(due_nodes)})"
         node, mastery_data = due_nodes[0]
         assert node.id == derivatives_node.id
         assert mastery_data["score"] == 0.5
@@ -615,7 +617,9 @@ class TestQuestionServiceRecommendation:
         await test_db.commit()
 
         # Get available nodes
-        available = await service.get_available_nodes(test_db, user.id, graph.id, limit=10)
+        available = await service.get_available_nodes(
+            test_db, user.id, graph.id, limit=10
+        )
 
         # Verify
         assert "due_review" in available

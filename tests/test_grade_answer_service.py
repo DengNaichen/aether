@@ -25,41 +25,59 @@ def grading_service(test_db: AsyncSession) -> GradingService:
 class TestGradingServiceHelpers:
     """Unit tests for the static helper methods in GradingService."""
 
-    @pytest.mark.parametrize("user_answer, correct_answer, expected", [
-        (1, 1, True),          # Correct integer
-        ("1", 1, True),        # Correct string
-        (0, 1, False),         # Incorrect integer
-        ("0", 1, False),         # Incorrect string
-        ("abc", 1, False),       # Invalid string
-        (None, 1, False),        # None value
-    ])
+    @pytest.mark.parametrize(
+        "user_answer, correct_answer, expected",
+        [
+            (1, 1, True),  # Correct integer
+            ("1", 1, True),  # Correct string
+            (0, 1, False),  # Incorrect integer
+            ("0", 1, False),  # Incorrect string
+            ("abc", 1, False),  # Invalid string
+            (None, 1, False),  # None value
+        ],
+    )
     def test_grade_multiple_choice(self, user_answer, correct_answer, expected):
         """Test _grade_multiple_choice with various inputs."""
-        assert GradingService._grade_multiple_choice(user_answer, correct_answer) == expected
+        assert (
+            GradingService._grade_multiple_choice(user_answer, correct_answer)
+            == expected
+        )
 
-    @pytest.mark.parametrize("user_answer, expected_answers, expected", [
-        ("Paris", ["Paris", "paris"], True),          # Correct, exact match
-        ("paris", ["Paris"], True),                  # Correct, case-insensitive
-        ("  paris  ", ["Paris"], True),                # Correct, with whitespace
-        ("London", ["Paris", "paris"], False),       # Incorrect
-        ("", ["Paris"], False),                      # Empty answer
-    ])
+    @pytest.mark.parametrize(
+        "user_answer, expected_answers, expected",
+        [
+            ("Paris", ["Paris", "paris"], True),  # Correct, exact match
+            ("paris", ["Paris"], True),  # Correct, case-insensitive
+            ("  paris  ", ["Paris"], True),  # Correct, with whitespace
+            ("London", ["Paris", "paris"], False),  # Incorrect
+            ("", ["Paris"], False),  # Empty answer
+        ],
+    )
     def test_grade_fill_in_blank(self, user_answer, expected_answers, expected):
         """Test _grade_fill_in_blank with various inputs."""
-        assert GradingService._grade_fill_in_blank(user_answer, expected_answers) == expected
+        assert (
+            GradingService._grade_fill_in_blank(user_answer, expected_answers)
+            == expected
+        )
 
-    @pytest.mark.parametrize("user_answer, expected_answer, precision, expected", [
-        ("78.54", "78.54", 2, True),         # Exact match
-        ("78.539", "78.54", 2, True),        # Within precision
-        ("78.541", "78.54", 2, True),        # Within precision
-        ("78.55", "78.54", 2, False),         # Outside precision
-        ("78.53", "78.54", 2, False),         # Outside precision
-        ("100", "100.001", 2, True),         # Precision tolerance check
-        ("100", "100.01", 2, False),         # Just outside tolerance
-    ])
+    @pytest.mark.parametrize(
+        "user_answer, expected_answer, precision, expected",
+        [
+            ("78.54", "78.54", 2, True),  # Exact match
+            ("78.539", "78.54", 2, True),  # Within precision
+            ("78.541", "78.54", 2, True),  # Within precision
+            ("78.55", "78.54", 2, False),  # Outside precision
+            ("78.53", "78.54", 2, False),  # Outside precision
+            ("100", "100.001", 2, True),  # Precision tolerance check
+            ("100", "100.01", 2, False),  # Just outside tolerance
+        ],
+    )
     def test_grade_calculation(self, user_answer, expected_answer, precision, expected):
         """Test _grade_calculation with precision tolerance."""
-        assert GradingService._grade_calculation(user_answer, expected_answer, precision) == expected
+        assert (
+            GradingService._grade_calculation(user_answer, expected_answer, precision)
+            == expected
+        )
 
     def test_grade_calculation_raises_value_error(self):
         """Test that _grade_calculation raises ValueError for non-numeric input."""
@@ -128,53 +146,87 @@ class TestGradeAnswerMethod:
             difficulty=QuestionDifficulty.HARD.value,
         )
 
-    def test_grade_mcq_correct(self, grading_service: GradingService, mcq_question: Question):
+    def test_grade_mcq_correct(
+        self, grading_service: GradingService, mcq_question: Question
+    ):
         """Test grading a correct multiple-choice answer."""
-        is_correct, p_g, p_s = grading_service.grade_answer(mcq_question, {"user_answer": "1"})
+        is_correct, p_g, p_s = grading_service.grade_answer(
+            mcq_question, {"user_answer": "1"}
+        )
         assert is_correct is True
         assert p_g == 0.33
         assert p_s == 0.1
 
-    def test_grade_mcq_incorrect(self, grading_service: GradingService, mcq_question: Question):
+    def test_grade_mcq_incorrect(
+        self, grading_service: GradingService, mcq_question: Question
+    ):
         """Test grading an incorrect multiple-choice answer."""
-        is_correct, _, _ = grading_service.grade_answer(mcq_question, {"user_answer": "0"})
+        is_correct, _, _ = grading_service.grade_answer(
+            mcq_question, {"user_answer": "0"}
+        )
         assert is_correct is False
 
-    def test_grade_fib_correct(self, grading_service: GradingService, fib_question: Question):
+    def test_grade_fib_correct(
+        self, grading_service: GradingService, fib_question: Question
+    ):
         """Test grading a correct fill-in-the-blank answer."""
-        is_correct, p_g, p_s = grading_service.grade_answer(fib_question, {"user_answer": "  Paris  "})
+        is_correct, p_g, p_s = grading_service.grade_answer(
+            fib_question, {"user_answer": "  Paris  "}
+        )
         assert is_correct is True
         assert p_g == 0.01
         assert p_s == 0.15
 
-    def test_grade_calc_correct(self, grading_service: GradingService, calc_question: Question):
+    def test_grade_calc_correct(
+        self, grading_service: GradingService, calc_question: Question
+    ):
         """Test grading a correct calculation answer."""
-        is_correct, p_g, p_s = grading_service.grade_answer(calc_question, {"user_answer": "78.539"})
+        is_correct, p_g, p_s = grading_service.grade_answer(
+            calc_question, {"user_answer": "78.539"}
+        )
         assert is_correct is True
         assert p_g == 0.0
         assert p_s == 0.2
 
-    def test_grade_answer_missing_user_answer_raises_error(self, grading_service: GradingService, mcq_question: Question):
+    def test_grade_answer_missing_user_answer_raises_error(
+        self, grading_service: GradingService, mcq_question: Question
+    ):
         """Test that missing 'user_answer' key raises GradingError."""
         with pytest.raises(GradingError, match="Missing 'user_answer'"):
             grading_service.grade_answer(mcq_question, {"answer": "1"})
 
-    def test_grade_answer_unknown_question_type_raises_error(self, grading_service: GradingService):
+    def test_grade_answer_unknown_question_type_raises_error(
+        self, grading_service: GradingService
+    ):
         """Test that an unknown question type raises GradingError."""
         unknown_question = Question(
-            id=uuid4(), graph_id=uuid4(), node_id=uuid4(),
-            question_type="short_answer", text="?", details={}, difficulty="easy"
+            id=uuid4(),
+            graph_id=uuid4(),
+            node_id=uuid4(),
+            question_type="short_answer",
+            text="?",
+            details={},
+            difficulty="easy",
         )
         with pytest.raises(GradingError, match="Unknown question type"):
-            grading_service.grade_answer(unknown_question, {"user_answer": "some answer"})
+            grading_service.grade_answer(
+                unknown_question, {"user_answer": "some answer"}
+            )
 
-    def test_grade_answer_missing_details_raises_error(self, grading_service: GradingService, mcq_question: Question):
+    def test_grade_answer_missing_details_raises_error(
+        self, grading_service: GradingService, mcq_question: Question
+    ):
         """Test that missing critical details (e.g., correct_answer) raises GradingError."""
-        mcq_question.details = {"question_type": "multiple_choice", "options": []}  # Missing correct_answer
+        mcq_question.details = {
+            "question_type": "multiple_choice",
+            "options": [],
+        }  # Missing correct_answer
         with pytest.raises(GradingError, match="Missing 'correct_answer'"):
             grading_service.grade_answer(mcq_question, {"user_answer": "1"})
 
-    def test_grade_answer_wraps_internal_error(self, grading_service: GradingService, calc_question: Question):
+    def test_grade_answer_wraps_internal_error(
+        self, grading_service: GradingService, calc_question: Question
+    ):
         """Test that internal errors like ValueError are wrapped in GradingError."""
         with pytest.raises(GradingError, match="Internal grading error"):
             grading_service.grade_answer(calc_question, {"user_answer": "not-a-number"})
@@ -209,9 +261,7 @@ class TestFetchAndGradeMethod:
         return question
 
     async def test_fetch_and_grade_success(
-        self,
-        grading_service: GradingService,
-        question_in_db: Question
+        self, grading_service: GradingService, question_in_db: Question
     ):
         """Test the happy path: fetching a question and grading it correctly."""
         user_answer = {"user_answer": "1"}  # Correct answer
@@ -225,9 +275,7 @@ class TestFetchAndGradeMethod:
         assert result.p_s == 0.1
 
     async def test_fetch_and_grade_incorrect_answer(
-        self,
-        grading_service: GradingService,
-        question_in_db: Question
+        self, grading_service: GradingService, question_in_db: Question
     ):
         """Test fetching a question and grading an incorrect answer."""
         user_answer = {"user_answer": "0"}  # Incorrect answer
@@ -238,8 +286,7 @@ class TestFetchAndGradeMethod:
         assert result.is_correct is False
 
     async def test_fetch_and_grade_question_not_found(
-        self,
-        grading_service: GradingService
+        self, grading_service: GradingService
     ):
         """Test that `fetch_and_grade` returns None for a non-existent question ID."""
         non_existent_id = uuid4()
@@ -250,9 +297,7 @@ class TestFetchAndGradeMethod:
         assert result is None
 
     async def test_fetch_and_grade_handles_grading_error(
-        self,
-        grading_service: GradingService,
-        question_in_db: Question
+        self, grading_service: GradingService, question_in_db: Question
     ):
         """
         Test that `fetch_and_grade` catches a GradingError and returns a default
@@ -261,7 +306,9 @@ class TestFetchAndGradeMethod:
         # This payload is missing the 'user_answer' key, which will cause a GradingError
         invalid_user_answer = {"answer": "1"}
 
-        result = await grading_service.fetch_and_grade(question_in_db.id, invalid_user_answer)
+        result = await grading_service.fetch_and_grade(
+            question_in_db.id, invalid_user_answer
+        )
 
         assert isinstance(result, GradingResult)
         assert result.question_id == str(question_in_db.id)
@@ -272,10 +319,7 @@ class TestFetchAndGradeMethod:
         assert result.p_s == 0.1
 
     async def test_fetch_and_grade_handles_unexpected_exception(
-        self,
-        grading_service: GradingService,
-        question_in_db: Question,
-        mocker
+        self, grading_service: GradingService, question_in_db: Question, mocker
     ):
         """
         Test that `fetch_and_grade` returns None if an unexpected exception occurs
@@ -284,8 +328,8 @@ class TestFetchAndGradeMethod:
         # Mock the database execute method to raise an unexpected error
         mocker.patch.object(
             grading_service.db,
-            'execute',
-            side_effect=Exception("Unexpected database connection error")
+            "execute",
+            side_effect=Exception("Unexpected database connection error"),
         )
 
         user_answer = {"user_answer": "1"}

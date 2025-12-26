@@ -21,24 +21,23 @@ from app.schemas.knowledge_node import (
 
 
 async def get_graph_by_owner_and_slug(
-        db_session: AsyncSession,
-        owner_id: UUID,
-        slug: str,
+    db_session: AsyncSession,
+    owner_id: UUID,
+    slug: str,
 ) -> Optional[KnowledgeGraph]:
     """
     Check if the user has knowledge graph with same slug
     """
     stmt = select(KnowledgeGraph).where(
-        KnowledgeGraph.owner_id == owner_id,
-        KnowledgeGraph.slug == slug
+        KnowledgeGraph.owner_id == owner_id, KnowledgeGraph.slug == slug
     )
     result = await db_session.execute(stmt)
     return result.scalar_one_or_none()
 
 
 async def get_graph_by_id(
-        db_session: AsyncSession,
-        graph_id: UUID,
+    db_session: AsyncSession,
+    graph_id: UUID,
 ) -> Optional[KnowledgeGraph]:
     """
     Get knowledge graph by ID
@@ -49,14 +48,14 @@ async def get_graph_by_id(
 
 
 async def create_knowledge_graph(
-        db_session: AsyncSession,
-        owner_id: UUID,
-        name: str,
-        slug: str,
-        description: str | None = None,
-        tags: list[str] | None = None,
-        is_public: bool = False,
-        is_template: bool = False,
+    db_session: AsyncSession,
+    owner_id: UUID,
+    name: str,
+    slug: str,
+    description: str | None = None,
+    tags: list[str] | None = None,
+    is_public: bool = False,
+    is_template: bool = False,
 ) -> KnowledgeGraph:
     graph = KnowledgeGraph(
         owner_id=owner_id,
@@ -74,8 +73,8 @@ async def create_knowledge_graph(
 
 
 async def get_graphs_by_owner(
-        db_session: AsyncSession,
-        owner_id: UUID,
+    db_session: AsyncSession,
+    owner_id: UUID,
 ) -> List[Dict[str, Any]]:
     """
     Get all knowledge graphs owned by a specific user.
@@ -89,10 +88,7 @@ async def get_graphs_by_owner(
     """
     # Subquery to count nodes per graph
     node_count_subquery = (
-        select(
-            KnowledgeNode.graph_id,
-            func.count(KnowledgeNode.id).label('node_count')
-        )
+        select(KnowledgeNode.graph_id, func.count(KnowledgeNode.id).label("node_count"))
         .group_by(KnowledgeNode.graph_id)
         .subquery()
     )
@@ -101,11 +97,10 @@ async def get_graphs_by_owner(
     stmt = (
         select(
             KnowledgeGraph,
-            func.coalesce(node_count_subquery.c.node_count, 0).label('node_count')
+            func.coalesce(node_count_subquery.c.node_count, 0).label("node_count"),
         )
         .outerjoin(
-            node_count_subquery,
-            KnowledgeGraph.id == node_count_subquery.c.graph_id
+            node_count_subquery, KnowledgeGraph.id == node_count_subquery.c.graph_id
         )
         .where(KnowledgeGraph.owner_id == owner_id)
         .order_by(KnowledgeGraph.created_at.desc())
@@ -121,18 +116,18 @@ async def get_graphs_by_owner(
         node_count = row[1]
 
         graph_dict = {
-            'id': graph.id,
-            'name': graph.name,
-            'slug': graph.slug,
-            'description': graph.description,
-            'tags': graph.tags,
-            'is_public': graph.is_public,
-            'is_template': graph.is_template,
-            'owner_id': graph.owner_id,
-            'enrollment_count': graph.enrollment_count,
-            'node_count': node_count,
-            'is_enrolled': None,
-            'created_at': graph.created_at,
+            "id": graph.id,
+            "name": graph.name,
+            "slug": graph.slug,
+            "description": graph.description,
+            "tags": graph.tags,
+            "is_public": graph.is_public,
+            "is_template": graph.is_template,
+            "owner_id": graph.owner_id,
+            "enrollment_count": graph.enrollment_count,
+            "node_count": node_count,
+            "is_enrolled": None,
+            "created_at": graph.created_at,
         }
         graphs_with_counts.append(graph_dict)
 
@@ -140,8 +135,8 @@ async def get_graphs_by_owner(
 
 
 async def get_all_template_graphs(
-        db_session: AsyncSession,
-        user_id: Optional[UUID] = None,
+    db_session: AsyncSession,
+    user_id: Optional[UUID] = None,
 ) -> List[Dict[str, Any]]:
     """
     Get all template knowledge graphs with node counts and enrollment status.
@@ -160,10 +155,7 @@ async def get_all_template_graphs(
     """
     # Subquery to count nodes per graph
     node_count_subquery = (
-        select(
-            KnowledgeNode.graph_id,
-            func.count(KnowledgeNode.id).label('node_count')
-        )
+        select(KnowledgeNode.graph_id, func.count(KnowledgeNode.id).label("node_count"))
         .group_by(KnowledgeNode.graph_id)
         .subquery()
     )
@@ -172,11 +164,10 @@ async def get_all_template_graphs(
     stmt = (
         select(
             KnowledgeGraph,
-            func.coalesce(node_count_subquery.c.node_count, 0).label('node_count')
+            func.coalesce(node_count_subquery.c.node_count, 0).label("node_count"),
         )
         .outerjoin(
-            node_count_subquery,
-            KnowledgeGraph.id == node_count_subquery.c.graph_id
+            node_count_subquery, KnowledgeGraph.id == node_count_subquery.c.graph_id
         )
         .where(KnowledgeGraph.is_template == True)
         .order_by(KnowledgeGraph.created_at.desc())
@@ -202,18 +193,18 @@ async def get_all_template_graphs(
 
         # Create a dict from the graph object
         graph_dict = {
-            'id': graph.id,
-            'name': graph.name,
-            'slug': graph.slug,
-            'description': graph.description,
-            'tags': graph.tags,
-            'is_public': graph.is_public,
-            'is_template': graph.is_template,
-            'owner_id': graph.owner_id,
-            'enrollment_count': graph.enrollment_count,
-            'node_count': node_count,
-            'is_enrolled': graph.id in enrollment_graph_ids if user_id else None,
-            'created_at': graph.created_at,
+            "id": graph.id,
+            "name": graph.name,
+            "slug": graph.slug,
+            "description": graph.description,
+            "tags": graph.tags,
+            "is_public": graph.is_public,
+            "is_template": graph.is_template,
+            "owner_id": graph.owner_id,
+            "enrollment_count": graph.enrollment_count,
+            "node_count": node_count,
+            "is_enrolled": graph.id in enrollment_graph_ids if user_id else None,
+            "created_at": graph.created_at,
         }
         graphs_with_counts.append(graph_dict)
 
@@ -224,8 +215,8 @@ async def get_all_template_graphs(
 
 
 async def is_leaf_node(
-        db_session: AsyncSession,
-        node_id: UUID,
+    db_session: AsyncSession,
+    node_id: UUID,
 ) -> bool:
     """
     Check if a node is a leaf node (has no children in the subtopic hierarchy).
@@ -246,8 +237,8 @@ async def is_leaf_node(
 
 
 async def get_node_by_id(
-        db_session: AsyncSession,
-        node_id: UUID,
+    db_session: AsyncSession,
+    node_id: UUID,
 ) -> Optional[KnowledgeNode]:
     """
     Get a knowledge node by its UUID
@@ -258,11 +249,11 @@ async def get_node_by_id(
 
 
 async def create_knowledge_node(
-        db_session: AsyncSession,
-        graph_id: UUID,
-        node_name: str,
-        node_id_str: Optional[str] = None,
-        description: Optional[str] = None,
+    db_session: AsyncSession,
+    graph_id: UUID,
+    node_name: str,
+    node_id_str: Optional[str] = None,
+    description: Optional[str] = None,
 ) -> KnowledgeNode:
     """
     Create a new knowledge node in a graph.
@@ -290,9 +281,9 @@ async def create_knowledge_node(
 
 
 async def get_node_by_str_id(
-        db_session: AsyncSession,
-        graph_id: UUID,
-        node_id_str: str,
+    db_session: AsyncSession,
+    graph_id: UUID,
+    node_id_str: str,
 ) -> Optional[KnowledgeNode]:
     """
     Get a knowledge node by its string ID.
@@ -308,16 +299,15 @@ async def get_node_by_str_id(
         KnowledgeNode if found, None otherwise
     """
     stmt = select(KnowledgeNode).where(
-        KnowledgeNode.graph_id == graph_id,
-        KnowledgeNode.node_id_str == node_id_str
+        KnowledgeNode.graph_id == graph_id, KnowledgeNode.node_id_str == node_id_str
     )
     result = await db_session.execute(stmt)
     return result.scalar_one_or_none()
 
 
 async def get_nodes_by_graph(
-        db_session: AsyncSession,
-        graph_id: UUID,
+    db_session: AsyncSession,
+    graph_id: UUID,
 ) -> List[KnowledgeNode]:
     """
     Get all knowledge nodes in a graph
@@ -331,11 +321,11 @@ async def get_nodes_by_graph(
 
 
 async def create_prerequisite(
-        db_session: AsyncSession,
-        graph_id: UUID,
-        from_node_id: UUID,
-        to_node_id: UUID,
-        weight: float = 1.0,
+    db_session: AsyncSession,
+    graph_id: UUID,
+    from_node_id: UUID,
+    to_node_id: UUID,
+    weight: float = 1.0,
 ) -> Prerequisite:
     """
     Create a prerequisite relationship between two nodes.
@@ -385,8 +375,8 @@ async def create_prerequisite(
 
 
 async def get_prerequisites_by_graph(
-        db_session: AsyncSession,
-        graph_id: UUID,
+    db_session: AsyncSession,
+    graph_id: UUID,
 ) -> List[Prerequisite]:
     """
     Get all prerequisites in a graph
@@ -400,11 +390,11 @@ async def get_prerequisites_by_graph(
 
 
 async def create_subtopic(
-        db_session: AsyncSession,
-        graph_id: UUID,
-        parent_node_id: UUID,
-        child_node_id: UUID,
-        weight: float,
+    db_session: AsyncSession,
+    graph_id: UUID,
+    parent_node_id: UUID,
+    child_node_id: UUID,
+    weight: float,
 ) -> Subtopic:
     """
     Create a subtopic relationship between two nodes
@@ -422,8 +412,8 @@ async def create_subtopic(
 
 
 async def get_subtopics_by_graph(
-        db_session: AsyncSession,
-        graph_id: UUID,
+    db_session: AsyncSession,
+    graph_id: UUID,
 ) -> List[Subtopic]:
     """
     Get all subtopics in a graph
@@ -437,14 +427,14 @@ async def get_subtopics_by_graph(
 
 
 async def create_question(
-        db_session: AsyncSession,
-        graph_id: UUID,
-        node_id: UUID,
-        question_type: str,
-        text: str,
-        details: Dict[str, Any],
-        difficulty: str,
-        created_by: Optional[UUID] = None,
+    db_session: AsyncSession,
+    graph_id: UUID,
+    node_id: UUID,
+    question_type: str,
+    text: str,
+    details: Dict[str, Any],
+    difficulty: str,
+    created_by: Optional[UUID] = None,
 ) -> Question:
     """
     Create a new question for a knowledge node.
@@ -467,8 +457,8 @@ async def create_question(
 
 
 async def get_questions_by_graph(
-        db_session: AsyncSession,
-        graph_id: UUID,
+    db_session: AsyncSession,
+    graph_id: UUID,
 ) -> List[Question]:
     """
     Get all questions in a graph
@@ -479,24 +469,23 @@ async def get_questions_by_graph(
 
 
 async def get_questions_by_node(
-        db_session: AsyncSession,
-        graph_id: UUID,
-        node_id: UUID,
+    db_session: AsyncSession,
+    graph_id: UUID,
+    node_id: UUID,
 ) -> List[Question]:
     """
     Get all questions for a specific node
     """
     stmt = select(Question).where(
-        Question.graph_id == graph_id,
-        Question.node_id == node_id
+        Question.graph_id == graph_id, Question.node_id == node_id
     )
     result = await db_session.execute(stmt)
     return list(result.scalars().all())
 
 
 async def get_leaf_nodes_by_graph(
-        db_session: AsyncSession,
-        graph_id: UUID,
+    db_session: AsyncSession,
+    graph_id: UUID,
 ) -> List[KnowledgeNode]:
     """
     Get all leaf nodes in a graph.
@@ -524,7 +513,7 @@ async def get_leaf_nodes_by_graph(
         select(KnowledgeNode)
         .where(
             KnowledgeNode.graph_id == graph_id,
-            KnowledgeNode.id.notin_(parent_ids_subquery)
+            KnowledgeNode.id.notin_(parent_ids_subquery),
         )
         .order_by(KnowledgeNode.node_name)
     )
@@ -534,8 +523,8 @@ async def get_leaf_nodes_by_graph(
 
 
 async def get_leaf_nodes_without_questions(
-        db_session: AsyncSession,
-        graph_id: UUID,
+    db_session: AsyncSession,
+    graph_id: UUID,
 ) -> List[KnowledgeNode]:
     """
     Get all leaf nodes in a graph that have NO questions attached.
@@ -571,7 +560,7 @@ async def get_leaf_nodes_without_questions(
         .where(
             KnowledgeNode.graph_id == graph_id,
             KnowledgeNode.id.notin_(parent_ids_subquery),
-            KnowledgeNode.id.notin_(nodes_with_questions_subquery)
+            KnowledgeNode.id.notin_(nodes_with_questions_subquery),
         )
         .order_by(KnowledgeNode.node_name)
     )
@@ -581,9 +570,9 @@ async def get_leaf_nodes_without_questions(
 
 
 async def bulk_create_questions(
-        db_session: AsyncSession,
-        graph_id: UUID,
-        questions_data: List[Dict[str, Any]],
+    db_session: AsyncSession,
+    graph_id: UUID,
+    questions_data: List[Dict[str, Any]],
 ) -> int:
     """
     Bulk create questions for a graph.
@@ -602,7 +591,9 @@ async def bulk_create_questions(
     values = [
         {
             "graph_id": graph_id,
-            "node_id": UUID(q["node_id"]) if isinstance(q["node_id"], str) else q["node_id"],
+            "node_id": (
+                UUID(q["node_id"]) if isinstance(q["node_id"], str) else q["node_id"]
+            ),
             "question_type": q["question_type"],
             "text": q["text"],
             "details": q["details"],
@@ -623,9 +614,9 @@ async def bulk_create_questions(
 
 
 async def get_graph_visualization(
-        db_session: AsyncSession,
-        graph_id: UUID,
-        user_id: UUID,
+    db_session: AsyncSession,
+    graph_id: UUID,
+    user_id: UUID,
 ):
     """
     Get visualization data for a knowledge graph with user mastery scores.
@@ -654,13 +645,13 @@ async def get_graph_visualization(
             KnowledgeNode.id,
             KnowledgeNode.node_name,
             KnowledgeNode.description,
-            func.coalesce(UserMastery.score, 0.1).label('mastery_score')
+            func.coalesce(UserMastery.score, 0.1).label("mastery_score"),
         )
         .outerjoin(
             UserMastery,
-            (UserMastery.node_id == KnowledgeNode.id) &
-            (UserMastery.user_id == user_id) &
-            (UserMastery.graph_id == graph_id)
+            (UserMastery.node_id == KnowledgeNode.id)
+            & (UserMastery.user_id == user_id)
+            & (UserMastery.graph_id == graph_id),
         )
         .where(KnowledgeNode.graph_id == graph_id)
     )
@@ -689,7 +680,7 @@ async def get_graph_visualization(
             id=row.id,
             name=row.node_name,
             description=row.description,
-            mastery_score=row.mastery_score
+            mastery_score=row.mastery_score,
         )
         for row in nodes_rows
     ]
@@ -699,27 +690,31 @@ async def get_graph_visualization(
 
     # Add prerequisite edges
     for row in prereq_rows:
-        edges.append(GraphEdgeVisualization(
-            source_id=row.from_node_id,
-            target_id=row.to_node_id,
-            type="IS_PREREQUISITE_FOR"
-        ))
+        edges.append(
+            GraphEdgeVisualization(
+                source_id=row.from_node_id,
+                target_id=row.to_node_id,
+                type="IS_PREREQUISITE_FOR",
+            )
+        )
 
     # Add subtopic edges
     for row in subtopic_rows:
-        edges.append(GraphEdgeVisualization(
-            source_id=row.parent_node_id,
-            target_id=row.child_node_id,
-            type="HAS_SUBTOPIC"
-        ))
+        edges.append(
+            GraphEdgeVisualization(
+                source_id=row.parent_node_id,
+                target_id=row.child_node_id,
+                type="HAS_SUBTOPIC",
+            )
+        )
 
     return GraphVisualization(nodes=nodes, edges=edges)
 
 
 async def bulk_create_nodes(
-        db_session: AsyncSession,
-        graph_id: UUID,
-        nodes_data: List[KnowledgeNodeCreateWithStrId],
+    db_session: AsyncSession,
+    graph_id: UUID,
+    nodes_data: List[KnowledgeNodeCreateWithStrId],
 ):
     """
     Bulk create knowledge nodes with idempotency.
@@ -734,15 +729,13 @@ async def bulk_create_nodes(
             "graph_id": graph_id,
             "node_id_str": node.node_str_id,
             "node_name": node.node_name,
-            "description": node.description
+            "description": node.description,
         }
         for node in nodes_data
     ]
 
     stmt = insert(KnowledgeNode).values(values)
-    stmt = stmt.on_conflict_do_nothing(
-        index_elements=["graph_id", "node_id_str"]
-    )
+    stmt = stmt.on_conflict_do_nothing(index_elements=["graph_id", "node_id_str"])
 
     result = await db_session.execute(stmt)
     await db_session.commit()
@@ -751,7 +744,7 @@ async def bulk_create_nodes(
 
     return {
         "message": f"Processed {len(values)} nodes, {nodes_created} created",
-        "count": nodes_created
+        "count": nodes_created,
     }
 
 
@@ -759,9 +752,9 @@ async def bulk_create_nodes(
 
 
 async def import_graph_structure(
-        db_session: AsyncSession,
-        graph_id: UUID,
-        import_data: GraphStructureImport,
+    db_session: AsyncSession,
+    graph_id: UUID,
+    import_data: GraphStructureImport,
 ) -> GraphStructureImportResponse:
     """
     Import a complete graph structure from AI extraction in a single transaction.
@@ -804,21 +797,15 @@ async def import_graph_structure(
 
         # Use INSERT ... ON CONFLICT DO NOTHING for idempotency
         stmt = insert(KnowledgeNode).values(node_values)
-        stmt = stmt.on_conflict_do_nothing(
-            index_elements=["graph_id", "node_id_str"]
-        )
+        stmt = stmt.on_conflict_do_nothing(index_elements=["graph_id", "node_id_str"])
         result = await db_session.execute(stmt)
         nodes_created = result.rowcount if result.rowcount else 0
         nodes_skipped = len(import_data.nodes) - nodes_created
 
     # Step 2: Build node_id_str -> UUID mapping
     # Query all nodes in this graph to get their UUIDs
-    nodes_stmt = select(
-        KnowledgeNode.node_id_str,
-        KnowledgeNode.id
-    ).where(
-        KnowledgeNode.graph_id == graph_id,
-        KnowledgeNode.node_id_str.isnot(None)
+    nodes_stmt = select(KnowledgeNode.node_id_str, KnowledgeNode.id).where(
+        KnowledgeNode.graph_id == graph_id, KnowledgeNode.node_id_str.isnot(None)
     )
     nodes_result = await db_session.execute(nodes_stmt)
     node_id_map: Dict[str, UUID] = {
@@ -833,12 +820,14 @@ async def import_graph_structure(
             to_uuid = node_id_map.get(prereq.to_node_id_str)
 
             if from_uuid and to_uuid and from_uuid != to_uuid:
-                prereq_values.append({
-                    "graph_id": graph_id,
-                    "from_node_id": from_uuid,
-                    "to_node_id": to_uuid,
-                    "weight": prereq.weight,
-                })
+                prereq_values.append(
+                    {
+                        "graph_id": graph_id,
+                        "from_node_id": from_uuid,
+                        "to_node_id": to_uuid,
+                        "weight": prereq.weight,
+                    }
+                )
             else:
                 prerequisites_skipped += 1
 
@@ -859,12 +848,14 @@ async def import_graph_structure(
             child_uuid = node_id_map.get(subtopic.child_node_id_str)
 
             if parent_uuid and child_uuid and parent_uuid != child_uuid:
-                subtopic_values.append({
-                    "graph_id": graph_id,
-                    "parent_node_id": parent_uuid,
-                    "child_node_id": child_uuid,
-                    "weight": subtopic.weight,
-                })
+                subtopic_values.append(
+                    {
+                        "graph_id": graph_id,
+                        "parent_node_id": parent_uuid,
+                        "child_node_id": child_uuid,
+                        "weight": subtopic.weight,
+                    }
+                )
             else:
                 subtopics_skipped += 1
 
@@ -896,4 +887,3 @@ async def import_graph_structure(
         subtopics_skipped=subtopics_skipped,
         message=message,
     )
-

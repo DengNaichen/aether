@@ -35,6 +35,8 @@ dependencies = [
     "langchain>=1.0.8",
     "langchain-community>=0.4.1",
     "langchain-google-genai>=3.1.0",
+    "llama-cloud-services>=0.6.88",
+    "llama-parse>=0.6.88",
     "notebook>=7.4.7",
     "pandas>=2.0.0",
     "pandas-stubs==2.3.2.250926",
@@ -66,6 +68,7 @@ dependencies = [
     "sniffio==1.3.1",
     "SQLAlchemy==2.0.43",
     "starlette==0.48.0",
+    "tenacity>=9.1.2",
     "typing-inspection==0.4.1",
     "typing_extensions==4.15.0",
     "urllib3>=2.5.0",
@@ -86,4 +89,29 @@ packages = ["app"]
 [dependency-groups]
 dev = [
     "black>=25.11.0",
+    "ruff>=0.8.0",
 ]
+
+[tool.black]
+line-length = 88
+target-version = ['py312']
+
+[tool.ruff]
+line-length = 88
+target-version = "py312"
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "C4",  # flake8-comprehensions
+    "UP",  # pyupgrade
+]
+ignore = [
+    "E501",  # line too long (handled by black)
+    "B008",  # FastAPI dependency injection pattern (Depends() in defaults)
+]
+

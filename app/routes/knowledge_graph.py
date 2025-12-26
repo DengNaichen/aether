@@ -55,13 +55,15 @@ public_router = APIRouter(
     tags=["Knowledge Graph - Public"],
 )
 
-@router.get("/",
-             response_model=list[KnowledgeGraphResponse],
-             summary="Get all knowledge graphs owned by the current user",
-             )
+
+@router.get(
+    "/",
+    response_model=list[KnowledgeGraphResponse],
+    summary="Get all knowledge graphs owned by the current user",
+)
 async def get_my_graphs(
-        db_session: AsyncSession = Depends(get_db),
-        current_user: User = Depends(get_current_active_user),
+    db_session: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
 ):
     """
     Get all knowledge graphs owned by the authenticated user.
@@ -72,21 +74,19 @@ async def get_my_graphs(
             - Basic graph information (name, description, tags, etc.)
             - node_count: Number of knowledge nodes in the graph
     """
-    graphs = await get_graphs_by_owner(
-        db_session=db_session,
-        owner_id=current_user.id
-    )
+    graphs = await get_graphs_by_owner(db_session=db_session, owner_id=current_user.id)
     return graphs
 
 
-@router.get("/{graph_id}",
-             response_model=KnowledgeGraphResponse,
-             summary="Get a specific knowledge graph owned by the current user",
-             )
+@router.get(
+    "/{graph_id}",
+    response_model=KnowledgeGraphResponse,
+    summary="Get a specific knowledge graph owned by the current user",
+)
 async def get_my_graph(
-        graph_id: UUID = Path(..., description="Knowledge graph UUID"),
-        db_session: AsyncSession = Depends(get_db),
-        current_user: User = Depends(get_current_active_user),
+    graph_id: UUID = Path(..., description="Knowledge graph UUID"),
+    db_session: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
 ):
     """
     Get a specific knowledge graph owned by the authenticated user.
@@ -105,13 +105,13 @@ async def get_my_graph(
     if not knowledge_graph:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Knowledge graph {graph_id} not found."
+            detail=f"Knowledge graph {graph_id} not found.",
         )
 
     if knowledge_graph.owner_id != current_user.id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="You don't have access to this knowledge graph."
+            detail="You don't have access to this knowledge graph.",
         )
 
     # Count nodes in this graph
@@ -124,6 +124,14 @@ async def get_my_graph(
     node_count_result = await db_session.execute(node_count_stmt)
     node_count = node_count_result.scalar() or 0
 
+    # Check if owner is enrolled in their own graph
+    enrollment_stmt = select(GraphEnrollment).where(
+        GraphEnrollment.user_id == current_user.id,
+        GraphEnrollment.graph_id == graph_id
+    )
+    enrollment_result = await db_session.execute(enrollment_stmt)
+    is_enrolled = enrollment_result.scalar_one_or_none() is not None
+
     return {
         "id": knowledge_graph.id,
         "name": knowledge_graph.name,
@@ -135,7 +143,7 @@ async def get_my_graph(
         "owner_id": knowledge_graph.owner_id,
         "enrollment_count": knowledge_graph.enrollment_count,
         "node_count": node_count,
-        "is_enrolled": None,
+        "is_enrolled": is_enrolled,
         "created_at": knowledge_graph.created_at,
     }
 
@@ -164,19 +172,17 @@ async def get_my_graph_visualization(
     if not knowledge_graph:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Knowledge graph {graph_id} not found."
+            detail=f"Knowledge graph {graph_id} not found.",
         )
 
     if knowledge_graph.owner_id != current_user.id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="You don't have access to this knowledge graph."
+            detail="You don't have access to this knowledge graph.",
         )
 
     visualization = await get_graph_visualization(
-        db_session=db_session,
-        graph_id=graph_id,
-        user_id=current_user.id
+        db_session=db_session, graph_id=graph_id, user_id=current_user.id
     )
 
     return visualization
@@ -210,22 +216,32 @@ async def get_my_graph_content(
     if not knowledge_graph:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Knowledge graph {graph_id} not found."
+            detail=f"Knowledge graph {graph_id} not found.",
         )
 
     if knowledge_graph.owner_id != current_user.id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="You don't have access to this knowledge graph."
+            detail="You don't have access to this knowledge graph.",
         )
 
     # Fetch all data
     nodes = await get_nodes_by_graph(db_session=db_session, graph_id=graph_id)
-    prerequisites = await get_prerequisites_by_graph(db_session=db_session, graph_id=graph_id)
+    prerequisites = await get_prerequisites_by_graph(
+        db_session=db_session, graph_id=graph_id
+    )
     subtopics = await get_subtopics_by_graph(db_session=db_session, graph_id=graph_id)
 
     # Count nodes
     node_count = len(nodes)
+
+    # Check if owner is enrolled in their own graph
+    enrollment_stmt = select(GraphEnrollment).where(
+        GraphEnrollment.user_id == current_user.id,
+        GraphEnrollment.graph_id == graph_id
+    )
+    enrollment_result = await db_session.execute(enrollment_stmt)
+    is_enrolled = enrollment_result.scalar_one_or_none() is not None
 
     # Build graph response
     graph_response = KnowledgeGraphResponse(
@@ -239,14 +255,18 @@ async def get_my_graph_content(
         owner_id=knowledge_graph.owner_id,
         enrollment_count=knowledge_graph.enrollment_count,
         node_count=node_count,
-        is_enrolled=None,
+        is_enrolled=is_enrolled,
         created_at=knowledge_graph.created_at,
     )
 
     # Convert to response models
     nodes_response = [GraphContentNode.model_validate(node) for node in nodes]
-    prerequisites_response = [GraphContentPrerequisite.model_validate(prereq) for prereq in prerequisites]
-    subtopics_response = [GraphContentSubtopic.model_validate(subtopic) for subtopic in subtopics]
+    prerequisites_response = [
+        GraphContentPrerequisite.model_validate(prereq) for prereq in prerequisites
+    ]
+    subtopics_response = [
+        GraphContentSubtopic.model_validate(subtopic) for subtopic in subtopics
+    ]
 
     return GraphContentResponse(
         graph=graph_response,
@@ -256,15 +276,16 @@ async def get_my_graph_content(
     )
 
 
-@router.post("/",
-            status_code=status.HTTP_201_CREATED,
-            response_model=KnowledgeGraphResponse,
-            summary="Create knowledge graph",
-            )
+@router.post(
+    "/",
+    status_code=status.HTTP_201_CREATED,
+    response_model=KnowledgeGraphResponse,
+    summary="Create knowledge graph",
+)
 async def create_graph(
-        graph_data: KnowledgeGraphCreate,
-        db_session: AsyncSession = Depends(get_db),
-        current_user: User = Depends(get_current_active_user),
+    graph_data: KnowledgeGraphCreate,
+    db_session: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
 ):
     """Create a new knowledge graph for the authenticated user.
 
@@ -290,15 +311,14 @@ async def create_graph(
     slug = slugify(graph_data.name)
 
     if_exist = await get_graph_by_owner_and_slug(
-        db_session=db_session,
-        owner_id=current_user.id,
-        slug=slug
+        db_session=db_session, owner_id=current_user.id, slug=slug
     )
 
     if if_exist:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT,
-                            detail=f"You already have a graph with the name '{graph_data.name}' (slug: '{slug}')"
-                            )
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"You already have a graph with the name '{graph_data.name}' (slug: '{slug}')",
+        )
 
     try:
         new_graph = await create_knowledge_graph(
@@ -316,19 +336,20 @@ async def create_graph(
         await db_session.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to create knowledge graph: {str(e)}"
+            detail=f"Failed to create knowledge graph: {str(e)}",
         )
 
 
-@router.post("/{graph_id}/enrollments",
-             status_code=status.HTTP_201_CREATED,
-             response_model=GraphEnrollmentResponse,
-             summary="Enroll in your own knowledge graph",
-             )
+@router.post(
+    "/{graph_id}/enrollments",
+    status_code=status.HTTP_201_CREATED,
+    response_model=GraphEnrollmentResponse,
+    summary="Enroll in your own knowledge graph",
+)
 async def enroll_in_graph(
-        graph_id: UUID = Path(..., description="Knowledge graph UUID"),
-        db_session: AsyncSession = Depends(get_db),
-        current_user: User = Depends(get_current_active_user),
+    graph_id: UUID = Path(..., description="Knowledge graph UUID"),
+    db_session: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
 ) -> GraphEnrollment:
     """
     Enroll in your own knowledge graph.
@@ -358,20 +379,19 @@ async def enroll_in_graph(
     if not knowledge_graph:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Knowledge graph {graph_id} not found."
+            detail=f"Knowledge graph {graph_id} not found.",
         )
 
     # Verify the user is the owner
     if knowledge_graph.owner_id != current_user.id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only the owner can enroll in their own knowledge graph."
+            detail="Only the owner can enroll in their own knowledge graph.",
         )
 
     # Check if already enrolled
     stmt = select(GraphEnrollment).where(
-        GraphEnrollment.user_id == current_user.id,
-        GraphEnrollment.graph_id == graph_id
+        GraphEnrollment.user_id == current_user.id, GraphEnrollment.graph_id == graph_id
     )
     result = await db_session.execute(stmt)
     existing_enrollment = result.scalar_one_or_none()
@@ -379,7 +399,7 @@ async def enroll_in_graph(
     if existing_enrollment:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="You are already enrolled in this knowledge graph."
+            detail="You are already enrolled in this knowledge graph.",
         )
 
     try:
@@ -404,20 +424,21 @@ async def enroll_in_graph(
         await db_session.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to create enrollment: {e}"
+            detail=f"Failed to create enrollment: {e}",
         )
 
 
 # ==================== Public Endpoints ====================
 
 
-@public_router.get("/templates",
-                   response_model=list[KnowledgeGraphResponse],
-                   summary="Get all template knowledge graphs",
-                   )
+@public_router.get(
+    "/templates",
+    response_model=list[KnowledgeGraphResponse],
+    summary="Get all template knowledge graphs",
+)
 async def get_template_graphs(
-        db_session: AsyncSession = Depends(get_db),
-        current_user: User = Depends(get_current_active_user),
+    db_session: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
 ):
     """
     Get all template knowledge graphs available for enrollment.
@@ -443,21 +464,21 @@ async def get_template_graphs(
     - Selecting a template to enroll in
     """
     templates = await get_all_template_graphs(
-        db_session=db_session,
-        user_id=current_user.id
+        db_session=db_session, user_id=current_user.id
     )
     return templates
 
 
-@public_router.post("/{graph_id}/enrollments",
-                    status_code=status.HTTP_201_CREATED,
-                    response_model=GraphEnrollmentResponse,
-                    summary="Enroll in a public or template knowledge graph",
-                    )
+@public_router.post(
+    "/{graph_id}/enrollments",
+    status_code=status.HTTP_201_CREATED,
+    response_model=GraphEnrollmentResponse,
+    summary="Enroll in a public or template knowledge graph",
+)
 async def enroll_in_template_graph(
-        graph_id: UUID = Path(..., description="Knowledge graph UUID"),
-        db_session: AsyncSession = Depends(get_db),
-        current_user: User = Depends(get_current_active_user),
+    graph_id: UUID = Path(..., description="Knowledge graph UUID"),
+    db_session: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
 ) -> GraphEnrollment:
     """
     Enroll in a public or template knowledge graph.
@@ -490,20 +511,19 @@ async def enroll_in_template_graph(
     if not knowledge_graph:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Knowledge graph {graph_id} not found."
+            detail=f"Knowledge graph {graph_id} not found.",
         )
 
     # Verify the graph is public or template
     if not knowledge_graph.is_public and not knowledge_graph.is_template:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="This knowledge graph is private. Only public or template graphs can be enrolled."
+            detail="This knowledge graph is private. Only public or template graphs can be enrolled.",
         )
 
     # Check if already enrolled
     stmt = select(GraphEnrollment).where(
-        GraphEnrollment.user_id == current_user.id,
-        GraphEnrollment.graph_id == graph_id
+        GraphEnrollment.user_id == current_user.id, GraphEnrollment.graph_id == graph_id
     )
     result = await db_session.execute(stmt)
     existing_enrollment = result.scalar_one_or_none()
@@ -511,7 +531,7 @@ async def enroll_in_template_graph(
     if existing_enrollment:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="You are already enrolled in this knowledge graph."
+            detail="You are already enrolled in this knowledge graph.",
         )
 
     try:
@@ -536,19 +556,20 @@ async def enroll_in_template_graph(
         await db_session.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to create enrollment: {e}"
+            detail=f"Failed to create enrollment: {e}",
         )
 
 
-@public_router.get("/{graph_id}/",
-                   status_code=status.HTTP_200_OK,
-                   response_model=KnowledgeGraphResponse,
-                   summary="Get public or template knowledge graph details",
-                   )
+@public_router.get(
+    "/{graph_id}/",
+    status_code=status.HTTP_200_OK,
+    response_model=KnowledgeGraphResponse,
+    summary="Get public or template knowledge graph details",
+)
 async def get_template_graph_details(
-        graph_id: UUID = Path(..., description="Knowledge graph UUID"),
-        db_session: AsyncSession = Depends(get_db),
-        current_user: User = Depends(get_current_active_user),
+    graph_id: UUID = Path(..., description="Knowledge graph UUID"),
+    db_session: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
 ):
     """
     Get detailed information about a public or template knowledge graph.
@@ -569,14 +590,14 @@ async def get_template_graph_details(
     if not knowledge_graph:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Knowledge graph {graph_id} not found."
+            detail=f"Knowledge graph {graph_id} not found.",
         )
 
     # Verify access permissions - must be public or template
     if not knowledge_graph.is_public and not knowledge_graph.is_template:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="This knowledge graph is private. Only public or template graphs can be viewed."
+            detail="This knowledge graph is private. Only public or template graphs can be viewed.",
         )
 
     # Count nodes in this graph
@@ -591,8 +612,7 @@ async def get_template_graph_details(
 
     # Check if current user is enrolled
     enrollment_stmt = select(GraphEnrollment).where(
-        GraphEnrollment.user_id == current_user.id,
-        GraphEnrollment.graph_id == graph_id
+        GraphEnrollment.user_id == current_user.id, GraphEnrollment.graph_id == graph_id
     )
     enrollment_result = await db_session.execute(enrollment_stmt)
     is_enrolled = enrollment_result.scalar_one_or_none() is not None
@@ -614,26 +634,23 @@ async def get_template_graph_details(
     }
 
 
-@public_router.get("/{graph_id}/next-question",
-                   status_code=status.HTTP_200_OK,
-                   response_model=NextQuestionResponse,
-                   summary="Get the next question in a enrolled knowledge graph"
-                   )
+@public_router.get(
+    "/{graph_id}/next-question",
+    status_code=status.HTTP_200_OK,
+    response_model=NextQuestionResponse,
+    summary="Get the next question in a enrolled knowledge graph",
+)
 async def get_next_question_in_enrolled_graph(
     graph_id: UUID = Path(..., description="Knowledge graph UUID"),
     db_session: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ):
-    """
-    """
-    knowledge_graph = await get_graph_by_id(
-        db_session=db_session,
-        graph_id=graph_id
-    )
+    """ """
+    knowledge_graph = await get_graph_by_id(db_session=db_session, graph_id=graph_id)
     if not knowledge_graph:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Knowledge graph {graph_id} not found."
+            detail=f"Knowledge graph {graph_id} not found.",
         )
     if not knowledge_graph.is_public and not knowledge_graph.is_template:
         raise HTTPException(
@@ -642,8 +659,7 @@ async def get_next_question_in_enrolled_graph(
         )
     # check if enrolled in this graph
     enrollment_stmt = select(GraphEnrollment.graph_id).where(
-        GraphEnrollment.user_id == current_user.id,
-        GraphEnrollment.graph_id == graph_id
+        GraphEnrollment.user_id == current_user.id, GraphEnrollment.graph_id == graph_id
     )
     enrollment_result = await db_session.execute(enrollment_stmt)
     if not enrollment_result.scalar_one_or_none():
@@ -656,9 +672,7 @@ async def get_next_question_in_enrolled_graph(
 
     try:
         selection_result = await question_service.select_next_node(
-            db_session=db_session,
-            user_id=current_user.id,
-            graph_id=graph_id
+            db_session=db_session, user_id=current_user.id, graph_id=graph_id
         )
         if not selection_result.knowledge_node:
             logger.info(
@@ -669,16 +683,14 @@ async def get_next_question_in_enrolled_graph(
                 question=None,
                 node_id=None,
                 selection_reason=selection_result.selection_reason,
-                priority_score=None
+                priority_score=None,
             )
 
         node_id = selection_result.knowledge_node.id
 
         # Get all questions for this node from CRUD layer
         questions = await get_questions_by_node(
-            db_session=db_session,
-            graph_id=graph_id,
-            node_id=node_id
+            db_session=db_session, graph_id=graph_id, node_id=node_id
         )
 
         if not questions:
@@ -690,7 +702,7 @@ async def get_next_question_in_enrolled_graph(
                 question=None,
                 node_id=node_id,
                 selection_reason="node_has_no_questions",
-                priority_score=selection_result.priority_score
+                priority_score=selection_result.priority_score,
             )
 
         # Randomly select one question from the list
@@ -708,7 +720,7 @@ async def get_next_question_in_enrolled_graph(
             question=question_schema,
             node_id=node_id,
             selection_reason=selection_result.selection_reason,
-            priority_score=selection_result.priority_score
+            priority_score=selection_result.priority_score,
         )
 
     except HTTPException:
@@ -720,7 +732,7 @@ async def get_next_question_in_enrolled_graph(
         )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get next question: {str(e)}"
+            detail=f"Failed to get next question: {str(e)}",
         )
 
 
@@ -758,7 +770,7 @@ async def get_graph_visualization_endpoint(
     if not knowledge_graph:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Knowledge graph {graph_id} not found."
+            detail=f"Knowledge graph {graph_id} not found.",
         )
 
     # Check access: must be public, template, owned by user, or user is enrolled
@@ -769,20 +781,18 @@ async def get_graph_visualization_endpoint(
         # Check if user is enrolled
         enrollment_stmt = select(GraphEnrollment).where(
             GraphEnrollment.user_id == current_user.id,
-            GraphEnrollment.graph_id == graph_id
+            GraphEnrollment.graph_id == graph_id,
         )
         enrollment_result = await db_session.execute(enrollment_stmt)
         if not enrollment_result.scalar_one_or_none():
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="You don't have access to this knowledge graph."
+                detail="You don't have access to this knowledge graph.",
             )
 
     # Get visualization data
     visualization = await get_graph_visualization(
-        db_session=db_session,
-        graph_id=graph_id,
-        user_id=current_user.id
+        db_session=db_session, graph_id=graph_id, user_id=current_user.id
     )
 
     return visualization
@@ -820,19 +830,21 @@ async def get_public_graph_content(
     if not knowledge_graph:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Knowledge graph {graph_id} not found."
+            detail=f"Knowledge graph {graph_id} not found.",
         )
 
     # Check access: must be public or template
     if not knowledge_graph.is_public and not knowledge_graph.is_template:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="This knowledge graph is private. Only public or template graphs can be accessed."
+            detail="This knowledge graph is private. Only public or template graphs can be accessed.",
         )
 
     # Fetch all data
     nodes = await get_nodes_by_graph(db_session=db_session, graph_id=graph_id)
-    prerequisites = await get_prerequisites_by_graph(db_session=db_session, graph_id=graph_id)
+    prerequisites = await get_prerequisites_by_graph(
+        db_session=db_session, graph_id=graph_id
+    )
     subtopics = await get_subtopics_by_graph(db_session=db_session, graph_id=graph_id)
 
     # Count nodes
@@ -840,8 +852,7 @@ async def get_public_graph_content(
 
     # Check if current user is enrolled
     enrollment_stmt = select(GraphEnrollment).where(
-        GraphEnrollment.user_id == current_user.id,
-        GraphEnrollment.graph_id == graph_id
+        GraphEnrollment.user_id == current_user.id, GraphEnrollment.graph_id == graph_id
     )
     enrollment_result = await db_session.execute(enrollment_stmt)
     is_enrolled = enrollment_result.scalar_one_or_none() is not None
@@ -864,8 +875,12 @@ async def get_public_graph_content(
 
     # Convert to response models
     nodes_response = [GraphContentNode.model_validate(node) for node in nodes]
-    prerequisites_response = [GraphContentPrerequisite.model_validate(prereq) for prereq in prerequisites]
-    subtopics_response = [GraphContentSubtopic.model_validate(subtopic) for subtopic in subtopics]
+    prerequisites_response = [
+        GraphContentPrerequisite.model_validate(prereq) for prereq in prerequisites
+    ]
+    subtopics_response = [
+        GraphContentSubtopic.model_validate(subtopic) for subtopic in subtopics
+    ]
 
     return GraphContentResponse(
         graph=graph_response,
@@ -911,10 +926,10 @@ async def get_public_graph_content(
     """,
 )
 async def import_structure(
-        graph_id: str = Path(..., description="Knowledge graph UUID"),
-        payload: GraphStructureImport = ...,
-        db_session: AsyncSession = Depends(get_db),
-        current_user: User = Depends(get_current_active_user),
+    graph_id: str = Path(..., description="Knowledge graph UUID"),
+    payload: GraphStructureImport = ...,
+    db_session: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
 ) -> GraphStructureImportResponse:
     """
     Import a complete graph structure from AI extraction.
@@ -925,22 +940,20 @@ async def import_structure(
         graph_uuid = UUID(graph_id)
     except ValueError:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid graph ID format"
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid graph ID format"
         )
 
     # Check graph exists and user owns it
     graph = await get_graph_by_id(db_session, graph_uuid)
     if not graph:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Knowledge graph not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail="Knowledge graph not found"
         )
 
     if graph.owner_id != current_user.id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="You don't have permission to modify this graph"
+            detail="You don't have permission to modify this graph",
         )
 
     # Import the structure

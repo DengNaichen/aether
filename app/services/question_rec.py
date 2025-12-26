@@ -33,6 +33,7 @@ class NodeSelectionResult:
         - selection_reason: Why this node was selected (e.g., "fsrs_due_review", "new_learning")
         - priority_score: Optional priority score used for selection/logging
     """
+
     knowledge_node: Optional[KnowledgeNode]
     selection_reason: str
     priority_score: Optional[float] = None
@@ -56,9 +57,7 @@ class QuestionService:
 
     @staticmethod
     async def find_due_nodes(
-        db_session: AsyncSession,
-        user_id: UUID,
-        graph_id: UUID
+        db_session: AsyncSession, user_id: UUID, graph_id: UUID
     ) -> List[Tuple[KnowledgeNode, dict]]:
         """Phase 1: Find all knowledge nodes due for review based on FSRS.
 
@@ -78,10 +77,7 @@ class QuestionService:
         # We should not recommend a node for review if it has no content.
         has_questions_subq = (
             select(1)
-            .where(
-                Question.graph_id == graph_id,
-                Question.node_id == KnowledgeNode.id
-            )
+            .where(Question.graph_id == graph_id, Question.node_id == KnowledgeNode.id)
             .exists()
         )
 
@@ -92,15 +88,15 @@ class QuestionService:
                 UserMastery,
                 and_(
                     UserMastery.node_id == KnowledgeNode.id,
-                    UserMastery.graph_id == KnowledgeNode.graph_id
-                )
+                    UserMastery.graph_id == KnowledgeNode.graph_id,
+                ),
             )
             .where(
                 UserMastery.user_id == user_id,
                 UserMastery.graph_id == graph_id,
                 UserMastery.due_date.isnot(None),
                 UserMastery.due_date <= now,
-                has_questions_subq
+                has_questions_subq,
             )
         )
 
@@ -112,17 +108,19 @@ class QuestionService:
             node = row[0]
             mastery = row[1]
             mastery_data = {
-                'score': mastery.score,
-                'due_date': mastery.due_date,
-                'fsrs_state': mastery.fsrs_state,
-                'level': node.level,
-                'dependents_count': node.dependents_count
+                "score": mastery.score,
+                "due_date": mastery.due_date,
+                "fsrs_state": mastery.fsrs_state,
+                "level": node.level,
+                "dependents_count": node.dependents_count,
             }
             nodes_with_data.append((node, mastery_data))
 
         if nodes_with_data:
-            logger.info(f"Phase 1 (FSRS): Found {len(nodes_with_data)} due nodes for user {user_id}")
-        
+            logger.info(
+                f"Phase 1 (FSRS): Found {len(nodes_with_data)} due nodes for user {user_id}"
+            )
+
         return nodes_with_data
 
     # ==================== Phase 2: BKT Sorting ====================
@@ -132,7 +130,7 @@ class QuestionService:
         db_session: AsyncSession,
         user_id: UUID,
         graph_id: UUID,
-        nodes_with_data: List[Tuple[KnowledgeNode, dict]]
+        nodes_with_data: List[Tuple[KnowledgeNode, dict]],
     ) -> List[Tuple[KnowledgeNode, dict, float]]:
         """Phase 2: Sort due nodes by learning priority using Tuple Sorting.
 
@@ -159,7 +157,7 @@ class QuestionService:
             .where(
                 Prerequisite.graph_id == graph_id,
                 Prerequisite.from_node_id.in_(list(due_node_ids)),
-                Prerequisite.to_node_id.in_(list(due_node_ids))
+                Prerequisite.to_node_id.in_(list(due_node_ids)),
             )
             .distinct()
         )
@@ -175,15 +173,17 @@ class QuestionService:
             # Python sorts tuples element by element. We want:
             # 1. Prerequisite nodes FIRST. (True=0, False=1)
             rank_is_prereq = 0 if is_prerequisite else 1
-            
+
             # 2. Lower levels FIRST. (None treated as high number)
-            rank_level = mastery_data['level'] if mastery_data['level'] is not None else 999
-            
+            rank_level = (
+                mastery_data["level"] if mastery_data["level"] is not None else 999
+            )
+
             # 3. Lower score FIRST.
-            rank_score = mastery_data['score']
+            rank_score = mastery_data["score"]
 
             sort_key = (rank_is_prereq, rank_level, rank_score)
-            
+
             # Simple score for logging/frontend (1000 = high priority)
             display_score = 1000 if is_prerequisite else (100 - rank_level)
 
@@ -202,7 +202,7 @@ class QuestionService:
         db_session: AsyncSession,
         user_id: UUID,
         graph_id: UUID,
-        candidates: List[KnowledgeNode]
+        candidates: List[KnowledgeNode],
     ) -> List[Tuple[KnowledgeNode, float]]:
         """Batch filter candidate nodes by prerequisite satisfaction.
 
@@ -220,20 +220,19 @@ class QuestionService:
             select(1)
             .where(
                 Question.graph_id == graph_id,
-                Question.node_id == Prerequisite.from_node_id  # Checking the parent
+                Question.node_id == Prerequisite.from_node_id,  # Checking the parent
             )
             .exists()
         )
 
         # 1. Fetch blocking prerequisites
         # Only fetch prerequisites where the parent actually has questions.
-        stmt_blocking_prereqs = (
-            select(Prerequisite.to_node_id, Prerequisite.from_node_id)
-            .where(
-                Prerequisite.graph_id == graph_id,
-                Prerequisite.to_node_id.in_(candidate_ids),
-                prereq_has_questions_subq  # <--- FIX: Ignore parents with no questions
-            )
+        stmt_blocking_prereqs = select(
+            Prerequisite.to_node_id, Prerequisite.from_node_id
+        ).where(
+            Prerequisite.graph_id == graph_id,
+            Prerequisite.to_node_id.in_(candidate_ids),
+            prereq_has_questions_subq,  # <--- FIX: Ignore parents with no questions
         )
         result_prereqs = await db_session.execute(stmt_blocking_prereqs)
 
@@ -248,13 +247,10 @@ class QuestionService:
         # 2. Batch fetch mastery scores for these parents
         mastery_scores = {}
         if all_relevant_prereq_ids:
-            stmt_all_mastery = (
-                select(UserMastery.node_id, UserMastery.score)
-                .where(
-                    UserMastery.user_id == user_id,
-                    UserMastery.graph_id == graph_id,
-                    UserMastery.node_id.in_(list(all_relevant_prereq_ids))
-                )
+            stmt_all_mastery = select(UserMastery.node_id, UserMastery.score).where(
+                UserMastery.user_id == user_id,
+                UserMastery.graph_id == graph_id,
+                UserMastery.node_id.in_(list(all_relevant_prereq_ids)),
             )
             result_mastery = await db_session.execute(stmt_all_mastery)
             mastery_scores = {node_id: score for node_id, score in result_mastery}
@@ -291,10 +287,7 @@ class QuestionService:
     # ==================== Phase 3: BKT New Knowledge ====================
 
     async def find_new_knowledge_node(
-        self,
-        db_session: AsyncSession,
-        user_id: UUID,
-        graph_id: UUID
+        self, db_session: AsyncSession, user_id: UUID, graph_id: UUID
     ) -> Optional[KnowledgeNode]:
         """Phase 3: Find a new knowledge node when no reviews are due.
 
@@ -306,43 +299,38 @@ class QuestionService:
         Returns:
             KnowledgeNode or None (if absolutely no questions exist).
         """
-        logger.info(f"Phase 3 (BKT New): Starting new knowledge search for user {user_id}")
+        logger.info(
+            f"Phase 3 (BKT New): Starting new knowledge search for user {user_id}"
+        )
 
         # Subquery: Nodes already mastered by user
         mastered_nodes_subq = (
             select(UserMastery.node_id)
-            .where(
-                UserMastery.user_id == user_id,
-                UserMastery.graph_id == graph_id
-            )
+            .where(UserMastery.user_id == user_id, UserMastery.graph_id == graph_id)
             .scalar_subquery()
         )
 
         # Subquery: Nodes that have questions
         has_questions_subq = (
             select(1)
-            .where(
-                Question.graph_id == graph_id,
-                Question.node_id == KnowledgeNode.id
-            )
+            .where(Question.graph_id == graph_id, Question.node_id == KnowledgeNode.id)
             .exists()
         )
 
         # Step 1: Get ALL candidates (Not Mastered + Has Questions)
-        candidates_stmt = (
-            select(KnowledgeNode)
-            .where(
-                KnowledgeNode.graph_id == graph_id,
-                ~KnowledgeNode.id.in_(mastered_nodes_subq),
-                has_questions_subq
-            )
+        candidates_stmt = select(KnowledgeNode).where(
+            KnowledgeNode.graph_id == graph_id,
+            ~KnowledgeNode.id.in_(mastered_nodes_subq),
+            has_questions_subq,
         )
 
         result = await db_session.execute(candidates_stmt)
         candidates = list(result.scalars().all())
 
         if not candidates:
-            logger.info("Phase 3: No unmastered nodes with questions found. Course complete?")
+            logger.info(
+                "Phase 3: No unmastered nodes with questions found. Course complete?"
+            )
             return None
 
         # Step 2: Strict Prerequisite Filtering
@@ -357,7 +345,7 @@ class QuestionService:
                 key=lambda x: (
                     x[0].level if x[0].level is not None else 999,
                     -(x[0].dependents_count or 0),
-                    -x[1]
+                    -x[1],
                 )
             )
             selected_node = valid_candidates[0][0]
@@ -368,7 +356,7 @@ class QuestionService:
         # If we reach here, we have candidates, but ALL of them are blocked by prerequisites.
         # This is likely a "Cold Start" deadlock or a cyclic dependency.
         # We must return SOMETHING to keep the user engaged.
-        
+
         logger.warning(
             f"Phase 3: Deadlock detected for user {user_id}. "
             f"{len(candidates)} candidates found, but all are blocked. "
@@ -377,23 +365,20 @@ class QuestionService:
 
         # Fallback: Ignore prerequisites, just pick the lowest Level node.
         candidates.sort(key=lambda x: (x.level if x.level is not None else 999))
-        
+
         fallback_node = candidates[0]
-        
+
         logger.info(
             f"Phase 3 Fallback: Forcing recommendation of {fallback_node.node_name} "
             f"(Level {fallback_node.level}) to break deadlock."
         )
-        
+
         return fallback_node
 
     # ==================== Node Selection Coordinator ====================
 
     async def select_next_node(
-        self,
-        db_session: AsyncSession,
-        user_id: UUID,
-        graph_id: UUID
+        self, db_session: AsyncSession, user_id: UUID, graph_id: UUID
     ) -> NodeSelectionResult:
         """Select the next knowledge node using two-phase hybrid algorithm.
 
@@ -415,26 +400,26 @@ class QuestionService:
 
             if sorted_nodes:
                 top_node, _, priority_score = sorted_nodes[0]
-                logger.info(f"Selected review node {top_node.node_name} (Priority: {priority_score})")
+                logger.info(
+                    f"Selected review node {top_node.node_name} (Priority: {priority_score})"
+                )
                 return NodeSelectionResult(
                     knowledge_node=top_node,
                     selection_reason="fsrs_due_review",
-                    priority_score=priority_score
+                    priority_score=priority_score,
                 )
 
         # Phase 3: BKT New Knowledge
         logger.info(f"No due nodes. Proceeding to Phase 3 (New Learning).")
         new_node = await self.find_new_knowledge_node(db_session, user_id, graph_id)
-        
+
         if new_node:
             return NodeSelectionResult(
-                knowledge_node=new_node,
-                selection_reason="new_learning"
+                knowledge_node=new_node, selection_reason="new_learning"
             )
 
         # No nodes available at all
         logger.warning(f"No suitable knowledge nodes found for user {user_id}")
         return NodeSelectionResult(
-            knowledge_node=None,
-            selection_reason="none_available"
+            knowledge_node=None, selection_reason="none_available"
         )

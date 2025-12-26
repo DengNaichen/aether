@@ -10,17 +10,14 @@ from app.worker.config import (
     MAIN_QUEUE_NAME,
     DLQ_NAME,
     TASK_HANDLERS,
-    MAX_RETRIES
+    MAX_RETRIES,
 )
 
-import app.worker.handlers 
+import app.worker.handlers
 
 
 async def move_to_dlq(
-        redis_client,
-        task: dict,
-        error_message: str,
-        retry_count: int = 0
+    redis_client, task: dict, error_message: str, retry_count: int = 0
 ):
     dlq_payload = {
         "original_task": task,
@@ -52,12 +49,14 @@ async def process_task(task_data: str, ctx: WorkerContext, max_retries: int = 3)
             print(f"✅ Successfully processed task of type: {task_type}")
             return
         except Exception as e:
-            print(f"❌ Attempt #{attempt + 1}/{max_retries} failed for task '{task_type}': {e}")
+            print(
+                f"❌ Attempt #{attempt + 1}/{max_retries} failed for task '{task_type}': {e}"
+            )
             if attempt + 1 == max_retries:
                 await move_to_dlq(ctx.redis_client, task, str(e))
 
             else:
-                await asyncio.sleep(2 ** attempt)
+                await asyncio.sleep(2**attempt)
 
 
 class WorkerStats:
@@ -134,10 +133,7 @@ class AsyncWorker:
         """
         while self.running:
             try:
-                result = await self.ctx.redis_client.brpop(
-                    self.queue_name,
-                    timeout=1
-                )
+                result = await self.ctx.redis_client.brpop(self.queue_name, timeout=1)
 
                 if result is None:
                     continue
@@ -181,7 +177,8 @@ if __name__ == "__main__":
 else:
     # When run as a module (python -m app.worker.worker), also start
     import sys
-    if 'app.worker.worker' in sys.modules:
+
+    if "app.worker.worker" in sys.modules:
         # Check if we're being run as the main module
-        if sys.argv[0].endswith('worker.py') or sys.argv[0].endswith('-m'):
+        if sys.argv[0].endswith("worker.py") or sys.argv[0].endswith("-m"):
             asyncio.run(main())
