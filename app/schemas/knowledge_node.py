@@ -3,11 +3,10 @@ from __future__ import annotations
 import re
 from datetime import datetime
 from enum import Enum
-from typing import Optional, Dict, Any, List, Literal
+from typing import Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, Field, ConfigDict, computed_field
-
+from pydantic import BaseModel, ConfigDict, Field, computed_field
 
 # ==================== Enums ====================
 
@@ -47,7 +46,7 @@ class KnowledgeNodeCreate(BaseModel):
     """Schema for creating a new knowledge node."""
 
     node_name: str = Field(..., description="Display name (e.g., 'Derivative')")
-    description: Optional[str] = Field(None, description="Detailed explanation")
+    description: str | None = Field(None, description="Detailed explanation")
 
 
 class KnowledgeNodeCreateWithStrId(KnowledgeNodeCreate):
@@ -59,7 +58,7 @@ class KnowledgeNodeCreateWithStrId(KnowledgeNodeCreate):
 
 
 class BulkNodeRequest(BaseModel):
-    nodes: List[
+    nodes: list[
         KnowledgeNodeCreateWithStrId
     ]  # TODO: I need a new schema with node_str_id
 
@@ -67,8 +66,8 @@ class BulkNodeRequest(BaseModel):
 class KnowledgeNodeUpdate(BaseModel):
     """Schema for updating an existing knowledge node."""
 
-    node_name: Optional[str] = None
-    description: Optional[str] = None
+    node_name: str | None = None
+    description: str | None = None
 
 
 class KnowledgeNodeResponse(BaseModel):
@@ -77,13 +76,13 @@ class KnowledgeNodeResponse(BaseModel):
     id: UUID
     graph_id: UUID
     node_name: str
-    description: Optional[str] = None
+    description: str | None = None
     level: int = Field(..., description="Topological level in prerequisite DAG")
     dependents_count: int = Field(
         ..., description="Number of nodes that depend on this"
     )
     created_at: datetime
-    updated_at: Optional[datetime] = None
+    updated_at: datetime | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -166,7 +165,7 @@ class QuestionCreate(BaseModel):
         ..., description="Type: multiple_choice, fill_blank, calculation"
     )
     text: str = Field(..., description="Question prompt/text")
-    details: Dict[str, Any] = Field(
+    details: dict[str, Any] = Field(
         ..., description="Question-specific data as JSON (includes p_g and p_s)"
     )
     difficulty: str = Field(..., description="Difficulty: easy, medium, hard")
@@ -180,9 +179,9 @@ class QuestionResponse(BaseModel):
     node_id: UUID
     question_type: str
     text: str
-    details: Dict[str, Any]  # Includes p_g and p_s
+    details: dict[str, Any]  # Includes p_g and p_s
     difficulty: str
-    created_by: Optional[UUID] = None
+    created_by: UUID | None = None
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
@@ -238,7 +237,7 @@ class NodeImport(BaseModel):
     node_name: str = Field(
         ..., description="Display name (e.g., 'Vector', 'Linear Algebra')"
     )
-    description: Optional[str] = Field(
+    description: str | None = Field(
         None, description="Detailed explanation of the concept"
     )
 
@@ -299,11 +298,11 @@ class GraphStructureImport(BaseModel):
     ```
     """
 
-    nodes: List[NodeImport] = Field(..., description="List of nodes to import")
-    prerequisites: List[PrerequisiteImport] = Field(
+    nodes: list[NodeImport] = Field(..., description="List of nodes to import")
+    prerequisites: list[PrerequisiteImport] = Field(
         default_factory=list, description="Prerequisite relationships"
     )
-    subtopics: List[SubtopicImport] = Field(
+    subtopics: list[SubtopicImport] = Field(
         default_factory=list, description="Subtopic relationships"
     )
 
@@ -389,19 +388,19 @@ class RelationshipLLM(BaseModel):
         description="Relationship type: 'IS_PREREQUISITE_FOR' or 'HAS_SUBTOPIC'"
     )
     # For IS_PREREQUISITE_FOR relationships
-    source_name: Optional[str] = Field(
+    source_name: str | None = Field(
         default=None,
         description="The prerequisite concept (use with IS_PREREQUISITE_FOR)",
     )
-    target_name: Optional[str] = Field(
+    target_name: str | None = Field(
         default=None,
         description="The concept that depends on the source (use with IS_PREREQUISITE_FOR)",
     )
     # For HAS_SUBTOPIC relationships
-    parent_name: Optional[str] = Field(
+    parent_name: str | None = Field(
         default=None, description="The broader topic (use with HAS_SUBTOPIC)"
     )
-    child_name: Optional[str] = Field(
+    child_name: str | None = Field(
         default=None, description="The specific sub-concept (use with HAS_SUBTOPIC)"
     )
 
@@ -409,22 +408,22 @@ class RelationshipLLM(BaseModel):
 
     @computed_field
     @property
-    def source_id(self) -> Optional[str]:
+    def source_id(self) -> str | None:
         return generate_id(self.source_name) if self.source_name else None
 
     @computed_field
     @property
-    def target_id(self) -> Optional[str]:
+    def target_id(self) -> str | None:
         return generate_id(self.target_name) if self.target_name else None
 
     @computed_field
     @property
-    def parent_id(self) -> Optional[str]:
+    def parent_id(self) -> str | None:
         return generate_id(self.parent_name) if self.parent_name else None
 
     @computed_field
     @property
-    def child_id(self) -> Optional[str]:
+    def child_id(self) -> str | None:
         return generate_id(self.child_name) if self.child_name else None
 
     def __hash__(self) -> int:
@@ -453,5 +452,5 @@ RelationshipType = RelationshipLLM
 
 
 class GraphStructureLLM(BaseModel):
-    nodes: List[KnowledgeNodeLLM] = Field(default_factory=list)
-    relationships: List[RelationshipType] = Field(default_factory=list)
+    nodes: list[KnowledgeNodeLLM] = Field(default_factory=list)
+    relationships: list[RelationshipType] = Field(default_factory=list)

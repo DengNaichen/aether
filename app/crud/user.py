@@ -1,16 +1,10 @@
-# import uuid
 from uuid import UUID
-
-# from typing import Union
 
 from pydantic import EmailStr
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
-# from app.core.security import get_password_hash
 from app.models.user import User
-
-# from app.schemas.user import UserCreate, AdminUserCreate
 
 
 async def get_user_by_email(db: AsyncSession, email: EmailStr) -> User | None:

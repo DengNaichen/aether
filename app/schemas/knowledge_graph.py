@@ -1,7 +1,7 @@
-from pydantic import BaseModel, Field, field_validator, ConfigDict
 from datetime import datetime
 from uuid import UUID
-from typing import Optional
+
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class KnowledgeGraphCreate(BaseModel):
@@ -12,7 +12,7 @@ class KnowledgeGraphCreate(BaseModel):
     name: str = Field(
         ..., description="Knowledge Graph Name", min_length=1, max_length=200
     )
-    description: Optional[str] = None
+    description: str | None = None
     tags: list[str] = Field(default_factory=list)
     is_public: bool = False
 
@@ -32,7 +32,7 @@ class KnowledgeGraphResponse(BaseModel):
     id: UUID
     name: str
     slug: str
-    description: Optional[str]
+    description: str | None
     tags: list[str]
     is_public: bool
     is_template: bool
@@ -41,7 +41,7 @@ class KnowledgeGraphResponse(BaseModel):
     node_count: int = Field(
         default=0, description="Number of knowledge nodes in this graph"
     )
-    is_enrolled: Optional[bool] = Field(
+    is_enrolled: bool | None = Field(
         default=None,
         description="Whether current user is enrolled (only for authenticated requests)",
     )
@@ -53,7 +53,7 @@ class KnowledgeGraphResponse(BaseModel):
 class GraphNodeVisualization(BaseModel):
     id: UUID
     name: str
-    description: Optional[str] = None
+    description: str | None = None
     mastery_score: float
 
 
@@ -72,9 +72,9 @@ class GraphContentNode(BaseModel):
     """Node data for graph content response"""
 
     id: UUID
-    node_id_str: Optional[str] = None
+    node_id_str: str | None = None
     node_name: str
-    description: Optional[str] = None
+    description: str | None = None
     level: int
     dependents_count: int
 

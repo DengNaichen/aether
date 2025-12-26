@@ -1,12 +1,11 @@
 import uuid
 from datetime import datetime
-from enum import Enum
-from typing import List, Union, Literal, Annotated
+from typing import Annotated, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
-from app.models.question import QuestionType, QuestionDifficulty
+from app.models.question import QuestionDifficulty, QuestionType
 
 
 class MultipleChoiceDetails(BaseModel):
@@ -23,7 +22,7 @@ class MultipleChoiceDetails(BaseModel):
     """
 
     question_type: Literal[QuestionType.MULTIPLE_CHOICE] = QuestionType.MULTIPLE_CHOICE
-    options: List[str]
+    options: list[str]
     correct_answer: int
     p_g: float = Field(default=0.25, ge=0.0, le=1.0, description="Guess probability")
     p_s: float = Field(default=0.1, ge=0.0, le=1.0, description="Slip probability")
@@ -40,7 +39,7 @@ class FillInTheBlankDetails(BaseModel):
 
     question_type: Literal[QuestionType.FILL_BLANK] = QuestionType.FILL_BLANK
     # TODO: need to do this problems
-    expected_answer: List[str]
+    expected_answer: list[str]
     p_g: float = Field(default=0.0, ge=0.0, le=1.0, description="Guess probability")
     p_s: float = Field(default=0.1, ge=0.0, le=1.0, description="Slip probability")
 
@@ -55,18 +54,14 @@ class CalculationDetails(BaseModel):
 
     question_type: Literal[QuestionType.CALCULATION] = QuestionType.CALCULATION
     # TODO: need to do this problems
-    expected_answer: List[str]
+    expected_answer: list[str]
     precision: int = 2
     p_g: float = Field(default=0.0, ge=0.0, le=1.0, description="Guess probability")
     p_s: float = Field(default=0.1, ge=0.0, le=1.0, description="Slip probability")
 
 
 QuestionDetails = Annotated[
-    Union[
-        MultipleChoiceDetails,
-        FillInTheBlankDetails,
-        CalculationDetails,
-    ],
+    MultipleChoiceDetails | FillInTheBlankDetails | CalculationDetails,
     Field(discriminator="question_type"),
 ]
 
@@ -131,12 +126,12 @@ class CalculationAnswer(BaseModel):
 
 
 AnyAnswer = Annotated[
-    Union[MultipleChoiceAnswer, FillInTheBlankAnswer, CalculationAnswer],
+    MultipleChoiceAnswer | FillInTheBlankAnswer | CalculationAnswer,
     Field(discriminator="question_type"),
 ]
 
 AnyQuestion = Annotated[
-    Union[MultipleChoiceQuestion, FillInTheBlankQuestion, CalculationQuestion],
+    MultipleChoiceQuestion | FillInTheBlankQuestion | CalculationQuestion,
     Field(discriminator="question_type"),
 ]
 
