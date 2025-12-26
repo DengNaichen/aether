@@ -11,17 +11,16 @@ import logging
 import random
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status, Path
-from sqlalchemy.ext.asyncio import AsyncSession
+from fastapi import APIRouter, Depends, HTTPException, Path, status
 from pydantic import BaseModel, Field
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.deps import get_current_active_user, get_db
+from app.crud.knowledge_graph import get_graph_by_id, get_questions_by_node
+from app.models.question import Question
 from app.models.user import User
 from app.schemas.questions import AnyQuestion
-from app.models.question import Question
-from app.core.deps import get_db, get_current_active_user
-from app.crud.knowledge_graph import get_graph_by_id, get_questions_by_node
 from app.services.question_rec import QuestionService
-
 
 logger = logging.getLogger(__name__)
 
@@ -176,8 +175,8 @@ async def get_next_question(
         )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get next question: {str(e)}",
-        )
+            detail="Failed to get next question",
+        ) from e
 
 
 def _convert_question_to_schema(question: Question) -> AnyQuestion:
@@ -195,15 +194,15 @@ def _convert_question_to_schema(question: Question) -> AnyQuestion:
     Raises:
         ValueError: If question type is unknown
     """
+    from app.models.question import QuestionDifficulty, QuestionType
     from app.schemas.questions import (
-        MultipleChoiceQuestion,
-        FillInTheBlankQuestion,
-        CalculationQuestion,
-        MultipleChoiceDetails,
-        FillInTheBlankDetails,
         CalculationDetails,
+        CalculationQuestion,
+        FillInTheBlankDetails,
+        FillInTheBlankQuestion,
+        MultipleChoiceDetails,
+        MultipleChoiceQuestion,
     )
-    from app.models.question import QuestionType, QuestionDifficulty
 
     base_data = {
         "question_id": question.id,
