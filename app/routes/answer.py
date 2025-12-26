@@ -19,12 +19,11 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.deps import get_current_active_user, get_db
-from app.models.user import User
 from app.models.quiz import SubmissionAnswer
+from app.models.user import User
 from app.schemas.quiz import SingleAnswerSubmitRequest, SingleAnswerSubmitResponse
 from app.services.grade_answer import GradingService
-from app.services.mastery_calc_prop import MasteryService
-
+from app.services.mastery import MasteryService
 
 logger = logging.getLogger(__name__)
 
@@ -51,9 +50,11 @@ async def submit_single_answer(
     1. Validates the question exists
     2. Grades the answer
     3. Saves the answer record
-    4. Updates user's mastery level
-    5. Propagates mastery through the knowledge graph
-    6. (Future) Recommends next question
+    4. Updates user's mastery level (including propagation)
+    5. (Future) Recommends next question
+
+    Note: The mastery service handles propagation internally, updating
+    related nodes in the knowledge graph automatically.
 
     Args:
         answer_data: The answer submission data
@@ -111,12 +112,11 @@ async def submit_single_answer(
     )
     db.add(submission_answer)
 
-    # Step 3: Update mastery level
+    # Step 3: Update mastery level (propagation handled internally)
     mastery_service = MasteryService()
     mastery_updated = False
 
     try:
-        # Get old score before update for propagation
         knowledge_node_result = await mastery_service.update_mastery_from_grading(
             db_session=db,
             user=current_user,
@@ -129,31 +129,6 @@ async def submit_single_answer(
                 f"Updated mastery for user {current_user.id} on node {knowledge_node_result.id}"
             )
             mastery_updated = True
-
-            # Step 4: Propagate mastery updates through the graph
-            try:
-                # Get the updated mastery score
-                new_score = await mastery_service.get_mastery_score(
-                    db_session=db,
-                    user=current_user,
-                    knowledge_node=knowledge_node_result,
-                )
-
-                await mastery_service.propagate_mastery(
-                    db_session=db,
-                    user=current_user,
-                    node_answered=knowledge_node_result,
-                    is_correct=grading_result.is_correct,
-                    p_g=grading_result.p_g,
-                    p_s=grading_result.p_s,
-                )
-                logger.info(f"Propagated mastery for node {knowledge_node_result.id}")
-            except Exception as e:
-                # Don't fail the entire request if propagation fails
-                logger.error(
-                    f"Mastery propagation failed for node {knowledge_node_result.id}: {e}",
-                    exc_info=True,
-                )
         else:
             logger.warning(
                 f"No knowledge node found for question {answer_data.question_id}, "
@@ -168,7 +143,7 @@ async def submit_single_answer(
         # Continue to save the answer even if mastery update fails
         mastery_updated = False
 
-    # Step 5: Commit the transaction
+    # Step 4: Commit the transaction
     try:
         await db.commit()
         logger.info(
@@ -180,12 +155,7 @@ async def submit_single_answer(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to save answer",
-        )
-
-    # Step 6: (Future) Get next question recommendation
-    # next_question_id = await recommendation_service.get_next_question(
-    #     db, current_user, answer_data.graph_id
-    # )
+        ) from e
 
     return SingleAnswerSubmitResponse(
         answer_id=submission_answer.id,

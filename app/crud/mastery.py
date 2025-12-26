@@ -7,25 +7,22 @@ This module provides data access layer for mastery-related operations:
 - Batch queries for efficient graph traversal
 """
 
-from datetime import datetime, timezone
-from typing import List, Optional, Tuple, Dict, Set
+from datetime import UTC, datetime
 from uuid import UUID
 
-from sqlalchemy import select, func, Integer, literal_column, text
+from sqlalchemy import Integer, func, literal_column, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.dialects.postgresql import insert as pg_insert
 
-from app.models.user import UserMastery
 from app.models.knowledge_node import KnowledgeNode, Prerequisite, Subtopic
 from app.models.question import Question
-
+from app.models.user import UserMastery
 
 # ==================== UserMastery CRUD ====================
 
 
 async def get_mastery(
     db_session: AsyncSession, user_id: UUID, graph_id: UUID, node_id: UUID
-) -> Optional[UserMastery]:
+) -> UserMastery | None:
     """
     Get a user's mastery record for a specific node.
 
@@ -78,7 +75,7 @@ async def create_mastery(
         score=score,
         p_l0=p_l0,
         p_t=p_t,
-        last_updated=datetime.now(timezone.utc),
+        last_updated=datetime.now(UTC),
     )
     db_session.add(mastery)
     await db_session.flush()
@@ -93,7 +90,7 @@ async def get_or_create_mastery(
     default_score: float = 0.1,
     default_p_l0: float = 0.2,
     default_p_t: float = 0.2,
-) -> Tuple[UserMastery, bool]:
+) -> tuple[UserMastery, bool]:
     """
     Get existing mastery record or create a new one.
 
@@ -141,7 +138,7 @@ async def update_mastery_score(
         Updated UserMastery record
     """
     mastery.score = new_score
-    mastery.last_updated = datetime.now(timezone.utc)
+    mastery.last_updated = datetime.now(UTC)
     await db_session.flush()
     return mastery
 
@@ -151,7 +148,7 @@ async def update_mastery_score(
 
 async def get_question_by_id(
     db_session: AsyncSession, question_id: UUID
-) -> Optional[Question]:
+) -> Question | None:
     """
     Get a question by its UUID.
 
@@ -169,7 +166,7 @@ async def get_question_by_id(
 
 async def get_node_by_question(
     db_session: AsyncSession, question: Question
-) -> Optional[KnowledgeNode]:
+) -> KnowledgeNode | None:
     """
     Get the knowledge node associated with a question.
 
@@ -193,7 +190,7 @@ async def get_node_by_question(
 
 async def get_masteries_by_user_and_graph(
     db_session: AsyncSession, user_id: UUID, graph_id: UUID
-) -> List[UserMastery]:
+) -> list[UserMastery]:
     """
     Get all mastery records for a user in a specific graph.
 
@@ -217,8 +214,8 @@ async def get_masteries_by_user_and_graph(
 
 
 async def get_masteries_by_nodes(
-    db_session: AsyncSession, user_id: UUID, graph_id: UUID, node_ids: List[UUID]
-) -> Dict[UUID, UserMastery]:
+    db_session: AsyncSession, user_id: UUID, graph_id: UUID, node_ids: list[UUID]
+) -> dict[UUID, UserMastery]:
     """
     Get mastery records for multiple nodes at once, return a map
 
@@ -246,8 +243,8 @@ async def get_masteries_by_nodes(
 
 
 async def get_all_affected_parent_ids(
-    db_session: AsyncSession, graph_id: UUID, start_node_ids: List[UUID]
-) -> List[Tuple[UUID, int]]:
+    db_session: AsyncSession, graph_id: UUID, start_node_ids: list[UUID]
+) -> list[tuple[UUID, int]]:
     """
     Finds all parent/ancestor nodes above a set of start nodes.
     (distance from start nodes)
@@ -302,7 +299,7 @@ async def get_all_affected_parent_ids(
 
 async def get_prerequisite_roots_to_bonus(
     db_session: AsyncSession, graph_id: UUID, start_node_id: UUID
-) -> Dict[UUID, int]:
+) -> dict[UUID, int]:
     """
     Finds all prerequisite leaf nodes that should receive a bonus, with depth tracking.
 
@@ -355,8 +352,8 @@ async def get_prerequisite_roots_to_bonus(
 
 
 async def get_all_subtopics_for_parents_bulk(
-    db_session: AsyncSession, graph_id: UUID, parent_node_ids: List[UUID]
-) -> Dict[UUID, List[Tuple[UUID, float]]]:
+    db_session: AsyncSession, graph_id: UUID, parent_node_ids: list[UUID]
+) -> dict[UUID, list[tuple[UUID, float]]]:
     """
     Gets all subtopics for a list of parent nodes.
 

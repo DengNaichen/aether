@@ -2,37 +2,36 @@ import logging
 import random
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status, Path
-from sqlalchemy.ext.asyncio import AsyncSession
+from fastapi import APIRouter, Depends, HTTPException, Path, status
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.deps import get_db, get_current_active_user
-from app.models.user import User
-from app.models.enrollment import GraphEnrollment
-from app.models.knowledge_graph import KnowledgeGraph
-from app.routes.question import _convert_question_to_schema, NextQuestionResponse
-from app.schemas.knowledge_graph import (
-    KnowledgeGraphCreate,
-    KnowledgeGraphResponse,
-    GraphVisualization,
-    GraphContentResponse,
-    GraphContentNode,
-    GraphContentPrerequisite,
-    GraphContentSubtopic,
-)
-from app.schemas.enrollment import GraphEnrollmentResponse
+from app.core.deps import get_current_active_user, get_db, get_optional_user
 from app.crud.knowledge_graph import (
-    get_graph_by_owner_and_slug,
     create_knowledge_graph,
-    get_graph_by_id,
     get_all_template_graphs,
-    get_graphs_by_owner,
-    get_questions_by_node,
+    get_graph_by_id,
+    get_graph_by_owner_and_slug,
     get_graph_visualization,
-    import_graph_structure,
+    get_graphs_by_owner,
     get_nodes_by_graph,
     get_prerequisites_by_graph,
+    get_questions_by_node,
     get_subtopics_by_graph,
+    import_graph_structure,
+)
+from app.models.enrollment import GraphEnrollment
+from app.models.user import User
+from app.routes.question import NextQuestionResponse, _convert_question_to_schema
+from app.schemas.enrollment import GraphEnrollmentResponse
+from app.schemas.knowledge_graph import (
+    GraphContentNode,
+    GraphContentPrerequisite,
+    GraphContentResponse,
+    GraphContentSubtopic,
+    GraphVisualization,
+    KnowledgeGraphCreate,
+    KnowledgeGraphResponse,
 )
 from app.schemas.knowledge_node import (
     GraphStructureImport,
@@ -115,8 +114,9 @@ async def get_my_graph(
         )
 
     # Count nodes in this graph
-    from app.models.knowledge_node import KnowledgeNode
     from sqlalchemy import func
+
+    from app.models.knowledge_node import KnowledgeNode
 
     node_count_stmt = select(func.count(KnowledgeNode.id)).where(
         KnowledgeNode.graph_id == graph_id
@@ -126,8 +126,7 @@ async def get_my_graph(
 
     # Check if owner is enrolled in their own graph
     enrollment_stmt = select(GraphEnrollment).where(
-        GraphEnrollment.user_id == current_user.id,
-        GraphEnrollment.graph_id == graph_id
+        GraphEnrollment.user_id == current_user.id, GraphEnrollment.graph_id == graph_id
     )
     enrollment_result = await db_session.execute(enrollment_stmt)
     is_enrolled = enrollment_result.scalar_one_or_none() is not None
@@ -237,8 +236,7 @@ async def get_my_graph_content(
 
     # Check if owner is enrolled in their own graph
     enrollment_stmt = select(GraphEnrollment).where(
-        GraphEnrollment.user_id == current_user.id,
-        GraphEnrollment.graph_id == graph_id
+        GraphEnrollment.user_id == current_user.id, GraphEnrollment.graph_id == graph_id
     )
     enrollment_result = await db_session.execute(enrollment_stmt)
     is_enrolled = enrollment_result.scalar_one_or_none() is not None
@@ -337,7 +335,7 @@ async def create_graph(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to create knowledge graph: {str(e)}",
-        )
+        ) from e
 
 
 @router.post(
@@ -425,7 +423,7 @@ async def enroll_in_graph(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to create enrollment: {e}",
-        )
+        ) from e
 
 
 # ==================== Public Endpoints ====================
@@ -438,7 +436,7 @@ async def enroll_in_graph(
 )
 async def get_template_graphs(
     db_session: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User | None = Depends(get_optional_user),
 ):
     """
     Get all template knowledge graphs available for enrollment.
@@ -464,7 +462,7 @@ async def get_template_graphs(
     - Selecting a template to enroll in
     """
     templates = await get_all_template_graphs(
-        db_session=db_session, user_id=current_user.id
+        db_session=db_session, user_id=current_user.id if current_user else None
     )
     return templates
 
@@ -557,7 +555,7 @@ async def enroll_in_template_graph(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to create enrollment: {e}",
-        )
+        ) from e
 
 
 @public_router.get(
@@ -601,8 +599,9 @@ async def get_template_graph_details(
         )
 
     # Count nodes in this graph
-    from app.models.knowledge_node import KnowledgeNode
     from sqlalchemy import func
+
+    from app.models.knowledge_node import KnowledgeNode
 
     node_count_stmt = select(func.count(KnowledgeNode.id)).where(
         KnowledgeNode.graph_id == graph_id
@@ -733,7 +732,7 @@ async def get_next_question_in_enrolled_graph(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to get next question: {str(e)}",
-        )
+        ) from e
 
 
 @public_router.get(
@@ -938,10 +937,10 @@ async def import_structure(
     """
     try:
         graph_uuid = UUID(graph_id)
-    except ValueError:
+    except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid graph ID format"
-        )
+        ) from e
 
     # Check graph exists and user owns it
     graph = await get_graph_by_id(db_session, graph_uuid)

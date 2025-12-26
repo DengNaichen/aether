@@ -1,15 +1,13 @@
-from fastapi import APIRouter, HTTPException, status, UploadFile, File
+from fastapi import APIRouter, HTTPException, status
 from fastapi.params import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.deps import get_db, get_current_active_user
+from app.core.deps import get_current_active_user, get_db
 from app.models.user import User
 
 # from app.helper.course_helper import assemble_course_id
 from app.schemas.knowledge_node import (
     KnowledgeNodeCreate,
-    RelationType,
-    KnowledgeRelationCreate,
     KnowledgeNodeResponse,
     PrerequisiteCreate,
     PrerequisiteResponse,
@@ -17,9 +15,6 @@ from app.schemas.knowledge_node import (
     SubtopicResponse,
 )
 from app.schemas.questions import QuestionCreateForGraph, QuestionResponseFromGraph
-
-from app.core.deps import get_current_admin_user, get_worker_context
-
 
 router = APIRouter(
     prefix="/me/graphs",
@@ -59,15 +54,16 @@ async def create_knowledge_node_new(
         409: Node with the same node_id already exists in this graph
     """
     from uuid import UUID as convert_UUID
+
     from app.crud import knowledge_graph as crud
 
     # Validate graph_id is a valid UUID
     try:
         graph_uuid = convert_UUID(graph_id)
-    except ValueError:
+    except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid graph_id format"
-        )
+        ) from e
 
     # Check if graph exists
     graph = await crud.get_graph_by_id(db, graph_uuid)
@@ -97,7 +93,7 @@ async def create_knowledge_node_new(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to create knowledge node: {str(e)}",
-        )
+        ) from e
 
 
 @router.post(
@@ -139,16 +135,17 @@ async def create_prerequisite_new(
         409: Prerequisite already exists
     """
     from uuid import UUID as convert_UUID
+
     from app.crud import knowledge_graph as crud
     from app.schemas.knowledge_node import PrerequisiteResponse
 
     # Validate graph_id
     try:
         graph_uuid = convert_UUID(graph_id)
-    except ValueError:
+    except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid graph_id format"
-        )
+        ) from e
 
     # Check if graph exists
     graph = await crud.get_graph_by_id(db, graph_uuid)
@@ -204,18 +201,20 @@ async def create_prerequisite_new(
         return PrerequisiteResponse.model_validate(new_prereq)
     except ValueError as e:
         # Raised when nodes are not leaf nodes
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)
+        ) from e
     except Exception as e:
         # Check if it's a duplicate key error (prerequisite already exists)
         if "duplicate key" in str(e).lower() or "unique constraint" in str(e).lower():
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail=f"Prerequisite from '{prereq_data.from_node_id}' to '{prereq_data.to_node_id}' already exists",
-            )
+            ) from e
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to create prerequisite: {str(e)}",
-        )
+        ) from e
 
 
 @router.post(
@@ -253,16 +252,17 @@ async def create_subtopic_new(
         409: Subtopic already exists
     """
     from uuid import UUID as convert_UUID
+
     from app.crud import knowledge_graph as crud
-    from app.schemas.knowledge_node import SubtopicResponse, SubtopicCreate
+    from app.schemas.knowledge_node import SubtopicResponse
 
     # Validate graph_id
     try:
         graph_uuid = convert_UUID(graph_id)
-    except ValueError:
+    except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid graph_id format"
-        )
+        ) from e
 
     # Check if graph exists
     graph = await crud.get_graph_by_id(db, graph_uuid)
@@ -322,11 +322,11 @@ async def create_subtopic_new(
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail=f"Subtopic from '{subtopic_data.parent_node_id}' to '{subtopic_data.child_node_id}' already exists",
-            )
+            ) from e
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to create subtopic: {str(e)}",
-        )
+        ) from e
 
 
 @router.post(
@@ -373,15 +373,16 @@ async def create_question_new(
         403: User is not the owner of the graph
     """
     from uuid import UUID as convert_UUID
+
     from app.crud import knowledge_graph as crud
 
     # Validate graph_id
     try:
         graph_uuid = convert_UUID(graph_id)
-    except ValueError:
+    except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid graph_id format"
-        )
+        ) from e
 
     # Check if graph exists
     graph = await crud.get_graph_by_id(db, graph_uuid)
@@ -433,5 +434,5 @@ async def create_question_new(
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to create question: {str(e)}",
-        )
+            detail="Failed to create question",
+        ) from e
