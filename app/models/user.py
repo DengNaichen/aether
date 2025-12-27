@@ -71,7 +71,7 @@ class User(Base):
 
 class UserMastery(Base):
     """
-    User mastery tracking for a knowledge node (hybrid BKT + FSRS).
+    User mastery tracking for a knowledge node using FSRS.
 
     This tracks a specific user's learning state for a specific node in a
     specific graph. Triple-key design allows:
@@ -79,31 +79,24 @@ class UserMastery(Base):
     - One user to learn multiple graphs
     - User to fork graph and have separate mastery data
 
-    Combines two independent systems:
-    1. BKT (Bayesian Knowledge Tracing): For mastery assessment
-       - score: Current mastery probability (0.0-1.0)
-       - p_l0: Prior knowledge (dynamically calculated from prerequisites)
-       - p_t: Learning transition probability
-
-    2. FSRS (Free Spaced Repetition Scheduler): For review scheduling
-       - fsrs_state: State machine (learning/review/relearning)
-       - fsrs_stability: Memory stability
-       - fsrs_difficulty: Learning difficulty (1.0-10.0)
-       - due_date: When next review is due
-       - review_log: Complete history for FSRS algorithm
+    Uses FSRS (Free Spaced Repetition Scheduler) for both scheduling and mastery tracking:
+    - fsrs_state: State machine (learning/review/relearning)
+    - fsrs_stability: Memory stability (S)
+    - fsrs_difficulty: Learning difficulty (1.0-10.0)
+    - due_date: When next review is due
+    - cached_retrievability: Snapshot of R(t) at last update (for visualization)
+    - review_log: Complete history for FSRS algorithm
 
     Architecture Decision:
-    - BKT score used for: prerequisite checking, recommendation priority
     - FSRS used for: ALL review scheduling (from first answer onwards)
-    - They update independently and don't conflict
+    - cached_retrievability: Cached for performance (visualization, parent aggregation)
+    - For real-time R(t), use MasteryLogic.get_current_retrievability()
 
     Attributes:
         user_id: Which user is learning
         graph_id: Which graph they're learning from
         node_id: Which node within that graph
-        score: BKT mastery probability
-        p_l0: BKT prior knowledge
-        p_t: BKT learning transition
+        cached_retrievability: Cached FSRS R(t) at last_updated time (0.0-1.0)
         fsrs_state: FSRS state machine
         fsrs_stability: FSRS memory stability
         fsrs_difficulty: FSRS difficulty (1.0-10.0)
@@ -130,9 +123,12 @@ class UserMastery(Base):
     )
     node_id = Column(UUID(as_uuid=True), primary_key=True, nullable=False)
 
-    # BKT parameters - REMOVED
-    # score is now "Cached Retrievability" (FSRS) instead of BKT Probability
-    score = Column(Float, default=0.0, nullable=False)
+    # Cached FSRS Retrievability
+    # This is a snapshot of R(t) at last_updated time, used for:
+    # - Graph visualization (performance optimization)
+    # - Parent node aggregation (weighted average of children)
+    # For real-time R(t), use MasteryLogic.get_current_retrievability()
+    cached_retrievability = Column(Float, default=0.0, nullable=False)
 
     # FSRS parameters
     fsrs_state = Column(String, default=FSRSState.LEARNING.value, nullable=False)
@@ -160,7 +156,10 @@ class UserMastery(Base):
             ondelete="CASCADE",
         ),
         # Constraints
-        CheckConstraint("score >= 0.0 AND score <= 1.0", name="ck_mastery_score"),
+        CheckConstraint(
+            "cached_retrievability >= 0.0 AND cached_retrievability <= 1.0",
+            name="ck_mastery_cached_retrievability",
+        ),
         # FSRS constraints
         CheckConstraint(
             f"fsrs_state IN ('{FSRSState.LEARNING.value}', "
@@ -178,4 +177,4 @@ class UserMastery(Base):
     )
 
     def __repr__(self):
-        return f"<UserMastery user={self.user_id} graph={self.graph_id} node={self.node_id} score={self.score:.2f}>"
+        return f"<UserMastery user={self.user_id} graph={self.graph_id} node={self.node_id} R(t)={self.cached_retrievability:.2f}>"

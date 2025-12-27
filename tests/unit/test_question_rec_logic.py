@@ -112,10 +112,10 @@ class TestCalculatePrioritySortKey:
             - Prerequisite = rank 0, Non-prerequisite = rank 1.
         """
         prereq_key = QuestionRecLogic.calculate_priority_sort_key(
-            is_prerequisite=True, urgency_tier=2, level=5, score=0.5
+            is_prerequisite=True, urgency_tier=2, level=5, cached_retrievability=0.5
         )
         non_prereq_key = QuestionRecLogic.calculate_priority_sort_key(
-            is_prerequisite=False, urgency_tier=2, level=5, score=0.5
+            is_prerequisite=False, urgency_tier=2, level=5, cached_retrievability=0.5
         )
 
         assert prereq_key[0] == 0
@@ -129,13 +129,13 @@ class TestCalculatePrioritySortKey:
             - Tier 0 < Tier 1 < Tier 2.
         """
         tier0_key = QuestionRecLogic.calculate_priority_sort_key(
-            is_prerequisite=False, urgency_tier=0, level=5, score=0.5
+            is_prerequisite=False, urgency_tier=0, level=5, cached_retrievability=0.5
         )
         tier1_key = QuestionRecLogic.calculate_priority_sort_key(
-            is_prerequisite=False, urgency_tier=1, level=5, score=0.5
+            is_prerequisite=False, urgency_tier=1, level=5, cached_retrievability=0.5
         )
         tier2_key = QuestionRecLogic.calculate_priority_sort_key(
-            is_prerequisite=False, urgency_tier=2, level=5, score=0.5
+            is_prerequisite=False, urgency_tier=2, level=5, cached_retrievability=0.5
         )
 
         assert tier0_key < tier1_key < tier2_key
@@ -147,13 +147,13 @@ class TestCalculatePrioritySortKey:
             - Level 1 < Level 5 < Level 10.
         """
         level1_key = QuestionRecLogic.calculate_priority_sort_key(
-            is_prerequisite=False, urgency_tier=2, level=1, score=0.5
+            is_prerequisite=False, urgency_tier=2, level=1, cached_retrievability=0.5
         )
         level5_key = QuestionRecLogic.calculate_priority_sort_key(
-            is_prerequisite=False, urgency_tier=2, level=5, score=0.5
+            is_prerequisite=False, urgency_tier=2, level=5, cached_retrievability=0.5
         )
         level10_key = QuestionRecLogic.calculate_priority_sort_key(
-            is_prerequisite=False, urgency_tier=2, level=10, score=0.5
+            is_prerequisite=False, urgency_tier=2, level=10, cached_retrievability=0.5
         )
 
         assert level1_key < level5_key < level10_key
@@ -165,60 +165,60 @@ class TestCalculatePrioritySortKey:
             - None level = rank 999, sorts after all numeric levels.
         """
         none_level_key = QuestionRecLogic.calculate_priority_sort_key(
-            is_prerequisite=False, urgency_tier=2, level=None, score=0.5
+            is_prerequisite=False, urgency_tier=2, level=None, cached_retrievability=0.5
         )
         numeric_level_key = QuestionRecLogic.calculate_priority_sort_key(
-            is_prerequisite=False, urgency_tier=2, level=100, score=0.5
+            is_prerequisite=False, urgency_tier=2, level=100, cached_retrievability=0.5
         )
 
         assert none_level_key[2] == 999
         assert numeric_level_key[2] == 100
         assert numeric_level_key < none_level_key
 
-    def test_score_sorting(self):
-        """Verify that lower scores (more forgotten) sort first.
+    def test_cached_retrievability_sorting(self):
+        """Verify that lower cached_retrievabilitys (more forgotten) sort first.
 
         Expected:
-            - Score 0.1 < Score 0.5 < Score 0.9.
+            - cached_retrievability 0.1 < cached_retrievability 0.5 < cached_retrievability 0.9.
         """
-        low_score_key = QuestionRecLogic.calculate_priority_sort_key(
-            is_prerequisite=False, urgency_tier=2, level=5, score=0.1
+        low_cached_retrievability_key = QuestionRecLogic.calculate_priority_sort_key(
+            is_prerequisite=False, urgency_tier=2, level=5, cached_retrievability=0.1
         )
-        mid_score_key = QuestionRecLogic.calculate_priority_sort_key(
-            is_prerequisite=False, urgency_tier=2, level=5, score=0.5
+        mid_cached_retrievability_key = QuestionRecLogic.calculate_priority_sort_key(
+            is_prerequisite=False, urgency_tier=2, level=5, cached_retrievability=0.5
         )
-        high_score_key = QuestionRecLogic.calculate_priority_sort_key(
-            is_prerequisite=False, urgency_tier=2, level=5, score=0.9
+        high_cached_retrievability_key = QuestionRecLogic.calculate_priority_sort_key(
+            is_prerequisite=False, urgency_tier=2, level=5, cached_retrievability=0.9
         )
 
-        assert low_score_key < mid_score_key < high_score_key
+        assert low_cached_retrievability_key < mid_cached_retrievability_key < high_cached_retrievability_key
 
     def test_full_priority_hierarchy(self):
-        """Verify complete priority hierarchy: prereq > urgency > level > score.
+        """Verify complete priority hierarchy: prereq > urgency > level > cached_retrievability.
 
         Expected:
             - Prerequisites always win over all other factors.
             - Among same prerequisite status, urgency wins.
             - Among same urgency, level wins.
-            - Among same level, score wins.
+            - Among same level, cached_retrievability wins.
         """
-        # High priority: prerequisite, urgent, low level, low score
+        # High priority: prerequisite, urgent, low level, low cached_retrievability
         high_priority = QuestionRecLogic.calculate_priority_sort_key(
-            is_prerequisite=True, urgency_tier=0, level=1, score=0.1
+            is_prerequisite=True, urgency_tier=0, level=1, cached_retrievability=0.1
         )
-        # Low priority: non-prerequisite, not urgent, high level, high score
+        # Low priority: non-prerequisite, not urgent, high level, high cached_retrievability
         low_priority = QuestionRecLogic.calculate_priority_sort_key(
-            is_prerequisite=False, urgency_tier=2, level=10, score=0.9
+            is_prerequisite=False, urgency_tier=2, level=10, cached_retrievability=0.9
         )
 
         assert high_priority < low_priority
 
         # Test that prerequisite overrides all
         prereq_worst_others = QuestionRecLogic.calculate_priority_sort_key(
-            is_prerequisite=True, urgency_tier=2, level=10, score=0.9
+            is_prerequisite=True, urgency_tier=2, level=10, cached_retrievability=0.9
         )
         non_prereq_best_others = QuestionRecLogic.calculate_priority_sort_key(
-            is_prerequisite=False, urgency_tier=0, level=1, score=0.1
+            is_prerequisite=False, urgency_tier=0, level=1, cached_retrievability=0.1
         )
 
         assert prereq_worst_others < non_prereq_best_others

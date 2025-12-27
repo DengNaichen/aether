@@ -16,6 +16,7 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.crud import mastery as mastery_crud
+from app.crud import question as question_crud
 from app.domain.mastery_logic import MasteryLogic
 from app.models.knowledge_node import KnowledgeNode
 from app.models.user import FSRSState, User, UserMastery
@@ -40,12 +41,12 @@ class MasteryService:
         Fetch Data -> Calculate Logic -> Save DB -> Trigger Propagation
         """
         # 1. Fetch Data
-        question_in_db = await mastery_crud.get_question_by_id(db_session, question_id)
+        question_in_db = await question_crud.get_question_by_id(db_session, question_id)
         if not question_in_db:
             logger.warning(f"Question {question_id} not found")
             return None
 
-        knowledge_node = await mastery_crud.get_node_by_question(
+        knowledge_node = await question_crud.get_node_by_question(
             db_session, question_in_db
         )
         if not knowledge_node:
@@ -87,9 +88,15 @@ class MasteryService:
         """Helper to update a single node's mastery."""
         now = datetime.now(UTC)
 
-        # Get DB Record
+        # Get or create DB Record
+        # If creating, calculate initial R(t) using FSRS
+        initial_retrievability = MasteryLogic.get_initial_retrievability()
         mastery_rel, _ = await mastery_crud.get_or_create_mastery(
-            db_session, user.id, knowledge_node.graph_id, knowledge_node.id
+            db_session,
+            user.id,
+            knowledge_node.graph_id,
+            knowledge_node.id,
+            cached_retrievability=initial_retrievability,
         )
 
         # Call Pure Logic
@@ -102,7 +109,8 @@ class MasteryService:
 
         await db_session.flush()
         logger.info(
-            f"Updated mastery for node {knowledge_node.id}, Score: {updates['score']:.2f}"
+            f"Updated mastery for node {knowledge_node.id}, "
+            f"Cached R(t): {updates['cached_retrievability']:.2f}"
         )
 
     # === Propagation Flow ===
@@ -170,11 +178,13 @@ class MasteryService:
             mastery_rel = mastery_map.get(leaf_id)
             if not mastery_rel:
                 # Initialize with complete FSRS state so it can be discovered by Phase 1
+                # Calculate initial R(t) using FSRS
+                initial_rt = MasteryLogic.get_initial_retrievability()
                 mastery_rel = UserMastery(
                     user_id=user.id,
                     graph_id=node_answered.graph_id,
                     node_id=leaf_id,
-                    score=0.1,
+                    cached_retrievability=initial_rt,
                     due_date=now,  # Available for review immediately
                     last_review=None,  # Not directly reviewed yet
                     fsrs_state=FSRSState.LEARNING.value,
@@ -196,11 +206,12 @@ class MasteryService:
             parent_mastery_rel = mastery_map.get(parent_id)
             if not parent_mastery_rel:
                 # Initialize with complete FSRS state so it can be discovered by Phase 1
+                # Parent nodes start with 0.0 since they aggregate from children
                 parent_mastery_rel = UserMastery(
                     user_id=user.id,
                     graph_id=node_answered.graph_id,
                     node_id=parent_id,
-                    score=0.0,
+                    cached_retrievability=0.0,
                     due_date=now,  # Available for review immediately
                     last_review=None,  # Not directly reviewed yet
                     fsrs_state=FSRSState.LEARNING.value,
@@ -212,20 +223,20 @@ class MasteryService:
 
             # Call Pure Logic
             # Note: We pass the whole mastery_map so logic can look up children
-            new_parent_score = MasteryLogic.calculate_parent_aggregation(
+            new_parent_retrievability = MasteryLogic.calculate_parent_aggregation(
                 child_relations, mastery_map, now
             )
 
-            if abs(new_parent_score - parent_mastery_rel.score) > 1e-5:
-                parent_mastery_rel.score = new_parent_score
+            if abs(new_parent_retrievability - parent_mastery_rel.cached_retrievability) > 1e-5:
+                parent_mastery_rel.cached_retrievability = new_parent_retrievability
                 parent_mastery_rel.last_updated = now
 
         await db_session.flush()
 
     # === Read Operations ===
-
+    @staticmethod
     async def get_retrievability(
-        self, db_session: AsyncSession, user: User, knowledge_node: KnowledgeNode
+        db_session: AsyncSession, user: User, knowledge_node: KnowledgeNode
     ) -> float | None:
         """Get dynamic retrievability."""
         mastery_rel = await mastery_crud.get_mastery(
