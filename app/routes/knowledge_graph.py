@@ -6,7 +6,12 @@ from fastapi import APIRouter, Depends, HTTPException, Path, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.deps import get_current_active_user, get_db, get_optional_user
+from app.core.deps import (
+    get_current_active_user,
+    get_db,
+    get_optional_user,
+    get_owned_graph,
+)
 from app.crud.knowledge_graph import (
     create_knowledge_graph,
     get_all_template_graphs,
@@ -83,7 +88,7 @@ async def get_my_graphs(
     summary="Get a specific knowledge graph owned by the current user",
 )
 async def get_my_graph(
-    graph_id: UUID = Path(..., description="Knowledge graph UUID"),
+    knowledge_graph=Depends(get_owned_graph),
     db_session: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ):
@@ -91,7 +96,9 @@ async def get_my_graph(
     Get a specific knowledge graph owned by the authenticated user.
 
     Args:
-        graph_id: Knowledge graph UUID
+        knowledge_graph: Owned knowledge graph (injected by get_owned_graph dependency)
+        db_session: Database session
+        current_user: Authenticated user
 
     Returns:
         KnowledgeGraphResponse: Graph details including node count
@@ -100,24 +107,12 @@ async def get_my_graph(
         HTTPException 404: If the knowledge graph doesn't exist
         HTTPException 403: If the user is not the owner
     """
-    knowledge_graph = await get_graph_by_id(db_session=db_session, graph_id=graph_id)
-    if not knowledge_graph:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Knowledge graph {graph_id} not found.",
-        )
-
-    if knowledge_graph.owner_id != current_user.id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="You don't have access to this knowledge graph.",
-        )
-
     # Count nodes in this graph
     from sqlalchemy import func
 
     from app.models.knowledge_node import KnowledgeNode
 
+    graph_id = knowledge_graph.id
     node_count_stmt = select(func.count(KnowledgeNode.id)).where(
         KnowledgeNode.graph_id == graph_id
     )
@@ -154,7 +149,7 @@ async def get_my_graph(
     summary="Get visualization data for your own knowledge graph",
 )
 async def get_my_graph_visualization(
-    graph_id: UUID = Path(..., description="Knowledge graph UUID"),
+    knowledge_graph=Depends(get_owned_graph),
     db_session: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ) -> GraphVisualization:
@@ -163,25 +158,17 @@ async def get_my_graph_visualization(
 
     Returns all nodes with mastery scores and all edges for rendering.
 
+    Args:
+        knowledge_graph: Owned knowledge graph (injected by get_owned_graph dependency)
+        db_session: Database session
+        current_user: Authenticated user
+
     Raises:
         HTTPException 404: If the knowledge graph doesn't exist
         HTTPException 403: If you are not the owner
     """
-    knowledge_graph = await get_graph_by_id(db_session=db_session, graph_id=graph_id)
-    if not knowledge_graph:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Knowledge graph {graph_id} not found.",
-        )
-
-    if knowledge_graph.owner_id != current_user.id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="You don't have access to this knowledge graph.",
-        )
-
     visualization = await get_graph_visualization(
-        db_session=db_session, graph_id=graph_id, user_id=current_user.id
+        db_session=db_session, graph_id=knowledge_graph.id, user_id=current_user.id
     )
 
     return visualization
@@ -194,7 +181,7 @@ async def get_my_graph_visualization(
     summary="Get complete content of a knowledge graph",
 )
 async def get_my_graph_content(
-    graph_id: UUID = Path(..., description="Knowledge graph UUID"),
+    knowledge_graph=Depends(get_owned_graph),
     db_session: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ) -> GraphContentResponse:
@@ -207,22 +194,16 @@ async def get_my_graph_content(
         - prerequisites: All prerequisite relationships
         - subtopics: All subtopic relationships
 
+    Args:
+        knowledge_graph: Owned knowledge graph (injected by get_owned_graph dependency)
+        db_session: Database session
+        current_user: Authenticated user
+
     Raises:
         HTTPException 404: If the knowledge graph doesn't exist
         HTTPException 403: If you are not the owner
     """
-    knowledge_graph = await get_graph_by_id(db_session=db_session, graph_id=graph_id)
-    if not knowledge_graph:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Knowledge graph {graph_id} not found.",
-        )
-
-    if knowledge_graph.owner_id != current_user.id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="You don't have access to this knowledge graph.",
-        )
+    graph_id = knowledge_graph.id
 
     # Fetch all data
     nodes = await get_nodes_by_graph(db_session=db_session, graph_id=graph_id)
@@ -345,7 +326,7 @@ async def create_graph(
     summary="Enroll in your own knowledge graph",
 )
 async def enroll_in_graph(
-    graph_id: UUID = Path(..., description="Knowledge graph UUID"),
+    knowledge_graph=Depends(get_owned_graph),
     db_session: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ) -> GraphEnrollment:
@@ -359,7 +340,7 @@ async def enroll_in_graph(
     - Tracking your own progress
 
     Args:
-        graph_id: Knowledge graph UUID (from URL path)
+        knowledge_graph: Owned knowledge graph (injected by get_owned_graph dependency)
         db_session: Database session
         current_user: Authenticated user (must be the graph owner)
 
@@ -372,58 +353,18 @@ async def enroll_in_graph(
         HTTPException 409: If already enrolled
         HTTPException 500: If database operation fails
     """
-    # Verify the knowledge graph exists
-    knowledge_graph = await get_graph_by_id(db_session=db_session, graph_id=graph_id)
-    if not knowledge_graph:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Knowledge graph {graph_id} not found.",
-        )
+    # Use EnrollmentService to handle enrollment logic
+    from app.services.enrollment import EnrollmentService
 
-    # Verify the user is the owner
-    if knowledge_graph.owner_id != current_user.id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only the owner can enroll in their own knowledge graph.",
-        )
-
-    # Check if already enrolled
-    stmt = select(GraphEnrollment).where(
-        GraphEnrollment.user_id == current_user.id, GraphEnrollment.graph_id == graph_id
+    enrollment_service = EnrollmentService()
+    enrollment = await enrollment_service.enroll_user_in_graph(
+        db_session=db_session,
+        user_id=current_user.id,
+        graph_id=knowledge_graph.id,
+        graph=knowledge_graph,
     )
-    result = await db_session.execute(stmt)
-    existing_enrollment = result.scalar_one_or_none()
 
-    if existing_enrollment:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="You are already enrolled in this knowledge graph.",
-        )
-
-    try:
-        # Create the enrollment
-        enrollment = GraphEnrollment(
-            user_id=current_user.id,
-            graph_id=graph_id,
-            is_active=True,
-        )
-
-        db_session.add(enrollment)
-
-        # Update enrollment count
-        knowledge_graph.enrollment_count += 1
-
-        await db_session.commit()
-        await db_session.refresh(enrollment)
-
-        return enrollment
-
-    except Exception as e:
-        await db_session.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to create enrollment: {e}",
-        ) from e
+    return enrollment
 
 
 # ==================== Public Endpoints ====================
@@ -519,43 +460,18 @@ async def enroll_in_template_graph(
             detail="This knowledge graph is private. Only public or template graphs can be enrolled.",
         )
 
-    # Check if already enrolled
-    stmt = select(GraphEnrollment).where(
-        GraphEnrollment.user_id == current_user.id, GraphEnrollment.graph_id == graph_id
+    # Use EnrollmentService to handle enrollment logic
+    from app.services.enrollment import EnrollmentService
+
+    enrollment_service = EnrollmentService()
+    enrollment = await enrollment_service.enroll_user_in_graph(
+        db_session=db_session,
+        user_id=current_user.id,
+        graph_id=graph_id,
+        graph=knowledge_graph,
     )
-    result = await db_session.execute(stmt)
-    existing_enrollment = result.scalar_one_or_none()
 
-    if existing_enrollment:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="You are already enrolled in this knowledge graph.",
-        )
-
-    try:
-        # Create the enrollment
-        enrollment = GraphEnrollment(
-            user_id=current_user.id,
-            graph_id=graph_id,
-            is_active=True,
-        )
-
-        db_session.add(enrollment)
-
-        # Update enrollment count
-        knowledge_graph.enrollment_count += 1
-
-        await db_session.commit()
-        await db_session.refresh(enrollment)
-
-        return enrollment
-
-    except Exception as e:
-        await db_session.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to create enrollment: {e}",
-        ) from e
+    return enrollment
 
 
 @public_router.get(

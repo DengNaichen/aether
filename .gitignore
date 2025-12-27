@@ -55,9 +55,13 @@ MANIFEST
 # Mypy cache
 .mypy_cache/
 
+# Ruff cache
+.ruff_cache/
+
 # pytest cache
 .pytest_cache/
 .coverage
+htmlcov/
 
 # Jupyter Notebook checkpoints
 .ipynb_checkpoints
@@ -106,34 +110,84 @@ playground.xcworkspace
 # VSCode
 .vscode/
 
-# PyCharm
+# PyCharm / IntelliJ
 .idea/
 
-
 # ===================================================================
-# experiment code
+# Experiment code / Notebooks
 # ===================================================================
 *.ipynb
-# Jupyter Notebook checkpoints
 .ipynb_checkpoints/
-
-*.rdb
+notebook/
 
 # ===================================================================
 # Temporary files and directories
 # ===================================================================
 temp/
 **/temp/
+*.tmp
+*.log
 
-**/scripts
-scripts/
+# Redis dumps
+*.rdb
 
 # ===================================================================
-# Resource files
+# Resource files (test data, samples, etc.)
 # ===================================================================
 Resource/
 
 # ===================================================================
+# Database / SQL dumps
+# ===================================================================
+# Ignore all SQL files except migrations
+*.sql
+!supabase/migrations/*.sql
+!**/migrations/*.sql
+!**/schema/*.sql
+
+# ===================================================================
 # Supabase
 # ===================================================================
-supabase/
+supabase/.branches
+supabase/.temp
+supabase/config.toml
+
+# ===================================================================
+# Google Cloud / Deployment
+# ===================================================================
+.gcloudignore
+
+# ===================================================================
+# Scripts (if they contain sensitive data or are temporary)
+# ===================================================================
+scripts/
+**/scripts/
+
+# Exception: Allow specific important scripts
+!scripts/setup_dev_data_pg.py
+!scripts/import_pdf_to_graph.py
+!scripts/generate_questions_for_graph.py
+
+# ===================================================================
+# AI Assistant directories (Gemini, Claude, Cursor, etc.)
+# ===================================================================
+.gemini/
+.claude/
+.cursor/
+.aider/
+GEMINI.md
+CLAUDE.md
+
+# ===================================================================
+# Documentation (personal notes/drafts only)
+# ===================================================================
+# Keep all docs by default, only ignore specific personal notes
+docs/git-stash-guide.md
+docs/*-draft.md
+docs/*-notes.md
+
+# ===================================================================
+# Services (experimental/local only)
+# ===================================================================
+# If services/ is for local development only, uncomment:
+# services/

@@ -143,25 +143,7 @@ async def update_mastery_score(
     return mastery
 
 
-# ==================== Question CRUD ====================
-
-
-async def get_question_by_id(
-    db_session: AsyncSession, question_id: UUID
-) -> Question | None:
-    """
-    Get a question by its UUID.
-
-    Args:
-        db_session: Database session
-        question_id: Question UUID
-
-    Returns:
-        Question record or None if not found
-    """
-    stmt = select(Question).where(Question.id == question_id)
-    result = await db_session.execute(stmt)
-    return result.scalar_one_or_none()
+# ==================== Node Query Helpers ====================
 
 
 async def get_node_by_question(

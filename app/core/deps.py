@@ -2,7 +2,7 @@ import logging
 import uuid
 from collections.abc import AsyncGenerator
 
-from fastapi import Depends, HTTPException, Request, status
+from fastapi import Depends, HTTPException, Path, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
 from redis.asyncio import Redis
@@ -77,6 +77,17 @@ async def get_current_user(
         HTTPException: If user does not exist or token is invalid.
         ValueError: If user ID is not a valid UUID
     """
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+
+    # Check if credentials were provided
+    if credentials is None:
+        logger.warning("No credentials provided in request")
+        raise credentials_exception
+
     # Debug: Log raw Authorization header
     token = credentials.credentials
     auth_header = request.headers.get("Authorization", "NOT FOUND")
@@ -84,12 +95,6 @@ async def get_current_user(
         f"Authorization header: {auth_header[:50] if len(auth_header) > 50 else auth_header}..."
     )
     logger.debug("get_current_user called")
-
-    credentials_exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Could not validate credentials",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
     try:
         # Debug: Log token validation attempt
         token_preview = token[:20] if len(token) > 20 else token
@@ -197,3 +202,83 @@ async def get_optional_user(
         return user
     except (JWTError, ValueError):
         return None
+
+
+async def get_owned_graph(
+    graph_id: uuid.UUID = Path(..., description="Knowledge graph UUID"),
+    db_session: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    """
+    Dependency that retrieves a knowledge graph and verifies ownership.
+
+    This dependency combines graph fetching and ownership verification
+    in a single reusable component, following the FastAPI dependency pattern.
+
+    Args:
+        graph_id: Knowledge graph UUID from path parameter
+        db_session: Database session
+        current_user: Authenticated active user
+
+    Returns:
+        KnowledgeGraph: The graph owned by the current user
+
+    Raises:
+        HTTPException 404: If the knowledge graph doesn't exist
+        HTTPException 403: If the user is not the owner
+    """
+    from app.crud.knowledge_graph import get_graph_by_id
+
+    knowledge_graph = await get_graph_by_id(db_session=db_session, graph_id=graph_id)
+    if not knowledge_graph:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Knowledge graph {graph_id} not found.",
+        )
+
+    if knowledge_graph.owner_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You don't have access to this knowledge graph.",
+        )
+
+    return knowledge_graph
+
+
+async def get_public_graph(
+    graph_id: uuid.UUID = Path(..., description="Knowledge graph UUID"),
+    db_session: AsyncSession = Depends(get_db),
+):
+    """
+    Dependency that retrieves a public or template knowledge graph.
+
+    This dependency verifies that the graph is accessible to all users
+    (either public or template), without requiring ownership.
+
+    Args:
+        graph_id: Knowledge graph UUID from path parameter
+        db_session: Database session
+
+    Returns:
+        KnowledgeGraph: The public or template graph
+
+    Raises:
+        HTTPException 404: If the knowledge graph doesn't exist
+        HTTPException 403: If the graph is private (neither public nor template)
+    """
+    from app.crud.knowledge_graph import get_graph_by_id
+
+    knowledge_graph = await get_graph_by_id(db_session=db_session, graph_id=graph_id)
+    if not knowledge_graph:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Knowledge graph {graph_id} not found.",
+        )
+
+    if not knowledge_graph.is_public and not knowledge_graph.is_template:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="This knowledge graph is private. Only public or template graphs can be accessed.",
+        )
+
+    return knowledge_graph

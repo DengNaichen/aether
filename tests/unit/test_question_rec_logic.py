@@ -3,8 +3,8 @@ from uuid import UUID, uuid4
 
 import pytest
 
+from app.domain.question_rec_logic import QuestionRecLogic
 from app.models.knowledge_node import KnowledgeNode
-from app.utils.question_rec_logic import QuestionRecLogic
 
 
 class TestCalculateUrgencyTier:

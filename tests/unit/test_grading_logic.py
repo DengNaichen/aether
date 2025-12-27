@@ -6,7 +6,7 @@ This test suite covers pure grading algorithms with no database dependencies.
 
 import pytest
 
-from app.utils.grading_logic import GradingLogic
+from app.domain.grading_logic import GradingLogic
 
 
 class TestGradeMultipleChoice:

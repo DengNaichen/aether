@@ -16,10 +16,10 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.crud import mastery as mastery_crud
+from app.domain.mastery_logic import MasteryLogic
 from app.models.knowledge_node import KnowledgeNode
 from app.models.user import FSRSState, User, UserMastery
 from app.services.grade_answer import GradingResult
-from app.utils.mastery_logic import MasteryLogic
 
 logger = logging.getLogger(__name__)
 

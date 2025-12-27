@@ -4,8 +4,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.deps import get_current_active_user, get_db
 from app.models.user import User
-
-# from app.helper.course_helper import assemble_course_id
 from app.schemas.knowledge_node import (
     KnowledgeNodeCreate,
     KnowledgeNodeResponse,
@@ -375,6 +373,7 @@ async def create_question_new(
     from uuid import UUID as convert_UUID
 
     from app.crud import knowledge_graph as crud
+    from app.crud import question as crud_question
 
     # Validate graph_id
     try:
@@ -420,7 +419,7 @@ async def create_question_new(
 
     # Create the question
     try:
-        new_question = await crud.create_question(
+        new_question = await crud_question.create_question(
             db_session=db,
             graph_id=graph_uuid,
             node_id=question_data.node_id,
