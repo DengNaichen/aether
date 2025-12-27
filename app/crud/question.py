@@ -13,8 +13,8 @@ from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.question import Question
 from app.models.knowledge_node import KnowledgeNode
+from app.models.question import Question
 
 
 async def get_question_by_id(

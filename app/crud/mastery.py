@@ -13,8 +13,7 @@ from uuid import UUID
 from sqlalchemy import Integer, func, literal_column, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.knowledge_node import KnowledgeNode, Prerequisite, Subtopic
-from app.models.question import Question
+from app.models.knowledge_node import Prerequisite, Subtopic
 from app.models.user import UserMastery
 
 # ==================== UserMastery CRUD ====================

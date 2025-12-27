@@ -24,7 +24,6 @@ from app.crud.mastery import (
     get_or_create_mastery,
     get_prerequisite_roots_to_bonus,
 )
-from app.models.enrollment import GraphEnrollment
 from app.models.knowledge_graph import KnowledgeGraph
 from app.models.user import User, UserMastery
 
@@ -153,7 +152,7 @@ class TestCreateMastery:
         graph_id = graph.id
         node_id = node.id
 
-        mastery = await create_mastery(
+        _mastery = await create_mastery(
             db_session=test_db,
             user_id=user_id,
             graph_id=graph_id,
@@ -281,7 +280,9 @@ class TestGetMasteriesByUserAndGraph:
 
         assert len(result) == 3
         result_node_ids = {m.node_id for m in result}
-        expected_node_ids = {nodes[key].id for key in ["calculus-basics", "derivatives", "integrals"]}
+        expected_node_ids = {
+            nodes[key].id for key in ["calculus-basics", "derivatives", "integrals"]
+        }
         assert result_node_ids == expected_node_ids
 
     @pytest.mark.asyncio
@@ -410,11 +411,11 @@ class TestGetAllAffectedParentIds:
         private_graph_with_few_nodes_and_relations_in_db: dict,
     ):
         """Should find direct parent nodes via subtopic relationships.
-        
+
         Graph structure:
         - Calculus Basics -> Derivatives (parent)
         - Derivatives -> Chain Rule (parent)
-        
+
         Starting from Chain Rule should find Derivatives at level 1.
         """
         graph = private_graph_with_few_nodes_and_relations_in_db["graph"]
@@ -428,7 +429,8 @@ class TestGetAllAffectedParentIds:
         )
 
         # Should find "derivatives" as direct parent
-        result_dict = {node_id: level for node_id, level in result}
+        result_dict = dict(result)
+        # result_dict = {node_id: level for node_id, level in result}
         assert nodes["derivatives"].id in result_dict
         assert result_dict[nodes["derivatives"].id] == 1
 
@@ -439,10 +441,10 @@ class TestGetAllAffectedParentIds:
         private_graph_with_few_nodes_and_relations_in_db: dict,
     ):
         """Should find grandparents and higher ancestors.
-        
+
         Graph structure:
         - Calculus Basics -> Derivatives -> Chain Rule
-        
+
         Starting from Chain Rule should find:
         - Derivatives (level 1)
         - Calculus Basics (level 2)
@@ -456,12 +458,13 @@ class TestGetAllAffectedParentIds:
             start_node_ids=[nodes["chain-rule"].id],
         )
 
-        result_dict = {node_id: level for node_id, level in result}
-        
+        result_dict = dict(result)
+        # result_dict = {node_id: level for node_id, level in result}
+
         # Check all ancestors are found
         assert nodes["derivatives"].id in result_dict
         assert nodes["calculus-basics"].id in result_dict
-        
+
         # Check levels are correct
         assert result_dict[nodes["derivatives"].id] == 1
         assert result_dict[nodes["calculus-basics"].id] == 2
@@ -500,7 +503,8 @@ class TestGetAllAffectedParentIds:
             start_node_ids=[nodes["chain-rule"].id, nodes["integration-by-parts"].id],
         )
 
-        result_dict = {node_id: level for node_id, level in result}
+        result_dict = dict(result)
+        # result_dict = {node_id: level for node_id, level in result}
 
         # Should find both branches of parents
         assert nodes["derivatives"].id in result_dict
@@ -518,10 +522,10 @@ class TestGetPrerequisiteRootsToBonus:
         private_graph_with_few_nodes_and_relations_in_db: dict,
     ):
         """Should find direct prerequisites with depth 1.
-        
+
         Graph structure:
         - Derivatives --[PREREQUISITE]--> Integrals
-        
+
         Starting from Integrals should find Derivatives at depth 1.
         """
         graph = private_graph_with_few_nodes_and_relations_in_db["graph"]
@@ -543,10 +547,10 @@ class TestGetPrerequisiteRootsToBonus:
         private_graph_with_few_nodes_and_relations_in_db: dict,
     ):
         """Should find prerequisites of prerequisites.
-        
+
         Graph structure:
         - Chain Rule --[PREREQUISITE]--> Integration by Parts
-        
+
         Even though this is just one level, we test the recursive capability.
         """
         graph = private_graph_with_few_nodes_and_relations_in_db["graph"]
@@ -587,11 +591,10 @@ class TestGetPrerequisiteRootsToBonus:
         user_in_db: User,
     ):
         """Should return minimum depth when a prerequisite appears at multiple depths.
-        
+
         This tests a more complex scenario where a node might be reachable
         through multiple prerequisite paths.
         """
-        from app.models.knowledge_graph import KnowledgeGraph
         from app.models.knowledge_node import KnowledgeNode, Prerequisite
 
         # Create a custom graph for this test
@@ -608,7 +611,7 @@ class TestGetPrerequisiteRootsToBonus:
         node_b = KnowledgeNode(graph_id=graph.id, node_name="B")
         node_c = KnowledgeNode(graph_id=graph.id, node_name="C")
         node_d = KnowledgeNode(graph_id=graph.id, node_name="D")
-        
+
         test_db.add_all([node_a, node_b, node_c, node_d])
         await test_db.flush()
 
@@ -616,10 +619,16 @@ class TestGetPrerequisiteRootsToBonus:
         # A -> C (depth 1)
         # A -> B -> C (depth 1 -> 2)
         # So A should be returned with minimum depth 1
-        prereq1 = Prerequisite(graph_id=graph.id, from_node_id=node_a.id, to_node_id=node_c.id)
-        prereq2 = Prerequisite(graph_id=graph.id, from_node_id=node_a.id, to_node_id=node_b.id)
-        prereq3 = Prerequisite(graph_id=graph.id, from_node_id=node_b.id, to_node_id=node_c.id)
-        
+        prereq1 = Prerequisite(
+            graph_id=graph.id, from_node_id=node_a.id, to_node_id=node_c.id
+        )
+        prereq2 = Prerequisite(
+            graph_id=graph.id, from_node_id=node_a.id, to_node_id=node_b.id
+        )
+        prereq3 = Prerequisite(
+            graph_id=graph.id, from_node_id=node_b.id, to_node_id=node_c.id
+        )
+
         test_db.add_all([prereq1, prereq2, prereq3])
         await test_db.commit()
 
@@ -634,7 +643,7 @@ class TestGetPrerequisiteRootsToBonus:
         # Should return minimum depth = 1
         assert node_a.id in result
         assert result[node_a.id] == 1
-        
+
         # Node B only appears at depth 1
         assert node_b.id in result
         assert result[node_b.id] == 1
@@ -654,7 +663,7 @@ class TestGetAllSubtopicsForParentsBulk:
         nodes = private_graph_with_few_nodes_and_relations_in_db["nodes"]
 
         parent_ids = [nodes["calculus-basics"].id, nodes["derivatives"].id]
-        
+
         result = await get_all_subtopics_for_parents_bulk(
             db_session=test_db,
             graph_id=graph.id,
@@ -663,7 +672,9 @@ class TestGetAllSubtopicsForParentsBulk:
 
         # Calculus Basics has 2 subtopics: Derivatives and Integrals
         assert len(result[nodes["calculus-basics"].id]) == 2
-        child_ids = [child_id for child_id, weight in result[nodes["calculus-basics"].id]]
+        child_ids = [
+            child_id for child_id, weight in result[nodes["calculus-basics"].id]
+        ]
         assert nodes["derivatives"].id in child_ids
         assert nodes["integrals"].id in child_ids
 
@@ -727,8 +738,8 @@ class TestGetAllSubtopicsForParentsBulk:
         # Each subtopic should be a tuple of (child_id, weight)
         subtopics = result[nodes["calculus-basics"].id]
         assert all(isinstance(item, tuple) and len(item) == 2 for item in subtopics)
-        
+
         # Verify weights are floats
-        for child_id, weight in subtopics:
+        for _child_id, weight in subtopics:
             assert isinstance(weight, float)
             assert 0.0 <= weight <= 1.0
