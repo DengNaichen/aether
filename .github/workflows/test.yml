@@ -70,7 +70,7 @@ jobs:
           DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/aether_test
           REDIS_URL: redis://localhost:6379/0
           SUPABASE_JWT_SECRET: test-secret-key-for-ci-only-not-secure
-          # GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}  # Uncomment when needed
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
       
       - name: Upload coverage reports to Codecov (optional)
         uses: codecov/codecov-action@v4

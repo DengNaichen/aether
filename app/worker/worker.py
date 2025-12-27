@@ -1,19 +1,16 @@
 import asyncio
 import json
 import traceback
+from datetime import UTC, datetime
 
-from datetime import datetime, timezone
-
-from app.core.database import db_manager, DatabaseManager
+from app.core.database import DatabaseManager, db_manager
 from app.worker.config import (
-    WorkerContext,
-    MAIN_QUEUE_NAME,
     DLQ_NAME,
-    TASK_HANDLERS,
+    MAIN_QUEUE_NAME,
     MAX_RETRIES,
+    TASK_HANDLERS,
+    WorkerContext,
 )
-
-import app.worker.handlers
 
 
 async def move_to_dlq(
@@ -23,12 +20,12 @@ async def move_to_dlq(
         "original_task": task,
         "error_message": error_message,
         "retry_count": retry_count,
-        "failed_at": datetime.now(timezone.utc).isoformat(),
+        "failed_at": datetime.now(UTC).isoformat(),
         "traceback": traceback.format_exc(),
     }
 
     await redis_client.lpush(DLQ_NAME, json.dumps(dlq_payload))
-    task_type = task.get("task_type", "unknown")
+    # task_type = task.get("task_type", "unknown")
     print(f"🚨 Task move to DLQ: {task.get("task_type")}")
 
 
@@ -64,7 +61,7 @@ class WorkerStats:
     def __init__(self):
         self.processed_count = 0
         self.failed_count = 0
-        self.start_time = datetime.now(timezone.utc)
+        self.start_time = datetime.now(UTC)
 
     def increment_processed(self):
         self.processed_count += 1
@@ -85,7 +82,7 @@ class WorkerStats:
     def print_stats(self):
         stats = self.get_stats()
         print(f"\n{'=' * 50}")
-        print(f"📊 Worker Statistics")
+        print("📊 Worker Statistics")
         print(f"{'=' * 50}")
         print(f"✅ Processed: {stats['processed']}")
         print(f"❌ Failed: {stats['failed']}")
@@ -106,7 +103,7 @@ class AsyncWorker:
     async def start(self):
         """Start the worker."""
         print(f"\n{'='*50}")
-        print(f"🚀 Starting Worker")
+        print("🚀 Starting Worker")
         print(f"{'=' * 50}")
         print(f"📥 Listening on queue: {self.queue_name}")
         print(f"📊 DLQ: {DLQ_NAME}")
