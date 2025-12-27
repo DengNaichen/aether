@@ -16,7 +16,8 @@ from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.deps import get_current_active_user, get_db
-from app.crud.knowledge_graph import get_graph_by_id, get_questions_by_node
+from app.crud.knowledge_graph import get_graph_by_id
+from app.crud.question import get_questions_by_node
 from app.models.question import Question
 from app.models.user import User
 from app.schemas.questions import AnyQuestion
