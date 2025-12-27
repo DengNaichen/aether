@@ -1,90 +1,26 @@
 """
-Unit tests for the GradingService in app/services/grade_answer.py
+Integration tests for the GradingService in app/services/grade_answer.py
 
 This test suite covers:
-- Individual grading logic for each question type (_grade_multiple_choice, etc.)
-- The main `grade_answer` dispatcher logic and its error handling.
-- The `fetch_and_grade` method's interaction with the database and error handling.
+- The `grade_answer` dispatcher logic and its error handling (in GradingService)
+- The `fetch_and_grade` method's interaction with the database and error handling
+
+Note: Pure grading logic tests (GradingLogic) are in tests/unit/test_grading_logic.py
 """
 
-import pytest
 from uuid import uuid4
 
+import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.services.grade_answer import GradingService, GradingResult, GradingError
-from app.models.question import Question, QuestionType, QuestionDifficulty
+from app.models.question import Question, QuestionDifficulty, QuestionType
+from app.services.grade_answer import GradingError, GradingResult, GradingService
 
 
 @pytest.fixture
 def grading_service(test_db: AsyncSession) -> GradingService:
     """Provides a GradingService instance initialized with a test DB session."""
     return GradingService(db_session=test_db)
-
-
-class TestGradingServiceHelpers:
-    """Unit tests for the static helper methods in GradingService."""
-
-    @pytest.mark.parametrize(
-        "user_answer, correct_answer, expected",
-        [
-            (1, 1, True),  # Correct integer
-            ("1", 1, True),  # Correct string
-            (0, 1, False),  # Incorrect integer
-            ("0", 1, False),  # Incorrect string
-            ("abc", 1, False),  # Invalid string
-            (None, 1, False),  # None value
-        ],
-    )
-    def test_grade_multiple_choice(self, user_answer, correct_answer, expected):
-        """Test _grade_multiple_choice with various inputs."""
-        assert (
-            GradingService._grade_multiple_choice(user_answer, correct_answer)
-            == expected
-        )
-
-    @pytest.mark.parametrize(
-        "user_answer, expected_answers, expected",
-        [
-            ("Paris", ["Paris", "paris"], True),  # Correct, exact match
-            ("paris", ["Paris"], True),  # Correct, case-insensitive
-            ("  paris  ", ["Paris"], True),  # Correct, with whitespace
-            ("London", ["Paris", "paris"], False),  # Incorrect
-            ("", ["Paris"], False),  # Empty answer
-        ],
-    )
-    def test_grade_fill_in_blank(self, user_answer, expected_answers, expected):
-        """Test _grade_fill_in_blank with various inputs."""
-        assert (
-            GradingService._grade_fill_in_blank(user_answer, expected_answers)
-            == expected
-        )
-
-    @pytest.mark.parametrize(
-        "user_answer, expected_answer, precision, expected",
-        [
-            ("78.54", "78.54", 2, True),  # Exact match
-            ("78.539", "78.54", 2, True),  # Within precision
-            ("78.541", "78.54", 2, True),  # Within precision
-            ("78.55", "78.54", 2, False),  # Outside precision
-            ("78.53", "78.54", 2, False),  # Outside precision
-            ("100", "100.001", 2, True),  # Precision tolerance check
-            ("100", "100.01", 2, False),  # Just outside tolerance
-        ],
-    )
-    def test_grade_calculation(self, user_answer, expected_answer, precision, expected):
-        """Test _grade_calculation with precision tolerance."""
-        assert (
-            GradingService._grade_calculation(user_answer, expected_answer, precision)
-            == expected
-        )
-
-    def test_grade_calculation_raises_value_error(self):
-        """Test that _grade_calculation raises ValueError for non-numeric input."""
-        with pytest.raises(ValueError):
-            GradingService._grade_calculation("abc", "78.54", 2)
-        with pytest.raises(ValueError):
-            GradingService._grade_calculation("78.54", "abc", 2)
 
 
 class TestGradeAnswerMethod:
@@ -235,30 +171,6 @@ class TestGradeAnswerMethod:
 @pytest.mark.asyncio
 class TestFetchAndGradeMethod:
     """Tests for the `fetch_and_grade` method, involving DB interaction."""
-
-    @pytest.fixture
-    async def question_in_db(self, test_db: AsyncSession) -> Question:
-        """Fixture to create and save a question to the test database."""
-        graph_id = uuid4()
-        node_id = uuid4()
-        question = Question(
-            graph_id=graph_id,
-            node_id=node_id,
-            question_type=QuestionType.MULTIPLE_CHOICE.value,
-            text="What is the capital of France?",
-            details={
-                "question_type": QuestionType.MULTIPLE_CHOICE.value,
-                "options": ["London", "Paris", "Berlin"],
-                "correct_answer": 1,
-                "p_g": 0.33,
-                "p_s": 0.1,
-            },
-            difficulty=QuestionDifficulty.EASY.value,
-        )
-        test_db.add(question)
-        await test_db.commit()
-        await test_db.refresh(question)
-        return question
 
     async def test_fetch_and_grade_success(
         self, grading_service: GradingService, question_in_db: Question

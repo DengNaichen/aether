@@ -4,8 +4,8 @@ from uuid import uuid4
 
 from fsrs import Card, Rating, State
 
+from app.domain.mastery_logic import MasteryLogic
 from app.models.user import FSRSState, UserMastery
-from app.utils.mastery_logic import MasteryLogic
 from app.utils.time_utils import get_now
 
 

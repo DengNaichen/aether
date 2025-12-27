@@ -1,12 +1,12 @@
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 import app.models as models
 from app.core.config import settings
 from app.core.database import db_manager
-from app.routes import question, user, knowledge_node, knowledge_graph, answer
-from fastapi.middleware.cors import CORSMiddleware
+from app.routes import answer, knowledge_node, my_graphs, public_graph, question, user
 
 
 # define lifespan
@@ -40,8 +40,9 @@ app.add_middleware(
     allow_origins=[
         "http://localhost:5173",
         "http://localhost:3000",
-        "https://learning-project-fronted.vercel.app",  # Production frontend
+        "https://learning-project-fronted.vercel.app",
     ],
+    allow_origin_regex=r"https://learning-project-fronted-.*\.vercel\.app",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -50,10 +51,9 @@ app.add_middleware(
 
 app.include_router(user.router)
 app.include_router(question.router)
-# app.include_router(admin.router)
 app.include_router(knowledge_node.router)
-app.include_router(knowledge_graph.router)
-app.include_router(knowledge_graph.public_router)  # Public endpoints for graphs
+app.include_router(my_graphs.router)
+app.include_router(public_graph.router)
 app.include_router(answer.router)
 
 
