@@ -11,12 +11,12 @@ import logging
 from dataclasses import dataclass
 from uuid import UUID
 
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.crud import question as crud_question
+from app.domain.grading_logic import GradingLogic
 from app.models.question import Question, QuestionType
 from app.schemas.quiz import AnyAnswer
-from app.utils.grading_logic import GradingLogic
 
 
 class GradingError(Exception):
@@ -167,10 +167,8 @@ class GradingService:
             GradingResult if question exists, None if not found
         """
         try:
-            # Fetch question from PostgreSQL
-            stmt = select(Question).where(Question.id == question_id)
-            result = await self.db.execute(stmt)
-            question = result.scalar_one_or_none()
+            # Fetch question from PostgreSQL using CRUD layer
+            question = await crud_question.get_question_by_id(self.db, question_id)
 
             if not question:
                 logging.warning(

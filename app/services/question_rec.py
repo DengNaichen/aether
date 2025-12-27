@@ -16,10 +16,10 @@ from uuid import UUID
 from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.domain.question_rec_logic import QuestionRecLogic
 from app.models.knowledge_node import KnowledgeNode, Prerequisite
 from app.models.question import Question
 from app.models.user import UserMastery
-from app.utils.question_rec_logic import QuestionRecLogic
 
 logger = logging.getLogger(__name__)
 
