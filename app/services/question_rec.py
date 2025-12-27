@@ -111,7 +111,7 @@ class QuestionService:
             node = row[0]
             mastery = row[1]
             mastery_data = {
-                "score": mastery.score,
+                "cached_retrievability": mastery.cached_retrievability,  # Cached R(t)
                 "due_date": mastery.due_date,
                 "fsrs_state": mastery.fsrs_state,
                 "level": node.level,
@@ -187,7 +187,7 @@ class QuestionService:
                 is_prerequisite=is_prerequisite,
                 urgency_tier=urgency_tier,
                 level=mastery_data["level"],
-                score=mastery_data["score"],
+                cached_retrievability=mastery_data["cached_retrievability"],
             )
 
             # Simple score for logging/frontend (1000 = high priority)

@@ -545,7 +545,7 @@ async def get_graph_visualization(
             KnowledgeNode.id,
             KnowledgeNode.node_name,
             KnowledgeNode.description,
-            func.coalesce(UserMastery.score, 0.1).label("mastery_score"),
+            func.coalesce(UserMastery.cached_retrievability, 0.1).label("mastery_score"),
         )
         .outerjoin(
             UserMastery,

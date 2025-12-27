@@ -43,7 +43,7 @@ class QuestionRecLogic:
         is_prerequisite: bool,
         urgency_tier: int,
         level: int | None,
-        score: float,
+        cached_retrievability: float,
     ) -> tuple[int, int, int, float]:
         """Generate sort key for Phase 2 priority sorting.
 
@@ -51,10 +51,10 @@ class QuestionRecLogic:
             is_prerequisite: Whether this node is a prerequisite for other due nodes.
             urgency_tier: Urgency tier (0-2).
             level: Knowledge graph level (None treated as 999).
-            score: Current Retrievability R(t).
+            cached_retrievability: Cached FSRS R(t) value (0.0-1.0).
 
         Returns:
-            tuple: Sort key (rank_is_prereq, rank_urgency, rank_level, rank_score)
+            tuple: Sort key (rank_is_prereq, rank_urgency, rank_level, rank_retrievability)
         """
         # 1. Prerequisite nodes FIRST (True=0, False=1)
         rank_is_prereq = 0 if is_prerequisite else 1
@@ -66,9 +66,9 @@ class QuestionRecLogic:
         rank_level = level if level is not None else 999
 
         # 4. Lower R(t) FIRST (more forgotten = higher priority)
-        rank_score = score
+        rank_retrievability = cached_retrievability
 
-        return (rank_is_prereq, rank_urgency, rank_level, rank_score)
+        return (rank_is_prereq, rank_urgency, rank_level, rank_retrievability)
 
     @staticmethod
     def filter_by_stability(

@@ -156,10 +156,10 @@ class MasteryLogic:
             new_card.stability = min(recovery_stability, old_stability)
 
         new_fsrs_state_enum = cls.map_fsrs_state_to_enum(new_card.state)
-        new_score = cls._fsrs_scheduler.get_card_retrievability(new_card, now)
+        new_retrievability = cls._fsrs_scheduler.get_card_retrievability(new_card, now)
 
         updates = {
-            "score": new_score,
+            "cached_retrievability": new_retrievability,
             "last_updated": now,
             "fsrs_state": new_fsrs_state_enum.value,
             "fsrs_stability": new_card.stability,
@@ -214,10 +214,10 @@ class MasteryLogic:
         fsrs_card = cls.build_fsrs_card(mastery)
         new_card, _ = cls._fsrs_scheduler.review_card(fsrs_card, Rating.Good, now)
         new_fsrs_state_enum = cls.map_fsrs_state_to_enum(new_card.state)
-        new_score = cls._fsrs_scheduler.get_card_retrievability(new_card, now)
+        new_retrievability = cls._fsrs_scheduler.get_card_retrievability(new_card, now)
 
         return {
-            "score": new_score,
+            "cached_retrievability": new_retrievability,
             "last_updated": now,
             "fsrs_state": new_fsrs_state_enum.value,
             "fsrs_stability": new_card.stability,
@@ -278,3 +278,18 @@ class MasteryLogic:
         """
         fsrs_card = cls.build_fsrs_card(mastery)
         return cls._fsrs_scheduler.get_card_retrievability(fsrs_card, get_now())
+
+    @classmethod
+    def get_initial_retrievability(cls) -> float:
+        """Calculate initial R(t) for a brand new card.
+
+        This should be called when creating a new mastery record to get
+        the FSRS-calculated initial retrievability value.
+
+        Returns:
+            float: Initial retrievability for a new card (typically ~0.9-1.0).
+        """
+        from fsrs import Card
+
+        new_card = Card()
+        return cls._fsrs_scheduler.get_card_retrievability(new_card, get_now())

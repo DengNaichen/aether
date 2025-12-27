@@ -14,6 +14,7 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.question import Question
+from app.models.knowledge_node import KnowledgeNode
 
 
 async def get_question_by_id(
@@ -74,6 +75,28 @@ async def get_questions_by_node(
     )
     result = await db_session.execute(stmt)
     return list(result.scalars().all())
+
+
+# ==================== Node Query Helpers ====================
+async def get_node_by_question(
+    db_session: AsyncSession, question: Question
+) -> KnowledgeNode | None:
+    """
+    Get the knowledge node associated with a question.
+
+    Args:
+        db_session: Database session
+        question: Question record
+
+    Returns:
+        KnowledgeNode or None if not found
+    """
+    stmt = select(KnowledgeNode).where(
+        KnowledgeNode.id == question.node_id,
+        KnowledgeNode.graph_id == question.graph_id,
+    )
+    result = await db_session.execute(stmt)
+    return result.scalar_one_or_none()
 
 
 async def create_question(

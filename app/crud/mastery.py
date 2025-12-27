@@ -49,21 +49,20 @@ async def create_mastery(
     user_id: UUID,
     graph_id: UUID,
     node_id: UUID,
-    score: float = 0.1,
-    p_l0: float = 0.2,
-    p_t: float = 0.2,
+    cached_retrievability: float,
 ) -> UserMastery:
     """
     Create a new mastery record for a user-node pair.
+
+    The cached_retrievability should be calculated by the caller (service layer)
+    using FSRS before calling this function.
 
     Args:
         db_session: Database session
         user_id: User UUID
         graph_id: Knowledge graph UUID
         node_id: Knowledge node UUID
-        score: Initial mastery score (default 0.1)
-        p_l0: Prior knowledge probability (default 0.2)
-        p_t: Learning transition probability (default 0.2)
+        cached_retrievability: Initial cached R(t) value (calculated by FSRS)
 
     Returns:
         Newly created UserMastery record
@@ -72,9 +71,7 @@ async def create_mastery(
         user_id=user_id,
         graph_id=graph_id,
         node_id=node_id,
-        score=score,
-        p_l0=p_l0,
-        p_t=p_t,
+        cached_retrievability=cached_retrievability,
         last_updated=datetime.now(UTC),
     )
     db_session.add(mastery)
@@ -87,84 +84,53 @@ async def get_or_create_mastery(
     user_id: UUID,
     graph_id: UUID,
     node_id: UUID,
-    default_score: float = 0.1,
-    default_p_l0: float = 0.2,
-    default_p_t: float = 0.2,
+    cached_retrievability: float,
 ) -> tuple[UserMastery, bool]:
     """
     Get existing mastery record or create a new one.
+
+    If creating, uses the provided cached_retrievability (should be calculated
+    by the caller using FSRS).
 
     Args:
         db_session: Database session
         user_id: User UUID
         graph_id: Knowledge graph UUID
         node_id: Knowledge node UUID
-        default_score: Initial score if creating (default 0.1)
-        default_p_l0: Initial p_l0 if creating (default 0.2)
-        default_p_t: Initial p_t if creating (default 0.2)
+        cached_retrievability: Initial cached R(t) if creating (from FSRS)
 
     Returns:
         Tuple of (mastery_record, was_created)
     """
-    mastery = await get_mastery(db_session, user_id, graph_id, node_id)
-
-    if mastery:
+    # Try to get existing record
+    if mastery := await get_mastery(db_session, user_id, graph_id, node_id):
         return mastery, False
 
+    # Create new record
     mastery = await create_mastery(
-        db_session,
-        user_id,
-        graph_id,
-        node_id,
-        score=default_score,
-        p_l0=default_p_l0,
-        p_t=default_p_t,
+        db_session, user_id, graph_id, node_id, cached_retrievability
     )
     return mastery, True
 
 
-async def update_mastery_score(
-    db_session: AsyncSession, mastery: UserMastery, new_score: float
-) -> UserMastery:
-    """
-    Update a mastery record's score and timestamp.
-
-    Args:
-        db_session: Database session
-        mastery: UserMastery record to update
-        new_score: New mastery score
-
-    Returns:
-        Updated UserMastery record
-    """
-    mastery.score = new_score
-    mastery.last_updated = datetime.now(UTC)
-    await db_session.flush()
-    return mastery
-
-
-# ==================== Node Query Helpers ====================
-
-
-async def get_node_by_question(
-    db_session: AsyncSession, question: Question
-) -> KnowledgeNode | None:
-    """
-    Get the knowledge node associated with a question.
-
-    Args:
-        db_session: Database session
-        question: Question record
-
-    Returns:
-        KnowledgeNode or None if not found
-    """
-    stmt = select(KnowledgeNode).where(
-        KnowledgeNode.id == question.node_id,
-        KnowledgeNode.graph_id == question.graph_id,
-    )
-    result = await db_session.execute(stmt)
-    return result.scalar_one_or_none()
+# async def update_mastery_retrievability( # TODO: could has no usage
+#     db_session: AsyncSession, mastery: UserMastery, new_retrievability: float
+# ) -> UserMastery:
+#     """
+#     Update a mastery record's cached retrievability and timestamp.
+#
+#     Args:
+#         db_session: Database session
+#         mastery: UserMastery record to update
+#         new_retrievability: New cached R(t) value
+#
+#     Returns:
+#         Updated UserMastery record
+#     """
+#     mastery.cached_retrievability = new_retrievability
+#     mastery.last_updated = datetime.now(UTC)
+#     await db_session.flush()
+#     return mastery
 
 
 # ==================== Batch Queries for Performance ====================
