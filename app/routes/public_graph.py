@@ -14,10 +14,10 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.deps import get_current_active_user, get_db, get_optional_user
+from app.crud.graph_structure import get_graph_visualization
 from app.crud.knowledge_graph import (
     get_all_template_graphs,
     get_graph_by_id,
-    get_graph_visualization,
 )
 from app.crud.question import get_questions_by_node
 from app.models.enrollment import GraphEnrollment

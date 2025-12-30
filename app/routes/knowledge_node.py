@@ -9,8 +9,6 @@ from app.schemas.knowledge_node import (
     KnowledgeNodeResponse,
     PrerequisiteCreate,
     PrerequisiteResponse,
-    SubtopicCreate,
-    SubtopicResponse,
 )
 from app.schemas.questions import QuestionCreateForGraph, QuestionResponseFromGraph
 
@@ -212,118 +210,6 @@ async def create_prerequisite_new(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to create prerequisite: {str(e)}",
-        ) from e
-
-
-@router.post(
-    "/{graph_id}/subtopics",
-    status_code=status.HTTP_201_CREATED,
-    summary="Create a subtopic relationship",
-    response_model=SubtopicResponse,
-)
-async def create_subtopic_new(
-    graph_id: str,
-    subtopic_data: SubtopicCreate,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_active_user),
-) -> SubtopicResponse:
-    """
-    Create a subtopic relationship between two nodes in a graph.
-
-    Structure: (parent_node) HAS_SUBTOPIC (child_node)
-    Meaning: child_node is a subtopic of parent_node.
-
-    Only the owner of the graph can create subtopics.
-
-    Args:
-        graph_id: UUID of the knowledge graph
-        subtopic_data: Subtopic data (parent_node_id, child_node_id, weight)
-        db: Database session
-        current_user: Authenticated user
-
-    Returns:
-        SubtopicResponse: The created subtopic relationship
-
-    Raises:
-        404: Graph not found or one of the nodes not found
-        403: User is not the owner of the graph
-        409: Subtopic already exists
-    """
-    from uuid import UUID as convert_UUID
-
-    from app.crud import knowledge_graph as crud
-    from app.schemas.knowledge_node import SubtopicResponse
-
-    # Validate graph_id
-    try:
-        graph_uuid = convert_UUID(graph_id)
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid graph_id format"
-        ) from e
-
-    # Check if graph exists
-    graph = await crud.get_graph_by_id(db, graph_uuid)
-    if not graph:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Knowledge graph {graph_id} not found",
-        )
-
-    # Check if user is the owner
-    if graph.owner_id != current_user.id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only the graph owner can create subtopics",
-        )
-
-    # Check if both nodes exist
-    parent_node = await crud.get_node_by_id(db, subtopic_data.parent_node_id)
-    child_node = await crud.get_node_by_id(db, subtopic_data.child_node_id)
-
-    if not parent_node:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Node '{subtopic_data.parent_node_id}' not found",
-        )
-    if not child_node:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Node '{subtopic_data.child_node_id}' not found",
-        )
-
-    # Verify both nodes belong to this graph
-    if parent_node.graph_id != graph_uuid:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Node '{subtopic_data.parent_node_id}' does not belong to this graph",
-        )
-    if child_node.graph_id != graph_uuid:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Node '{subtopic_data.child_node_id}' does not belong to this graph",
-        )
-
-    # Create the subtopic
-    try:
-        new_subtopic = await crud.create_subtopic(
-            db_session=db,
-            graph_id=graph_uuid,
-            parent_node_id=subtopic_data.parent_node_id,
-            child_node_id=subtopic_data.child_node_id,
-            weight=subtopic_data.weight,
-        )
-        return SubtopicResponse.model_validate(new_subtopic)
-    except Exception as e:
-        # Check if it's a duplicate key error (subtopic already exists)
-        if "duplicate key" in str(e).lower() or "unique constraint" in str(e).lower():
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=f"Subtopic from '{subtopic_data.parent_node_id}' to '{subtopic_data.child_node_id}' already exists",
-            ) from e
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to create subtopic: {str(e)}",
         ) from e
 
 
