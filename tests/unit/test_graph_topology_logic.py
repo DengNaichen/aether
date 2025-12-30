@@ -4,8 +4,9 @@ Unit tests for graph topology logic (pure algorithms).
 Tests all graph analysis functions without any database dependencies.
 """
 
+from uuid import uuid4
+
 import pytest
-from uuid import uuid4, UUID
 
 from app.domain.graph_topology_logic import GraphTopologyLogic
 
