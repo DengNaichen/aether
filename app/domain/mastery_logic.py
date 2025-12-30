@@ -10,7 +10,6 @@ import logging
 import random
 from datetime import datetime
 from typing import Any
-from uuid import UUID
 
 from fsrs import Card, Rating, Scheduler, State
 
@@ -225,46 +224,6 @@ class MasteryLogic:
             "due_date": new_card.due,
             "last_review": now,
         }
-
-    @classmethod
-    def calculate_parent_aggregation(
-        cls,
-        child_relations: list[tuple[UUID, float]],
-        mastery_map: dict[UUID, UserMastery],
-        now: datetime,
-    ) -> float:
-        """Calculates the weighted average score for a parent node.
-
-        Based on current dynamic retrievability of children.
-
-        Args:
-            child_relations: List of (child_id, weight) tuples.
-            mastery_map: Dictionary mapping node UUIDs to UserMastery objects.
-            now: Current timestamp.
-
-        Returns:
-            float: Weighted average score for the parent node.
-        """
-        weighted_sum = 0.0
-        total_weight = 0.0
-
-        if not child_relations:
-            return 0.0
-
-        for child_id, weight in child_relations:
-            child_mastery = mastery_map.get(child_id)
-            if child_mastery:
-                fsrs_card = cls.build_fsrs_card(child_mastery)
-                subtopic_score = cls._fsrs_scheduler.get_card_retrievability(
-                    fsrs_card, now
-                )
-            else:
-                subtopic_score = 0.0
-
-            weighted_sum += subtopic_score * weight
-            total_weight += weight
-
-        return weighted_sum / total_weight if total_weight > 0 else 0.0
 
     @classmethod
     def get_current_retrievability(cls, mastery: UserMastery) -> float:

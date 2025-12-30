@@ -90,13 +90,12 @@ class GraphContentPrerequisite(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
-
-class GraphContentSubtopic(BaseModel):
-    """Subtopic relation for graph content response"""
-
-    parent_node_id: UUID
-    child_node_id: UUID
-    weight: float
+    # class GraphContentSubtopic(BaseModel):
+    #     """Subtopic relation for graph content response"""
+    #     REMOVED: No longer using Subtopic hierarchy
+    #     parent_node_id: UUID
+    #     child_node_id: UUID
+    #     weight: float
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -107,4 +106,4 @@ class GraphContentResponse(BaseModel):
     graph: KnowledgeGraphResponse
     nodes: list[GraphContentNode]
     prerequisites: list[GraphContentPrerequisite]
-    subtopics: list[GraphContentSubtopic]
+    # subtopics: list[GraphContentSubtopic]  # Removed - using tags

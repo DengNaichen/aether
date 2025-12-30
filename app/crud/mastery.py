@@ -3,17 +3,17 @@ CRUD operations for User Mastery tracking.
 
 This module provides data access layer for mastery-related operations:
 - Getting/creating mastery records
-- Querying prerequisites and subtopics for propagation
+- Querying prerequisites for propagation
 - Batch queries for efficient graph traversal
 """
 
 from datetime import UTC, datetime
 from uuid import UUID
 
-from sqlalchemy import Integer, func, literal_column, select, text
+from sqlalchemy import Integer, func, literal_column, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.knowledge_node import Prerequisite, Subtopic
+from app.models.knowledge_node import Prerequisite
 from app.models.user import UserMastery
 
 # ==================== UserMastery CRUD ====================
@@ -112,26 +112,6 @@ async def get_or_create_mastery(
     return mastery, True
 
 
-# async def update_mastery_retrievability( # TODO: could has no usage
-#     db_session: AsyncSession, mastery: UserMastery, new_retrievability: float
-# ) -> UserMastery:
-#     """
-#     Update a mastery record's cached retrievability and timestamp.
-#
-#     Args:
-#         db_session: Database session
-#         mastery: UserMastery record to update
-#         new_retrievability: New cached R(t) value
-#
-#     Returns:
-#         Updated UserMastery record
-#     """
-#     mastery.cached_retrievability = new_retrievability
-#     mastery.last_updated = datetime.now(UTC)
-#     await db_session.flush()
-#     return mastery
-
-
 # ==================== Batch Queries for Performance ====================
 
 
@@ -189,61 +169,6 @@ async def get_masteries_by_nodes(
     return {mastery.node_id: mastery for mastery in result.scalars().all()}
 
 
-async def get_all_affected_parent_ids(
-    db_session: AsyncSession, graph_id: UUID, start_node_ids: list[UUID]
-) -> list[tuple[UUID, int]]:
-    """
-    Finds all parent/ancestor nodes above a set of start nodes.
-    (distance from start nodes)
-
-    Uses a recursive CTE to traverse the SUBTOPIC relationships upward.
-    (start_node) <- [Subtopic] - (parent) <- [Subtopic] - (grandparent) ...
-
-    Args:
-        db_session: Database session
-        graph_id: Knowledge graph UUID
-        start_node_ids: List of start node UUIDs
-
-    Returns:
-        A list of (node_id, level) tuples, not a set
-
-    """
-    if not start_node_ids:
-        return []
-
-    # Base case: direct parents
-    cte_base = select(
-        Subtopic.parent_node_id.label("node_id"),
-        literal_column("1", type_=Integer).label("level"),
-    ).where(Subtopic.graph_id == graph_id, Subtopic.child_node_id.in_(start_node_ids))
-
-    # Create the CTE
-    upward_cte = cte_base.cte(name="upward_path", recursive=True)
-
-    # Recursive case: parents of parents
-    cte_recursive = (
-        select(
-            Subtopic.parent_node_id.label("node_id"),
-            (upward_cte.c.level + 1).label("level"),  #
-        )
-        .join(upward_cte, Subtopic.child_node_id == upward_cte.c.node_id)
-        .where(Subtopic.graph_id == graph_id)
-    )
-
-    # Combine base and recursive
-    upward_cte = upward_cte.union_all(cte_recursive)
-
-    stmt = (
-        select(upward_cte.c.node_id, func.max(upward_cte.c.level).label("max_level"))
-        .group_by(upward_cte.c.node_id)
-        .order_by(text("max_level ASC"))
-    )
-
-    # stmt = select(upward_cte.c.node_id).distinct()
-    result = await db_session.execute(stmt)
-    return result.all()
-
-
 async def get_prerequisite_roots_to_bonus(
     db_session: AsyncSession, graph_id: UUID, start_node_id: UUID
 ) -> dict[UUID, int]:
@@ -296,33 +221,3 @@ async def get_prerequisite_roots_to_bonus(
 
     result = await db_session.execute(stmt)
     return {row.node_id: row.min_depth for row in result.all()}
-
-
-async def get_all_subtopics_for_parents_bulk(
-    db_session: AsyncSession, graph_id: UUID, parent_node_ids: list[UUID]
-) -> dict[UUID, list[tuple[UUID, float]]]:
-    """
-    Gets all subtopics for a list of parent nodes.
-
-    Args:
-        - db_session: Database session
-        - graph_id: Knowledge graph UUID
-        - parent_node_ids: List of parent node UUIDs to query for
-
-    Return:
-        - A dict mapping {parent_id: [(child_id, weight), ...]}
-    """
-    if not parent_node_ids:
-        return {}
-
-    stmt = select(Subtopic).where(
-        Subtopic.graph_id == graph_id, Subtopic.parent_node_id.in_(parent_node_ids)
-    )
-
-    result = await db_session.execute(stmt)
-
-    subtopic_map = {pid: [] for pid in parent_node_ids}
-    for rel in result.scalars().all():
-        subtopic_map[rel.parent_node_id].append((rel.child_node_id, rel.weight))
-
-    return subtopic_map

@@ -9,12 +9,59 @@ This module provides data access layer for question-related operations:
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import desc, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.knowledge_node import KnowledgeNode
 from app.models.question import Question
+
+
+# ==================== Helper Functions ====================
+def _ensure_uuid(value: UUID | str) -> UUID:
+    """
+    Convert string to UUID if needed.
+
+    Args:
+        value: UUID or string representation
+
+    Returns:
+        UUID object
+    """
+    return UUID(value) if isinstance(value, str) else value
+
+
+def _apply_question_filters(
+    stmt: select,
+    difficulty: str | None = None,
+    question_type: str | None = None,
+    order_by: str = "created_at",
+    ascending: bool = True,
+) -> select:
+    """
+    Apply common filters and sorting to question queries.
+
+    Args:
+        stmt: Base SQLAlchemy select statement
+        difficulty: Optional filter by difficulty
+        question_type: Optional filter by question type
+        order_by: Field to sort by
+        ascending: Sort order
+
+    Returns:
+        Modified select statement with filters and ordering applied
+    """
+    # Apply filters
+    if difficulty:
+        stmt = stmt.where(Question.difficulty == difficulty)
+    if question_type:
+        stmt = stmt.where(Question.question_type == question_type)
+
+    # Apply sorting
+    order_column = getattr(Question, order_by, Question.created_at)
+    stmt = stmt.order_by(order_column if ascending else desc(order_column))
+
+    return stmt
 
 
 async def get_question_by_id(
@@ -38,18 +85,30 @@ async def get_question_by_id(
 async def get_questions_by_graph(
     db_session: AsyncSession,
     graph_id: UUID,
+    difficulty: str | None = None,
+    question_type: str | None = None,
+    order_by: str = "created_at",
+    ascending: bool = True,
 ) -> list[Question]:
     """
-    Get all questions in a graph.
+    Get all questions in a graph with optional filtering and sorting.
+
+    Note: This query uses the idx_questions_graph index for performance.
 
     Args:
         db_session: Database session
         graph_id: Knowledge graph UUID
+        difficulty: Optional filter by difficulty (easy, medium, hard)
+        question_type: Optional filter by question type
+        order_by: Field to sort by (created_at, difficulty, question_type)
+        ascending: Sort order (True for ASC, False for DESC)
 
     Returns:
         List of Question records
     """
     stmt = select(Question).where(Question.graph_id == graph_id)
+    stmt = _apply_question_filters(stmt, difficulty, question_type, order_by, ascending)
+
     result = await db_session.execute(stmt)
     return list(result.scalars().all())
 
@@ -58,14 +117,24 @@ async def get_questions_by_node(
     db_session: AsyncSession,
     graph_id: UUID,
     node_id: UUID,
+    difficulty: str | None = None,
+    question_type: str | None = None,
+    order_by: str = "created_at",
+    ascending: bool = True,
 ) -> list[Question]:
     """
-    Get all questions for a specific node.
+    Get all questions for a specific node with optional filtering and sorting.
+
+    Note: This query uses the idx_questions_graph_node composite index for performance.
 
     Args:
         db_session: Database session
         graph_id: Knowledge graph UUID
         node_id: Knowledge node UUID
+        difficulty: Optional filter by difficulty (easy, medium, hard)
+        question_type: Optional filter by question type
+        order_by: Field to sort by (created_at, difficulty, question_type)
+        ascending: Sort order (True for ASC, False for DESC)
 
     Returns:
         List of Question records
@@ -73,6 +142,8 @@ async def get_questions_by_node(
     stmt = select(Question).where(
         Question.graph_id == graph_id, Question.node_id == node_id
     )
+    stmt = _apply_question_filters(stmt, difficulty, question_type, order_by, ascending)
+
     result = await db_session.execute(stmt)
     return list(result.scalars().all())
 
@@ -148,7 +219,7 @@ async def bulk_create_questions(
     questions_data: list[dict[str, Any]],
 ) -> int:
     """
-    Bulk create questions for a graph.
+    Bulk create questions for a graph with validation.
 
     Args:
         db_session: Database session
@@ -157,21 +228,34 @@ async def bulk_create_questions(
 
     Returns:
         Number of questions created
+
+    Raises:
+        ValueError: If required fields are missing in any question data
     """
     if not questions_data:
         return 0
 
+    # Validate required fields
+    required_fields = {"node_id", "question_type", "text", "details", "difficulty"}
+    for idx, q in enumerate(questions_data):
+        missing_fields = required_fields - set(q.keys())
+        if missing_fields:
+            raise ValueError(
+                f"Question at index {idx} is missing required fields: {missing_fields}"
+            )
+
+    # Prepare values with type conversion using helper
     values = [
         {
             "graph_id": graph_id,
-            "node_id": (
-                UUID(q["node_id"]) if isinstance(q["node_id"], str) else q["node_id"]
-            ),
+            "node_id": _ensure_uuid(q["node_id"]),
             "question_type": q["question_type"],
             "text": q["text"],
             "details": q["details"],
             "difficulty": q["difficulty"],
-            "created_by": q.get("created_by"),
+            "created_by": (
+                _ensure_uuid(q["created_by"]) if q.get("created_by") else None
+            ),
         }
         for q in questions_data
     ]

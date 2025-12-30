@@ -15,7 +15,6 @@ class RelationType(str, Enum):
     """Types of relationships between knowledge nodes (for API operations)."""
 
     HAS_PREREQUISITES = "HAS_PREREQUISITES"
-    HAS_SUBTOPIC = "HAS_SUBTOPIC"
 
 
 class EdgeType(str, Enum):
@@ -24,11 +23,9 @@ class EdgeType(str, Enum):
 
     Matches the relationship semantics in PostgreSQL models:
     - IS_PREREQUISITE_FOR: Prerequisite relationship (from_node -> to_node)
-    - HAS_SUBTOPIC: Hierarchical relationship (parent_node -> child_node)
     """
 
     IS_PREREQUISITE_FOR = "IS_PREREQUISITE_FOR"
-    HAS_SUBTOPIC = "HAS_SUBTOPIC"
 
 
 # ==================== Knowledge Node Schemas ====================
@@ -115,31 +112,6 @@ class PrerequisiteResponse(BaseModel):
     graph_id: UUID
     from_node_id: UUID
     to_node_id: UUID
-    weight: float
-    created_at: datetime
-
-    model_config = ConfigDict(from_attributes=True)
-
-
-# ==================== Subtopic Schemas ====================
-
-
-class SubtopicCreate(BaseModel):
-    """Schema for creating a subtopic relationship."""
-
-    parent_node_id: UUID = Field(..., description="The parent topic UUID")
-    child_node_id: UUID = Field(..., description="The subtopic UUID")
-    weight: float = Field(
-        1.0, ge=0.0, le=1.0, description="Contribution to parent (0.0-1.0, default 1.0)"
-    )
-
-
-class SubtopicResponse(BaseModel):
-    """Schema for subtopic relationship response."""
-
-    graph_id: UUID
-    parent_node_id: UUID
-    child_node_id: UUID
     weight: float
     created_at: datetime
 
@@ -255,19 +227,6 @@ class PrerequisiteImport(BaseModel):
     )
 
 
-class SubtopicImport(BaseModel):
-    """Schema for importing a subtopic relationship from AI extraction.
-
-    Uses string IDs to reference nodes, which will be resolved to UUIDs during import.
-    """
-
-    parent_node_id_str: str = Field(..., description="String ID of the parent topic")
-    child_node_id_str: str = Field(..., description="String ID of the subtopic")
-    weight: float = Field(
-        1.0, ge=0.0, le=1.0, description="Contribution weight (0.0-1.0)"
-    )
-
-
 class GraphStructureImport(BaseModel):
     """Schema for importing a complete graph structure from AI extraction.
 
@@ -302,9 +261,6 @@ class GraphStructureImport(BaseModel):
     prerequisites: list[PrerequisiteImport] = Field(
         default_factory=list, description="Prerequisite relationships"
     )
-    subtopics: list[SubtopicImport] = Field(
-        default_factory=list, description="Subtopic relationships"
-    )
 
 
 class GraphStructureImportResponse(BaseModel):
@@ -318,12 +274,12 @@ class GraphStructureImportResponse(BaseModel):
     prerequisites_skipped: int = Field(
         ..., description="Number of prerequisites skipped (invalid refs or duplicates)"
     )
-    subtopics_created: int = Field(
-        ..., description="Number of subtopic relationships created"
-    )
-    subtopics_skipped: int = Field(
-        ..., description="Number of subtopics skipped (invalid refs or duplicates)"
-    )
+    # subtopics_created: int = Field(
+    #     default=0, description="Number of subtopic relationships created (deprecated)"
+    # )
+    # subtopics_skipped: int = Field(
+    #     default=0, description="Number of subtopics skipped (deprecated)"
+    # )
     message: str = Field(..., description="Summary message")
 
 
@@ -375,74 +331,46 @@ class KnowledgeNodeLLM(BaseModel):
 
 class RelationshipLLM(BaseModel):
     """
-    A unified relationship model that can represent either:
-    - IS_PREREQUISITE_FOR: source_name is prerequisite for target_name
-    - HAS_SUBTOPIC: parent_name contains child_name as subtopic
+    Relationship model for LLM-generated knowledge graphs.
+    Currently only supports IS_PREREQUISITE_FOR relationships.
 
-    Use the appropriate field names based on the label:
-    - For IS_PREREQUISITE_FOR: use source_name and target_name
-    - For HAS_SUBTOPIC: use parent_name and child_name
+    HAS_SUBTOPIC has been removed - use tags for classification instead.
     """
 
-    label: Literal["IS_PREREQUISITE_FOR", "HAS_SUBTOPIC"] = Field(
-        description="Relationship type: 'IS_PREREQUISITE_FOR' or 'HAS_SUBTOPIC'"
+    label: Literal["IS_PREREQUISITE_FOR"] = Field(
+        description="Relationship type: 'IS_PREREQUISITE_FOR'"
     )
     # For IS_PREREQUISITE_FOR relationships
-    source_name: str | None = Field(
-        default=None,
-        description="The prerequisite concept (use with IS_PREREQUISITE_FOR)",
+    source_name: str = Field(
+        description="The prerequisite concept",
     )
-    target_name: str | None = Field(
-        default=None,
-        description="The concept that depends on the source (use with IS_PREREQUISITE_FOR)",
-    )
-    # For HAS_SUBTOPIC relationships
-    parent_name: str | None = Field(
-        default=None, description="The broader topic (use with HAS_SUBTOPIC)"
-    )
-    child_name: str | None = Field(
-        default=None, description="The specific sub-concept (use with HAS_SUBTOPIC)"
+    target_name: str = Field(
+        description="The concept that depends on the source",
     )
 
     weight: float = Field(default=1.0)
 
     @computed_field
     @property
-    def source_id(self) -> str | None:
-        return generate_id(self.source_name) if self.source_name else None
+    def source_id(self) -> str:
+        return generate_id(self.source_name)
 
     @computed_field
     @property
-    def target_id(self) -> str | None:
-        return generate_id(self.target_name) if self.target_name else None
-
-    @computed_field
-    @property
-    def parent_id(self) -> str | None:
-        return generate_id(self.parent_name) if self.parent_name else None
-
-    @computed_field
-    @property
-    def child_id(self) -> str | None:
-        return generate_id(self.child_name) if self.child_name else None
+    def target_id(self) -> str:
+        return generate_id(self.target_name)
 
     def __hash__(self) -> int:
-        if self.label == "IS_PREREQUISITE_FOR":
-            return hash((self.source_id, self.target_id, self.label))
-        else:
-            return hash((self.parent_id, self.child_id, self.label))
+        return hash((self.source_id, self.target_id, self.label))
 
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, RelationshipLLM):
             return False
-        if self.label != other.label:
-            return False
-        if self.label == "IS_PREREQUISITE_FOR":
-            return (
-                self.source_id == other.source_id and self.target_id == other.target_id
-            )
-        else:
-            return self.parent_id == other.parent_id and self.child_id == other.child_id
+        return (
+            self.source_id == other.source_id
+            and self.target_id == other.target_id
+            and self.label == other.label
+        )
 
 
 # Keep old types for backward compatibility
