@@ -9,8 +9,8 @@ Tests cover:
 """
 
 import uuid
-from datetime import datetime, timedelta, timezone
-from unittest.mock import AsyncMock, MagicMock, Mock
+from datetime import UTC, datetime, timedelta
+from unittest.mock import Mock
 
 import pytest
 from fastapi import HTTPException, status
@@ -22,15 +22,14 @@ from app.core.config import settings
 from app.core.deps import (
     _decode_jwt_token,
     _get_user_from_payload,
-    get_current_admin_user,
     get_current_active_user,
+    get_current_admin_user,
     get_current_user,
     get_optional_user,
     get_owned_graph,
     get_public_graph,
 )
 from app.models.user import User
-
 
 # ============================================================================
 # Helper Function: Create JWT Tokens
@@ -40,9 +39,9 @@ from app.models.user import User
 def create_test_token(user_id: uuid.UUID, expires_delta: timedelta | None = None) -> str:
     """Create a test JWT token for the given user ID."""
     if expires_delta:
-        expire = datetime.now(timezone.utc) + expires_delta
+        expire = datetime.now(UTC) + expires_delta
     else:
-        expire = datetime.now(timezone.utc) + timedelta(minutes=30)
+        expire = datetime.now(UTC) + timedelta(minutes=30)
 
     payload = {
         "sub": str(user_id),
@@ -178,7 +177,7 @@ class TestGetCurrentUser:
         """Test that valid credentials return the authenticated user."""
         token = create_test_token(user_in_db.id)
         credentials = HTTPAuthorizationCredentials(scheme="Bearer", credentials=token)
-        
+
         # Mock request object
         request = Mock()
         request.headers.get.return_value = f"Bearer {token}"
@@ -193,7 +192,7 @@ class TestGetCurrentUser:
     async def test_no_credentials_raises_exception(self, test_db: AsyncSession):
         """Test that missing credentials raises 401."""
         request = Mock()
-        
+
         with pytest.raises(HTTPException) as exc_info:
             await get_current_user(request, test_db, None)
 

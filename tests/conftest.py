@@ -65,7 +65,7 @@ TARGET_KNOWLEDGE_NODE_DESCRIPTION = "target test node description"
 SOURCE_KNOWLEDGE_NODE_ID = "source_test_node"
 SOURCE_KNOWLEDGE_NODE_NAME = "source test node"
 SOURCE_KNOWLEDGE_NODE_DESCRIPTION = "source test node description"
-TEST_RELATION = RelationType.HAS_SUBTOPIC
+TEST_RELATION = RelationType.HAS_PREREQUISITES  # Changed from HAS_SUBTOPIC
 
 
 # --- Fixtures ---
@@ -215,7 +215,7 @@ async def private_graph_with_few_nodes_and_relations_in_db(
             - prerequisites: list of Prerequisite relationships
             - subtopics: list of Subtopic relationships
     """
-    from app.models.knowledge_node import KnowledgeNode, Prerequisite, Subtopic
+    from app.models.knowledge_node import KnowledgeNode, Prerequisite
 
     # Create the knowledge graph
     graph = KnowledgeGraph(
@@ -298,37 +298,14 @@ async def private_graph_with_few_nodes_and_relations_in_db(
     for prereq in prerequisites:
         await test_db.refresh(prereq)
 
-    # Create Subtopic relationships (parent -> child)
-    # Calculus Basics contains Derivatives and Integrals
-    # Derivatives contains Chain Rule
-    # Integrals contains Integration by Parts
-    subtopics_data = [
-        {"parent": "calculus-basics", "child": "derivatives", "weight": 0.5},
-        {"parent": "calculus-basics", "child": "integrals", "weight": 0.5},
-        {"parent": "derivatives", "child": "chain-rule", "weight": 1.0},
-        {"parent": "integrals", "child": "integration-by-parts", "weight": 1.0},
-    ]
-
-    subtopics = []
-    for subtopic_data in subtopics_data:
-        subtopic = Subtopic(
-            graph_id=graph.id,
-            parent_node_id=nodes[subtopic_data["parent"]].id,
-            child_node_id=nodes[subtopic_data["child"]].id,
-            weight=subtopic_data["weight"],
-        )
-        test_db.add(subtopic)
-        subtopics.append(subtopic)
-
-    await test_db.commit()
-    for subtopic in subtopics:
-        await test_db.refresh(subtopic)
+    # Subtopic relationships removed - using tags instead
+    subtopics = []  # Keep empty list for backward compatibility
 
     return {
         "graph": graph,
         "nodes": nodes,
         "prerequisites": prerequisites,
-        "subtopics": subtopics,
+        "subtopics": subtopics,  # Empty list
     }
 
 

@@ -192,68 +192,9 @@ class Prerequisite(Base):
     # Create app/services/graph_validation_service.py with:
     # - detect_prerequisite_cycle(db, graph_id, from_node_id, to_node_id) -> bool
     # Use DFS algorithm to check if adding this edge would create a cycle
+    # # Done???
 
     def __repr__(self):
         return (
             f"<Prerequisite {self.from_node_id} -> {self.to_node_id} (w={self.weight})>"
         )
-
-
-class Subtopic(Base):
-    """
-    Hierarchical topic decomposition: child_node is part of parent_node.
-
-    Structure: (parent_node) HAS_SUBTOPIC (child_node)
-    Scoped to a specific graph.
-
-    Attributes:
-        graph_id: Which graph this relationship belongs to
-        parent_node_id: The parent topic UUID
-        child_node_id: The subtopic UUID
-        weight: Contribution to parent (0.0-1.0, should sum to 1.0 for siblings)
-        created_at: When this relationship was created
-
-    Usage:
-        - Parent mastery = Σ(child_mastery × weight)
-        - Example: Algebra = 0.4 × Linear + 0.6 × Quadratic
-    """
-
-    __tablename__ = "subtopics"
-
-    graph_id = Column(
-        UUID(as_uuid=True),
-        ForeignKey("knowledge_graphs.id", ondelete="CASCADE"),
-        primary_key=True,
-        nullable=False,
-    )
-    parent_node_id = Column(UUID(as_uuid=True), primary_key=True, nullable=False)
-    child_node_id = Column(UUID(as_uuid=True), primary_key=True, nullable=False)
-    weight = Column(Float, nullable=False)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-
-    __table_args__ = (
-        ForeignKeyConstraint(
-            # This constraint ensures parent_node_id belongs to the same graph
-            ["graph_id", "parent_node_id"],
-            ["knowledge_nodes.graph_id", "knowledge_nodes.id"],
-            ondelete="CASCADE",
-        ),
-        ForeignKeyConstraint(
-            # This constraint ensures child_node_id belongs to the same graph
-            ["graph_id", "child_node_id"],
-            ["knowledge_nodes.graph_id", "knowledge_nodes.id"],
-            ondelete="CASCADE",
-        ),
-        CheckConstraint("weight >= 0.0 AND weight <= 1.0", name="ck_subtopic_weight"),
-        CheckConstraint("parent_node_id != child_node_id", name="ck_no_self_subtopic"),
-        Index("idx_subtopic_graph_parent", "graph_id", "parent_node_id"),
-        Index("idx_subtopic_graph_child", "graph_id", "child_node_id"),
-    )
-
-    # TODO: Implement cycle detection in service layer
-    # Create app/services/graph_validation_service.py with:
-    # - detect_subtopic_cycle(db, graph_id, parent_node_id, child_node_id) -> bool
-    # Use DFS algorithm to check if adding this edge would create a cycle
-
-    def __repr__(self):
-        return f"<Subtopic {self.parent_node_id} -> {self.child_node_id} (w={self.weight})>"

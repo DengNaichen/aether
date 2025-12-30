@@ -9,26 +9,20 @@ import logging
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Path, status
-
-# from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.deps import get_current_active_user, get_db, get_owned_graph
+from app.crud.graph_structure import get_graph_visualization, import_graph_structure
 from app.crud.knowledge_graph import (
     create_knowledge_graph,
     get_graph_by_owner_and_slug,
-    get_graph_visualization,
     get_graphs_by_owner,
-    import_graph_structure,
 )
 from app.models.enrollment import GraphEnrollment
 from app.models.user import User
 from app.schemas.enrollment import GraphEnrollmentResponse
 from app.schemas.knowledge_graph import (
-    # GraphContentNode,
-    # GraphContentPrerequisite,
     GraphContentResponse,
-    # GraphContentSubtopic,
     GraphVisualization,
     KnowledgeGraphCreate,
     KnowledgeGraphResponse,
