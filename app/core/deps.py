@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.database import db_manager
+from app.crud.knowledge_graph import get_graph_by_id
 from app.crud.user import get_user_by_id
 from app.models.user import User
 from app.worker.config import WorkerContext
@@ -19,6 +20,67 @@ logger = logging.getLogger(__name__)
 oauth2_scheme = HTTPBearer(auto_error=False)
 
 
+# ============================================================================
+# Helper Functions
+# ============================================================================
+
+
+def _decode_jwt_token(token: str) -> dict | None:
+    """
+    Decode and validate a JWT token.
+
+    Args:
+        token: JWT access token string
+
+    Returns:
+        dict: JWT payload if valid, None if invalid
+    """
+    try:
+        payload = jwt.decode(
+            token,
+            settings.SUPABASE_JWT_SECRET,
+            algorithms=[settings.ALGORITHM],
+            audience="authenticated",
+        )
+        return payload
+    except JWTError:
+        return None
+
+
+async def _get_user_from_payload(
+    db: AsyncSession, payload: dict
+) -> tuple[User | None, str | None]:
+    """
+    Extract user from JWT payload and fetch from database.
+
+    Args:
+        db: Database session
+        payload: Decoded JWT payload
+
+    Returns:
+        tuple: (User object or None, error message or None)
+    """
+    user_id_str = payload.get("sub")
+    if user_id_str is None:
+        return None, "No user_id in token payload"
+
+    try:
+        user_uuid = uuid.UUID(user_id_str)
+    except ValueError:
+        return None, "Invalid UUID format"
+
+    user = await get_user_by_id(db=db, user_id=user_uuid)
+    if user is None:
+        return None, f"User not found in database: {user_id_str}"
+
+    return user, None
+
+
+# ============================================================================
+# Database Dependencies
+# ============================================================================
+
+
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
     """
     Dependency that provides a SQLAlchemy async session.
@@ -26,10 +88,7 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
         AsyncSession: An asynchronous database session.
     """
     async with db_manager.get_sql_session() as session:
-        try:
-            yield session
-        finally:
-            pass
+        yield session
 
 
 async def get_redis_client() -> Redis:
@@ -42,12 +101,14 @@ async def get_redis_client() -> Redis:
 
 
 async def get_worker_context() -> AsyncGenerator[WorkerContext, None]:
+    """Dependency that provides a worker context for background tasks."""
     ctx = WorkerContext(db_manager)
+    yield ctx
 
-    try:
-        yield ctx
-    finally:
-        pass
+
+# ============================================================================
+# Authentication Dependencies
+# ============================================================================
 
 
 async def get_current_user(
@@ -56,26 +117,24 @@ async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(oauth2_scheme),
 ) -> User:
     """
-    TODO: update this docstring
     Retrieves the current authenticated user from a JWT access token.
 
-    This asynchronously dependency decodes and validates the provided JWT token,
+    This dependency decodes and validates the provided JWT token,
     extracts the user ID from the payload, and fetches the corresponding user
     record from the database. If the token is invalid, expired, or the user
     does not exist, an HTTP 401 Unauthorized response is raised.
 
     Args:
-        db(AsyncSession): SQLAlchemy async database session, injected by FastAPI
-            dependency system via `Depends(get_db)`.
-        token(str): JWT access token extracted from the 'Authorization'
-            header using the `oauth2_scheme` dependency.
+        request: FastAPI request object
+        db: SQLAlchemy async database session, injected by FastAPI
+            dependency system via `Depends(get_db)`
+        credentials: JWT credentials extracted from the Authorization header
 
     Returns:
-        user (User): User object corresponding to the token subject.
+        User: User object corresponding to the token subject
 
     Raises:
-        HTTPException: If user does not exist or token is invalid.
-        ValueError: If user ID is not a valid UUID
+        HTTPException: If user does not exist or token is invalid
     """
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -88,45 +147,18 @@ async def get_current_user(
         logger.warning("No credentials provided in request")
         raise credentials_exception
 
-    # Debug: Log raw Authorization header
     token = credentials.credentials
-    auth_header = request.headers.get("Authorization", "NOT FOUND")
-    logger.debug(
-        f"Authorization header: {auth_header[:50] if len(auth_header) > 50 else auth_header}..."
-    )
-    logger.debug("get_current_user called")
-    try:
-        # Debug: Log token validation attempt
-        token_preview = token[:20] if len(token) > 20 else token
-        logger.debug(f"Validating token: {token_preview}...")
 
-        payload = jwt.decode(
-            token,
-            settings.SUPABASE_JWT_SECRET,
-            algorithms=[settings.ALGORITHM],
-            audience="authenticated",
-        )
+    # Decode JWT token
+    payload = _decode_jwt_token(token)
+    if payload is None:
+        logger.error("JWT decode failed")
+        raise credentials_exception
 
-        # Debug: Log successful decode
-        user_id: str = payload.get("sub")
-        logger.debug(f"Token decoded successfully, user_id: {user_id}")
-
-        if user_id is None:
-            logger.error("No user_id in token payload")
-            raise credentials_exception
-    except JWTError as e:
-        logger.error(f"JWT decode error: {e}")
-        raise credentials_exception from e
-
-    try:
-        user_uuid = uuid.UUID(user_id)
-    except ValueError as e:
-        logger.error(f"Invalid UUID format: {e}")
-        raise credentials_exception from e
-
-    user = await get_user_by_id(db=db, user_id=user_uuid)
-    if user is None:
-        logger.error(f"User not found in database: {user_uuid}")
+    # Extract and validate user
+    user, error = await _get_user_from_payload(db, payload)
+    if error:
+        logger.error(error)
         raise credentials_exception
 
     logger.info(f"User authenticated successfully: {user.email}")
@@ -180,28 +212,41 @@ async def get_optional_user(
 ) -> User | None:
     """
     Retrieves the current authenticated user from a JWT access token if present.
-    Returns None if no token or invalid token.
+
+    This is a non-throwing version of get_current_user that returns None
+    instead of raising an exception when authentication fails.
+
+    Args:
+        request: FastAPI request object
+        db: Database session
+        credentials: Optional JWT credentials
+
+    Returns:
+        User object if authentication succeeds, None otherwise
     """
     if not credentials:
         return None
 
     token = credentials.credentials
-    try:
-        payload = jwt.decode(
-            token,
-            settings.SUPABASE_JWT_SECRET,
-            algorithms=[settings.ALGORITHM],
-            audience="authenticated",
-        )
-        user_id: str = payload.get("sub")
-        if user_id is None:
-            return None
 
-        user_uuid = uuid.UUID(user_id)
-        user = await get_user_by_id(db=db, user_id=user_uuid)
-        return user
-    except (JWTError, ValueError):
+    # Decode JWT token
+    payload = _decode_jwt_token(token)
+    if payload is None:
+        logger.debug("Optional auth: JWT decode failed")
         return None
+
+    # Extract and validate user
+    user, error = await _get_user_from_payload(db, payload)
+    if error:
+        logger.debug(f"Optional auth: {error}")
+        return None
+
+    return user
+
+
+# ============================================================================
+# Resource Access Dependencies
+# ============================================================================
 
 
 async def get_owned_graph(
@@ -227,8 +272,6 @@ async def get_owned_graph(
         HTTPException 404: If the knowledge graph doesn't exist
         HTTPException 403: If the user is not the owner
     """
-    from app.crud.knowledge_graph import get_graph_by_id
-
     knowledge_graph = await get_graph_by_id(db_session=db_session, graph_id=graph_id)
     if not knowledge_graph:
         raise HTTPException(
@@ -266,8 +309,6 @@ async def get_public_graph(
         HTTPException 404: If the knowledge graph doesn't exist
         HTTPException 403: If the graph is private (neither public nor template)
     """
-    from app.crud.knowledge_graph import get_graph_by_id
-
     knowledge_graph = await get_graph_by_id(db_session=db_session, graph_id=graph_id)
     if not knowledge_graph:
         raise HTTPException(
