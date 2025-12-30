@@ -55,12 +55,15 @@ def create_mock_pdf(pages: list[MagicMock]) -> MagicMock:
         pages: List of mock page objects
 
     Returns:
-        MagicMock configured as a PDF document
+        MagicMock configured as a PDF document with context manager support
     """
     mock_doc = MagicMock()
     mock_doc.__len__.return_value = len(pages)
     mock_doc.__iter__.return_value = iter(pages)
     mock_doc.close = MagicMock()
+    # Add context manager support
+    mock_doc.__enter__.return_value = mock_doc
+    mock_doc.__exit__.return_value = None
     return mock_doc
 
 

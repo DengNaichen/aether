@@ -1,34 +1,54 @@
+import logging
 import os
 import tempfile
+from collections.abc import Iterator
+from contextlib import contextmanager
 
 import pypdf
 
-from app.utils.pdf_metadata import logger
+logger = logging.getLogger(__name__)
 
 
-def split_pdf(file_path: str, chunk_size: int) -> list[str]:
-    """Splits a PDF into chunks. Returns paths to temporary files (or original if small).
+@contextmanager
+def split_pdf(file_path: str, chunk_size: int) -> Iterator[list[str]]:
+    """Context manager that splits a PDF into chunks and auto-cleans temporary files.
+
+    This function splits large PDFs into smaller chunks for processing. It returns
+    a context manager that yields the list of chunk file paths and automatically
+    cleans up any temporary files when the context exits.
 
     Args:
         file_path: Absolute path to the source PDF.
         chunk_size: Number of pages per chunk.
 
-    Returns:
-        List of file paths. If valid splitting occurs, these are temporary files
-        that must be cleaned up by the caller.
+    Yields:
+        List of file paths. If no splitting occurred (PDF is small enough),
+        returns a list containing only the original file path. Otherwise,
+        returns paths to temporary chunk files.
+
+    Example:
+        with split_pdf("large.pdf", chunk_size=10) as chunks:
+            for chunk_path in chunks:
+                process(chunk_path)
+        # Temporary files automatically cleaned up here
+
+    Raises:
+        Exception: If PDF reading or splitting fails.
     """
+    chunks = []
     try:
         reader = pypdf.PdfReader(file_path)
         total_pages = len(reader.pages)
 
         # If file is small enough, no need to split
         if total_pages <= chunk_size:
-            return [file_path]
+            chunks = [file_path]
+            yield chunks
+            return
 
         logger.info(
             f"Splitting PDF ({total_pages} pages) into chunks of {chunk_size}..."
         )
-        chunk_paths = []
 
         for start_page in range(0, total_pages, chunk_size):
             end_page = min(start_page + chunk_size, total_pages)
@@ -46,10 +66,21 @@ def split_pdf(file_path: str, chunk_size: int) -> list[str]:
             with open(tmp_path, "wb") as f:
                 writer.write(f)
 
-            chunk_paths.append(tmp_path)
+            chunks.append(tmp_path)
 
-        return chunk_paths
+        yield chunks
 
     except Exception as e:
         logger.error(f"Failed to split PDF: {e}")
         raise
+
+    finally:
+        # Clean up temporary chunk files (not the original)
+        for path in chunks:
+            if path != file_path and os.path.exists(path):
+                try:
+                    os.remove(path)
+                    logger.debug(f"Cleaned up temp chunk: {path}")
+                except Exception as cleanup_err:
+                    logger.warning(f"Failed to delete temp file {path}: {cleanup_err}")
+
