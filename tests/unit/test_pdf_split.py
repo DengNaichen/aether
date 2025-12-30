@@ -56,6 +56,9 @@ class TestSplitPDF:
 
     def test_large_pdf_splitting(self, large_pdf):
         """PDF with 10 pages and chunk_size=3 should create 4 chunks."""
+        # Capture temp file paths for cleanup verification
+        temp_files_to_check = []
+
         with split_pdf(large_pdf, chunk_size=3) as result:
             # Should create 4 chunks: [0-2], [3-5], [6-8], [9]
             assert len(result) == 4
@@ -70,12 +73,12 @@ class TestSplitPDF:
                 reader = pypdf.PdfReader(chunk_path)
                 assert len(reader.pages) == expected_page_counts[i]
 
-        # After context exit, temp files should be cleaned up
-        with split_pdf(large_pdf, chunk_size=3) as result:
-            temp_files = [p for p in result if p != large_pdf]
+                # Capture temp file paths (not the original)
+                if chunk_path != large_pdf:
+                    temp_files_to_check.append(chunk_path)
 
-        # Verify cleanup happened
-        for temp_file in temp_files:
+        # After context exit, verify temp files were cleaned up
+        for temp_file in temp_files_to_check:
             assert not os.path.exists(temp_file), f"Temp file {temp_file} was not cleaned up"
 
     def test_exact_chunk_size(self, large_pdf):
