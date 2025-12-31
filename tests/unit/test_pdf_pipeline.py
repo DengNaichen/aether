@@ -36,8 +36,8 @@ class TestPDFPipeline:
 
     @pytest.mark.asyncio
     async def test_pipeline_initialization(self, sample_pdf):
-        pipeline = PDFPipeline(task_id=1, file_path=sample_pdf)
-        assert pipeline.task_id == 1
+        pipeline = PDFPipeline(task_id="1", file_path=sample_pdf)
+        assert pipeline.task_id == "1"
         assert pipeline.file_path == sample_pdf
         assert pipeline.context["status"] == FilePipelineStatus.PENDING
         assert pipeline.context["metadata"] == {}
@@ -45,7 +45,7 @@ class TestPDFPipeline:
     @pytest.mark.asyncio
     async def test_pipeline_execution_success(self):
         # Use storage utility to create the file
-        task_id = 42
+        task_id = "42"
         file_path = save_upload_file(task_id, "original.pdf", b"pdf content")
 
         pipeline = PDFPipeline(task_id=task_id, file_path=file_path)
@@ -63,7 +63,7 @@ class TestPDFPipeline:
 
     @pytest.mark.asyncio
     async def test_pipeline_execution_failure(self, sample_pdf):
-        pipeline = PDFPipeline(task_id=1, file_path=sample_pdf)
+        pipeline = PDFPipeline(task_id="1", file_path=sample_pdf)
 
         async def failing_stage(context):
             raise RuntimeError("Stage failed")
@@ -90,7 +90,7 @@ class TestPDFPipelineStages:
         with open(pdf_path, "wb") as f:
             writer.write(f)
 
-        return {"task_id": 1, "file_path": str(pdf_path), "metadata": {}}
+        return {"task_id": "1", "file_path": str(pdf_path), "metadata": {}}
 
     @pytest.mark.asyncio
     async def test_validate_and_extract_metadata_stage(self, context):

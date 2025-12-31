@@ -6,9 +6,10 @@ All endpoints require the user to be the owner of the graph.
 """
 
 import logging
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Path, UploadFile, status
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.deps import get_current_active_user, get_db, get_owned_graph
@@ -31,7 +32,18 @@ from app.schemas.knowledge_node import (
     GraphStructureImport,
     GraphStructureImportResponse,
 )
+from app.services.pdf_pipeline import (
+    PDFPipeline,
+    check_page_limit_stage,
+    detect_handwriting_stage,
+    extract_text_stage,
+    generate_graph_stage,
+    save_markdown_stage,
+    validate_and_extract_metadata_stage,
+    validate_file_type_stage,
+)
 from app.utils.slug import slugify
+from app.utils.storage import save_upload_file
 
 logger = logging.getLogger(__name__)
 
@@ -387,118 +399,182 @@ async def import_structure(
 
 
 @router.post(
-    "/{graph_id}/upload-pdf",
+    "/{graph_id}/upload-file",
     status_code=status.HTTP_201_CREATED,
-    summary="Upload and extract content from a PDF",
+    summary="Upload file and generate knowledge graph",
     description="""
-    Upload a PDF file and extract its content as markdown.
+    Upload a file (PDF or Markdown) and automatically generate a knowledge graph.
 
-    The system will:
-    1. Validate the PDF file
-    2. Auto-detect if the content is handwritten or formatted
-    3. Extract text using the appropriate AI model
-    4. Save the extracted markdown to cloud storage
+    **Supported file types**:
+    - `.pdf` - PDF files (handwritten or formatted)
+    - `.md` - Markdown files
 
-    The extracted markdown is stored for later use (e.g., graph generation).
+    **Processing flow**:
+    - **PDF files**: Extract text → Convert to markdown → Generate graph
+    - **Markdown files**: Read content → Generate graph directly
+
+    The system will automatically detect the file type and use the appropriate pipeline.
     """,
 )
-async def upload_pdf(
+async def upload_file(
     file: UploadFile,
     knowledge_graph=Depends(get_owned_graph),
     db_session: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ):
     """
-    Upload a PDF and extract its content as markdown.
+    Upload a file and generate knowledge graph.
+
+    Automatically detects file type and routes to appropriate processing:
+    - PDF → OCR extraction → Markdown → Graph generation
+    - Markdown → Direct graph generation
 
     Args:
-        file: The PDF file to upload
+        file: The file to upload (.pdf or .md)
         knowledge_graph: Owned knowledge graph (injected by get_owned_graph dependency)
         db_session: Database session
         current_user: Authenticated user (must be the graph owner)
 
     Returns:
-        PDFExtractionResponse: Extraction result including metadata and file path
+        GraphGenerationResponse: Generation statistics including nodes/relationships created
 
     Raises:
-        HTTPException 400: If file is not a PDF
+        HTTPException 400: If file type is not supported
         HTTPException 404: If the knowledge graph doesn't exist
         HTTPException 403: If the user is not the owner
-        HTTPException 500: If extraction fails
+        HTTPException 500: If processing fails
     """
-    import time
+    from app.schemas.knowledge_graph import GraphGenerationResponse
+    from app.services.graph_generation_service import GraphGenerationService
+    from app.models.knowledge_node import KnowledgeNode
 
-    from app.schemas.file_pipeline import FilePipelineStatus, PDFExtractionResponse
-    from app.services.pdf_pipeline import (
-        PDFPipeline,
-        check_page_limit_stage,
-        detect_handwriting_stage,
-        extract_text_stage,
-        save_markdown_stage,
-        validate_and_extract_metadata_stage,
-        validate_file_type_stage,
-    )
-    from app.utils.storage import save_upload_file
-
-    # Validate file type
-    if not file.filename or not file.filename.lower().endswith(".pdf"):
+    if not file.filename:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Only PDF files are supported.",
+            detail="Filename is required.",
         )
 
-    # Generate a simple task ID based on timestamp
-    task_id = int(time.time() * 1000) % 2147483647  # Keep within int32 range
+    filename_lower = file.filename.lower()
+
+    # Validate file type
+    if not (filename_lower.endswith(".pdf") or filename_lower.endswith(".md")):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Only PDF (.pdf) and Markdown (.md) files are supported.",
+        )
+
+    result = await db_session.execute(
+        select(KnowledgeNode.id)
+        .where(KnowledgeNode.graph_id == knowledge_graph.id)
+        .limit(1)
+    )
+    if result.scalar_one_or_none():
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Graph already has data. Incremental updates are not enabled yet.",
+        )
+
+    incremental = False
 
     try:
-        # Read and save uploaded file
-        content = await file.read()
-        file_path = save_upload_file(task_id, file.filename, content)
+        # Route to appropriate processing based on file type
+        if filename_lower.endswith(".pdf"):
+            # PDF processing: Extract → Markdown → Graph
+            logger.info(
+                f"Processing PDF file for graph {knowledge_graph.id}: {file.filename}"
+            )
 
-        # Create and configure the pipeline
-        pipeline = PDFPipeline(task_id=task_id, file_path=file_path)
+            # Generate task ID and save file
+            task_id = uuid4().hex
+            content = await file.read()
+            file_path = save_upload_file(task_id, file.filename, content)
 
-        # Inject graph_id into context for storage organization
-        pipeline.context["graph_id"] = str(knowledge_graph.id)
+            # Create and configure the pipeline
+            pipeline = PDFPipeline(task_id=task_id, file_path=file_path)
 
-        # Add pre-OCR stages
-        pipeline.add_stage(validate_file_type_stage)
-        pipeline.add_stage(validate_and_extract_metadata_stage)
-        pipeline.add_stage(check_page_limit_stage)  # Enforce page limit
-        pipeline.add_stage(detect_handwriting_stage)
+            # Inject context
+            pipeline.context["graph_id"] = str(knowledge_graph.id)
+            pipeline.context["db_session"] = db_session
+            pipeline.context["incremental"] = incremental  # Phase 1: New graph only
 
-        # Add extraction and save stages
-        pipeline.add_stage(extract_text_stage)
-        pipeline.add_stage(save_markdown_stage)
+            # Add all stages including graph generation
+            pipeline.add_stage(validate_file_type_stage)
+            pipeline.add_stage(validate_and_extract_metadata_stage)
+            pipeline.add_stage(check_page_limit_stage)
+            pipeline.add_stage(detect_handwriting_stage)
+            pipeline.add_stage(extract_text_stage)
+            pipeline.add_stage(save_markdown_stage)
+            pipeline.add_stage(generate_graph_stage)
 
-        # Execute pipeline (cleanup=True will remove temp files after)
-        result_context = await pipeline.execute(cleanup=True)
+            # Execute pipeline
+            result_context = await pipeline.execute(cleanup=True)
 
-        logger.info(
-            f"PDF extraction completed for graph {knowledge_graph.id}: "
-            f"task_id={task_id}, pages={result_context['metadata'].get('page_count')}"
-        )
+            # Extract stats
+            graph_stats = result_context.get("graph_stats", {})
+            logger.info(
+                f"PDF processing completed for {knowledge_graph.id}: "
+                f"{graph_stats.get('nodes_created')} nodes created"
+            )
 
-        return PDFExtractionResponse(
-            task_id=task_id,
-            graph_id=str(knowledge_graph.id),
-            status=FilePipelineStatus.COMPLETED,
-            markdown_file_path=result_context["metadata"].get("markdown_file_path", ""),
-            metadata=result_context["metadata"],
-            message="PDF extracted successfully",
-        )
+            return GraphGenerationResponse(
+                graph_id=str(knowledge_graph.id),
+                nodes_created=graph_stats.get("nodes_created", 0),
+                prerequisites_created=graph_stats.get("prerequisites_created", 0),
+                total_nodes=graph_stats.get("total_nodes", 0),
+                max_level=graph_stats.get("max_level", 0),
+                message=f"Knowledge graph generated from PDF: {file.filename}",
+            )
+
+        else:  # .md file
+            # Markdown processing: Direct graph generation
+            logger.info(
+                f"Processing Markdown file for graph {knowledge_graph.id}: {file.filename}"
+            )
+
+            # Read markdown content
+            content = await file.read()
+            markdown_content = content.decode("utf-8")
+
+            # Generate graph directly
+            service = GraphGenerationService(db_session)
+            stats = await service.create_graph_from_markdown(
+                graph_id=knowledge_graph.id,
+                markdown_content=markdown_content,
+                incremental=incremental,  # Phase 1: New graph only
+            )
+
+            logger.info(
+                f"Markdown processing completed for {knowledge_graph.id}: "
+                f"{stats['nodes_created']} nodes created"
+            )
+
+            return GraphGenerationResponse(
+                graph_id=str(knowledge_graph.id),
+                nodes_created=stats["nodes_created"],
+                prerequisites_created=stats["prerequisites_created"],
+                total_nodes=stats["total_nodes"],
+                max_level=stats["max_level"],
+                message=f"Knowledge graph generated from Markdown: {file.filename}",
+            )
+
+    except UnicodeDecodeError as e:
+        logger.error(f"Failed to decode file {file.filename}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid file encoding. Please ensure the file is UTF-8 encoded.",
+        ) from e
 
     except ValueError as e:
-        # Validation errors (file type, page limit, etc.)
-        logger.warning(f"PDF validation failed for task {task_id}: {e}")
+        # Validation errors (page limit, AI errors, etc.)
+        logger.warning(f"File processing validation failed for {file.filename}: {e}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e),
         ) from e
 
     except Exception as e:
-        logger.error(f"PDF extraction failed for task {task_id}: {e}", exc_info=True)
+        logger.error(f"File processing failed for {file.filename}: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"PDF extraction failed: {str(e)}",
+            detail=f"File processing failed: {str(e)}",
         ) from e

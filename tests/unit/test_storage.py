@@ -33,7 +33,7 @@ class TestTaskStoragePath:
 
     def test_get_task_storage_path_creates_directory(self):
         """Should create task directory if it doesn't exist."""
-        task_id = 12345
+        task_id = "12345"
         path = get_task_storage_path(task_id)
 
         assert path.exists()
@@ -45,7 +45,7 @@ class TestTaskStoragePath:
 
     def test_get_task_storage_path_idempotent(self):
         """Should return same path on multiple calls."""
-        task_id = 12346
+        task_id = "12346"
         path1 = get_task_storage_path(task_id)
         path2 = get_task_storage_path(task_id)
 
@@ -61,7 +61,7 @@ class TestSaveUploadFile:
 
     def test_save_upload_file_success(self):
         """Should save file with standardized name."""
-        task_id = 999
+        task_id = "999"
         content = b"fake pdf content"
         original_filename = "test.pdf"
 
@@ -80,7 +80,7 @@ class TestSaveUploadFile:
 
     def test_save_upload_file_overwrites_existing(self):
         """Should overwrite if file already exists."""
-        task_id = 1000
+        task_id = "1000"
         content1 = b"first content"
         content2 = b"second content"
 
@@ -103,7 +103,7 @@ class TestSaveTaskMarkdown:
 
     def test_save_task_markdown_success(self):
         """Should save markdown content to results directory."""
-        task_id = 2000
+        task_id = "2000"
         content = "# Test Markdown\n\nSome content here."
 
         try:
@@ -124,7 +124,7 @@ class TestSaveTaskMarkdown:
 
     def test_save_task_markdown_creates_results_dir(self):
         """Should create RESULTS_BASE if it doesn't exist."""
-        task_id = 2001
+        task_id = "2001"
 
         # Ensure results dir doesn't exist
         if RESULTS_BASE.exists():
@@ -146,7 +146,7 @@ class TestCleanupTaskStorage:
 
     def test_cleanup_removes_task_directory(self):
         """Should remove entire task directory."""
-        task_id = 3000
+        task_id = "3000"
         content = b"test content"
 
         # Create task with file
@@ -164,13 +164,13 @@ class TestCleanupTaskStorage:
 
     def test_cleanup_handles_nonexistent_task(self):
         """Should not raise error if task doesn't exist."""
-        task_id = 9999999
+        task_id = "9999999"
         # Should not raise
         cleanup_task_storage(task_id)
 
     def test_cleanup_removes_all_files_in_task(self):
         """Should remove all files in task directory."""
-        task_id = 3001
+        task_id = "3001"
 
         # Create task directory with multiple files
         task_dir = get_task_storage_path(task_id)
@@ -203,7 +203,7 @@ class TestStorageIntegration:
 
     def test_full_storage_workflow(self):
         """Test complete workflow: save upload -> save markdown -> cleanup."""
-        task_id = 4000
+        task_id = "4000"
 
         try:
             # 1. Save uploaded file
