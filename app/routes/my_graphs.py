@@ -20,10 +20,12 @@ from app.crud.knowledge_graph import (
     get_graphs_by_owner,
 )
 from app.models.enrollment import GraphEnrollment
+from app.models.knowledge_node import KnowledgeNode
 from app.models.user import User
 from app.schemas.enrollment import GraphEnrollmentResponse
 from app.schemas.knowledge_graph import (
     GraphContentResponse,
+    GraphGenerationResponse,
     GraphVisualization,
     KnowledgeGraphCreate,
     KnowledgeGraphResponse,
@@ -32,6 +34,7 @@ from app.schemas.knowledge_node import (
     GraphStructureImport,
     GraphStructureImportResponse,
 )
+from app.services.graph_generation_service import GraphGenerationService
 from app.services.pdf_pipeline import (
     PDFPipeline,
     check_page_limit_stage,
@@ -444,10 +447,6 @@ async def upload_file(
         HTTPException 403: If the user is not the owner
         HTTPException 500: If processing fails
     """
-    from app.schemas.knowledge_graph import GraphGenerationResponse
-    from app.services.graph_generation_service import GraphGenerationService
-    from app.models.knowledge_node import KnowledgeNode
-
     if not file.filename:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
