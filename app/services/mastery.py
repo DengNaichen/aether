@@ -133,7 +133,7 @@ class MasteryService:
         """
         logger.info(f"Starting propagation for user {user.id}")
 
-        # 1. FETCH IDs PHASE
+        # 1. FETCH IDs PHASE - Only prerequisite roots for implicit review
         leaf_ids_to_bonus_with_depth = {}
         if is_correct:
             leaf_ids_to_bonus_with_depth = (
@@ -142,34 +142,21 @@ class MasteryService:
                 )
             )
 
-        changed_node_ids = {node_answered.id} | set(leaf_ids_to_bonus_with_depth.keys())
-        parents_with_level = await mastery_crud.get_all_affected_parent_ids(
-            db_session, node_answered.graph_id, list(changed_node_ids)
-        )
-        parent_ids_only = [p[0] for p in parents_with_level]
-
-        if not leaf_ids_to_bonus_with_depth and not parent_ids_only:
+        if not leaf_ids_to_bonus_with_depth:
             return
 
-        # 2. FETCH DATA PHASE (Bulk)
-        subtopic_map = await mastery_crud.get_all_subtopics_for_parents_bulk(
-            db_session, node_answered.graph_id, list(parent_ids_only)
-        )
-
-        all_child_ids = {
-            child_id for children in subtopic_map.values() for child_id, _ in children
-        }
-        all_nodes_to_fetch = changed_node_ids | set(parent_ids_only) | all_child_ids
-
+        # 2. FETCH DATA PHASE - Only masteries for prerequisite nodes
         mastery_map = await mastery_crud.get_masteries_by_nodes(
-            db_session, user.id, node_answered.graph_id, list(all_nodes_to_fetch)
+            db_session,
+            user.id,
+            node_answered.graph_id,
+            list(leaf_ids_to_bonus_with_depth.keys()),
         )
 
         now = datetime.now(UTC)
 
-        # 3. LOGIC PHASE
-
-        # 3a. Backward Propagation (Implicit Review)
+        # 3. BACKWARD PROPAGATION (Implicit Review)
+        # Apply bonus to prerequisite nodes based on correct answer
         for leaf_id, depth in leaf_ids_to_bonus_with_depth.items():
             # Use Logic class to check probability
             if not MasteryLogic.should_trigger_implicit_review(depth):
@@ -177,7 +164,7 @@ class MasteryService:
 
             mastery_rel = mastery_map.get(leaf_id)
             if not mastery_rel:
-                # Initialize with complete FSRS state so it can be discovered by Phase 1
+                # Initialize with complete FSRS state
                 # Calculate initial R(t) using FSRS
                 initial_rt = MasteryLogic.get_initial_retrievability()
                 mastery_rel = UserMastery(
@@ -192,44 +179,12 @@ class MasteryService:
                     fsrs_difficulty=0.0,
                 )
                 db_session.add(mastery_rel)
-                mastery_map[leaf_id] = mastery_rel  # Update map for parent calc
+                mastery_map[leaf_id] = mastery_rel
 
             # Call Pure Logic
             updates = MasteryLogic.calculate_implicit_review_update(mastery_rel, now)
             self._apply_updates_to_model(mastery_rel, updates)
             logger.debug(f"Implicit Review applied for {leaf_id}")
-
-        # 3b. Upward Propagation (Parent Aggregation)
-        for parent_id, _level in parents_with_level:
-            child_relations = subtopic_map.get(parent_id, [])
-
-            parent_mastery_rel = mastery_map.get(parent_id)
-            if not parent_mastery_rel:
-                # Initialize with complete FSRS state so it can be discovered by Phase 1
-                # Parent nodes start with 0.0 since they aggregate from children
-                parent_mastery_rel = UserMastery(
-                    user_id=user.id,
-                    graph_id=node_answered.graph_id,
-                    node_id=parent_id,
-                    cached_retrievability=0.0,
-                    due_date=now,  # Available for review immediately
-                    last_review=None,  # Not directly reviewed yet
-                    fsrs_state=FSRSState.LEARNING.value,
-                    fsrs_stability=0.0,
-                    fsrs_difficulty=0.0,
-                )
-                db_session.add(parent_mastery_rel)
-                mastery_map[parent_id] = parent_mastery_rel
-
-            # Call Pure Logic
-            # Note: We pass the whole mastery_map so logic can look up children
-            new_parent_retrievability = MasteryLogic.calculate_parent_aggregation(
-                child_relations, mastery_map, now
-            )
-
-            if abs(new_parent_retrievability - parent_mastery_rel.cached_retrievability) > 1e-5:
-                parent_mastery_rel.cached_retrievability = new_parent_retrievability
-                parent_mastery_rel.last_updated = now
 
         await db_session.flush()
 
