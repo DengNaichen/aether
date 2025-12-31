@@ -32,6 +32,25 @@ def save_task_markdown(task_id: int, content: str) -> str:
     return str(file_path)
 
 
+def save_graph_markdown(graph_id: str, content: str) -> str:
+    """
+    Saves the extracted markdown to a graph-specific directory.
+    Replaces existing content for the same graph if it exists (simplification).
+    """
+    import time
+
+    graph_dir = RESULTS_BASE / f"graph_{graph_id}"
+    graph_dir.mkdir(parents=True, exist_ok=True)
+
+    # We use a timestamped filename to allow history, but returns the latest
+    filename = f"extracted_{int(time.time())}.md"
+    file_path = graph_dir / filename
+
+    file_path.write_text(content, encoding="utf-8")
+    logger.info(f"Saved extracted markdown for graph {graph_id} to {file_path}")
+    return str(file_path)
+
+
 def save_upload_file(task_id: int, original_filename: str, content: bytes) -> str:
     """
     Saves an uploaded file to a deterministic path based on task_id.
