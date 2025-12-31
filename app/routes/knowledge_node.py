@@ -51,7 +51,8 @@ async def create_knowledge_node_new(
     """
     from uuid import UUID as convert_UUID
 
-    from app.crud import knowledge_graph as crud
+    from app.crud import knowledge_graph as kg_crud
+    from app.crud import knowledge_node as node_crud
 
     # Validate graph_id is a valid UUID
     try:
@@ -62,7 +63,7 @@ async def create_knowledge_node_new(
         ) from e
 
     # Check if graph exists
-    graph = await crud.get_graph_by_id(db, graph_uuid)
+    graph = await kg_crud.get_graph_by_id(db, graph_uuid)
     if not graph:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -78,7 +79,7 @@ async def create_knowledge_node_new(
 
     # Create the node
     try:
-        new_node = await crud.create_knowledge_node(
+        new_node = await node_crud.create_knowledge_node(
             db_session=db,
             graph_id=graph_uuid,
             node_name=node_data.node_name,
@@ -132,7 +133,8 @@ async def create_prerequisite_new(
     """
     from uuid import UUID as convert_UUID
 
-    from app.crud import knowledge_graph as crud
+    from app.crud import knowledge_graph as kg_crud
+    from app.crud import prerequisite as prereq_crud
     from app.schemas.knowledge_node import PrerequisiteResponse
 
     # Validate graph_id
@@ -144,7 +146,7 @@ async def create_prerequisite_new(
         ) from e
 
     # Check if graph exists
-    graph = await crud.get_graph_by_id(db, graph_uuid)
+    graph = await kg_crud.get_graph_by_id(db, graph_uuid)
     if not graph:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -159,8 +161,10 @@ async def create_prerequisite_new(
         )
 
     # Check if both nodes exist
-    from_node = await crud.get_node_by_id(db, prereq_data.from_node_id)
-    to_node = await crud.get_node_by_id(db, prereq_data.to_node_id)
+    from app.crud.knowledge_node import get_node_by_id as get_node
+
+    from_node = await get_node(db, prereq_data.from_node_id)
+    to_node = await get_node(db, prereq_data.to_node_id)
 
     if not from_node:
         raise HTTPException(
@@ -187,7 +191,7 @@ async def create_prerequisite_new(
 
     # Create the prerequisite
     try:
-        new_prereq = await crud.create_prerequisite(
+        new_prereq = await prereq_crud.create_prerequisite(
             db_session=db,
             graph_id=graph_uuid,
             from_node_id=prereq_data.from_node_id,
@@ -258,7 +262,7 @@ async def create_question_new(
     """
     from uuid import UUID as convert_UUID
 
-    from app.crud import knowledge_graph as crud
+    from app.crud import knowledge_graph as kg_crud
     from app.crud import question as crud_question
 
     # Validate graph_id
@@ -270,7 +274,7 @@ async def create_question_new(
         ) from e
 
     # Check if graph exists
-    graph = await crud.get_graph_by_id(db, graph_uuid)
+    graph = await kg_crud.get_graph_by_id(db, graph_uuid)
     if not graph:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -285,7 +289,9 @@ async def create_question_new(
         )
 
     # Check if node exists
-    node = await crud.get_node_by_id(db, question_data.node_id)
+    from app.crud.knowledge_node import get_node_by_id as get_node
+
+    node = await get_node(db, question_data.node_id)
     if not node:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
