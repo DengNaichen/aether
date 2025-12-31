@@ -83,7 +83,76 @@ graph TD
     *   Optimal question is returned.
 
 2.  **AI Content Generation**:
-    *   User uploads a PDF or topic request.
-    *   **Graph Generator** uses **LangChain** to construct a prompt.
-    *   **Gemini Pro** extracts concepts and relationships.
-    *   **Self-Correction Agent** verifies graph topology (DAG structure) before saving to DB.
+    *   User uploads a PDF.
+    *   **PDF Extractor** uses **Gemini 2.5 Flash** (Files API) for multimodal text extraction.
+    *   **Graph Generator** uses **Gemini 3 Pro** to extract knowledge nodes and relationships.
+    *   **Refinement Agent** validates and corrects graph topology (e.g., re-routing parent dependencies).
+    *   **Question Generator** creates adaptive questions for leaf nodes.
+
+## Core Data Model (ERD)
+
+```mermaid
+erDiagram
+    USERS ||--o{ KNOWLEDGE_GRAPHS : owns
+    USERS ||--o{ GRAPH_ENROLLMENTS : enrolls
+    KNOWLEDGE_GRAPHS ||--o{ GRAPH_ENROLLMENTS : "has learners"
+    KNOWLEDGE_GRAPHS ||--o{ KNOWLEDGE_NODES : contains
+    KNOWLEDGE_NODES ||--o{ PREREQUISITES : "from_node_id"
+    KNOWLEDGE_NODES ||--o{ PREREQUISITES : "to_node_id"
+    KNOWLEDGE_NODES ||--o{ QUESTIONS : assesses
+    USERS ||--o{ USER_MASTERY : "per graph/node"
+    KNOWLEDGE_NODES ||--o{ USER_MASTERY : tracked
+
+    USERS {
+        UUID id
+        string email
+    }
+    KNOWLEDGE_GRAPHS {
+        UUID id
+        UUID owner_id
+        string name
+        bool is_public
+        bool is_template
+    }
+    GRAPH_ENROLLMENTS {
+        UUID id
+        UUID user_id
+        UUID graph_id
+        bool is_active
+    }
+    KNOWLEDGE_NODES {
+        UUID id
+        UUID graph_id
+        string node_id_str
+        string node_name
+        int level
+    }
+    PREREQUISITES {
+        UUID graph_id
+        UUID from_node_id
+        UUID to_node_id
+        float weight
+    }
+    QUESTIONS {
+        UUID id
+        UUID graph_id
+        UUID node_id
+        string question_type
+        string difficulty
+        jsonb details
+    }
+    USER_MASTERY {
+        UUID user_id
+        UUID graph_id
+        UUID node_id
+        float cached_retrievability
+        float fsrs_stability
+        float fsrs_difficulty
+        timestamptz due_date
+        jsonb review_log
+    }
+```
+
+- `USER_MASTERY` is the FSRS store keyed by `(user_id, graph_id, node_id)`; only leaf nodes are tracked, no parent aggregation.
+- `PREREQUISITES` and `QUESTIONS` are leaf-only; subtopic hierarchy is not persisted separately.
+- `GRAPH_ENROLLMENTS` tracks who is learning a graph; owners are in `KNOWLEDGE_GRAPHS.owner_id`.
