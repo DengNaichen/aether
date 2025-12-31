@@ -3,6 +3,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from app.schemas.graph_generation import GraphGenerationResponse  # noqa: F401
+
 
 class KnowledgeGraphCreate(BaseModel):
     """
@@ -90,15 +92,6 @@ class GraphContentPrerequisite(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
-    # class GraphContentSubtopic(BaseModel):
-    #     """Subtopic relation for graph content response"""
-    #     REMOVED: No longer using Subtopic hierarchy
-    #     parent_node_id: UUID
-    #     child_node_id: UUID
-    #     weight: float
-
-    model_config = ConfigDict(from_attributes=True)
-
 
 class GraphContentResponse(BaseModel):
     """Complete graph content including nodes and relations"""
@@ -106,4 +99,3 @@ class GraphContentResponse(BaseModel):
     graph: KnowledgeGraphResponse
     nodes: list[GraphContentNode]
     prerequisites: list[GraphContentPrerequisite]
-    # subtopics: list[GraphContentSubtopic]  # Removed - using tags

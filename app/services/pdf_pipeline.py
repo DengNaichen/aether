@@ -1,7 +1,10 @@
 import logging
+import os
 from collections.abc import Callable
 
 from app.schemas.file_pipeline import FilePipelineStatus
+from app.utils.pdf_metadata import get_pdf_metadata
+from app.utils.storage import cleanup_task_storage
 
 logger = logging.getLogger(__name__)
 
@@ -12,7 +15,7 @@ class PDFPipeline:
     Focuses on 'Pre-OCR' stages: validation, metadata extraction, and preparation.
     """
 
-    def __init__(self, task_id: int, file_path: str):
+    def __init__(self, task_id: str, file_path: str):
         self.task_id = task_id
         self.file_path = file_path
         self.stages: list[Callable] = []
@@ -54,10 +57,6 @@ class PDFPipeline:
 
     def _cleanup(self):
         """Internal cleanup logic for task-related files."""
-        import os
-
-        from app.utils.storage import cleanup_task_storage
-
         logger.info(f"Running cleanup for task {self.task_id}...")
 
         # 1. Clean up the task directory (best practice: centralized cleanup)
@@ -80,8 +79,6 @@ async def validate_and_extract_metadata_stage(context: dict):
     Stage: Validates file existence and extracts metadata.
     Uses the utility function from preprocess_files.
     """
-    from app.utils.pdf_metadata import get_pdf_metadata
-
     file_path = context.get("file_path")
     # This utility handles existence check and pypdf reading
     metadata = get_pdf_metadata(file_path)
@@ -215,7 +212,7 @@ async def generate_graph_stage(context: dict):
 
     # Optional: user guidance for AI
     user_guidance = context.get("user_guidance", "")
-    incremental = context.get("incremental", True)  # Default to incremental mode
+    incremental = context.get("incremental", False)  # Phase 1: Default to new graph generation
 
     logger.info(
         f"Starting graph generation for graph_id={graph_id}, "

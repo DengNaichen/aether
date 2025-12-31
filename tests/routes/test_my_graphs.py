@@ -9,15 +9,59 @@ Tests cover:
 - Creating graphs
 - Enrolling in own graph
 - Importing graph structure
-- Uploading PDFs
+    - Uploading files
 """
 
+import uuid
+
 import pytest
+import pytest_asyncio
 from fastapi import status
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.knowledge_graph import KnowledgeGraph
+from app.models.user import User
+
+
+@pytest_asyncio.fixture(scope="function")
+async def user_in_db(test_db: AsyncSession) -> User:
+    new_user = User(
+        email=f"test.{uuid.uuid4().hex}@example.com",
+        name="test user conf",
+        is_active=True,
+    )
+    test_db.add(new_user)
+    await test_db.commit()
+    await test_db.refresh(new_user)
+    return new_user
+
+
+@pytest_asyncio.fixture(scope="function")
+async def admin_in_db(test_db: AsyncSession) -> User:
+    new_admin = User(
+        email=f"admin.{uuid.uuid4().hex}@example.com",
+        name="test admin conf",
+        is_active=True,
+        is_admin=True,
+    )
+    test_db.add(new_admin)
+    await test_db.commit()
+    await test_db.refresh(new_admin)
+    return new_admin
+
+
+@pytest_asyncio.fixture(scope="function")
+async def other_user_in_db(test_db: AsyncSession) -> User:
+    other_user = User(
+        email=f"other.{uuid.uuid4().hex}@example.com",
+        name="other test user",
+        is_active=True,
+    )
+    test_db.add(other_user)
+    await test_db.commit()
+    await test_db.refresh(other_user)
+    return other_user
 
 
 class TestCreateKnowledgeGraph:
@@ -631,7 +675,6 @@ class TestImportStructure:
         import_data = {
             "nodes": [],
             "prerequisites": [],
-            "subtopics": [],
         }
 
         response = await other_user_client.post(
@@ -650,7 +693,6 @@ class TestImportStructure:
         import_data = {
             "nodes": [],
             "prerequisites": [],
-            "subtopics": [],
         }
 
         response = await authenticated_client.post(
@@ -669,7 +711,6 @@ class TestImportStructure:
         import_data = {
             "nodes": [],
             "prerequisites": [],
-            "subtopics": [],
         }
 
         response = await authenticated_client.post(
@@ -680,60 +721,63 @@ class TestImportStructure:
         assert response.status_code == status.HTTP_404_NOT_FOUND
 
 
-class TestUploadPDF:
-    """Test POST /me/graphs/{graph_id}/upload-pdf endpoint"""
+class TestUploadFile:
+    """Test POST /me/graphs/{graph_id}/upload-file endpoint"""
 
     @pytest.mark.asyncio
-    async def test_upload_pdf_invalid_file_type_fails(
+    async def test_upload_file_invalid_file_type_fails(
         self,
         authenticated_client: AsyncClient,
         private_graph_in_db: KnowledgeGraph,
     ):
-        """Test that uploading non-PDF file fails"""
+        """Test that uploading unsupported file type fails"""
         files = {"file": ("test.txt", b"not a pdf", "text/plain")}
 
         response = await authenticated_client.post(
-            f"/me/graphs/{private_graph_in_db.id}/upload-pdf",
+            f"/me/graphs/{private_graph_in_db.id}/upload-file",
             files=files,
         )
 
         assert response.status_code == status.HTTP_400_BAD_REQUEST
-        assert "PDF" in response.json()["detail"]
+        assert (
+            "Only PDF (.pdf) and Markdown (.md) files are supported."
+            in response.json()["detail"]
+        )
 
     @pytest.mark.asyncio
-    async def test_upload_pdf_not_owner_fails(
+    async def test_upload_file_not_owner_fails(
         self,
         other_user_client: AsyncClient,
         private_graph_in_db: KnowledgeGraph,
     ):
-        """Test that non-owner cannot upload PDF"""
+        """Test that non-owner cannot upload file"""
         files = {"file": ("test.pdf", b"fake pdf content", "application/pdf")}
 
         response = await other_user_client.post(
-            f"/me/graphs/{private_graph_in_db.id}/upload-pdf",
+            f"/me/graphs/{private_graph_in_db.id}/upload-file",
             files=files,
         )
 
         assert response.status_code == status.HTTP_403_FORBIDDEN
 
     @pytest.mark.asyncio
-    async def test_upload_pdf_nonexistent_graph_fails(
+    async def test_upload_file_nonexistent_graph_fails(
         self,
         authenticated_client: AsyncClient,
     ):
-        """Test uploading PDF to nonexistent graph"""
+        """Test uploading file to nonexistent graph"""
         fake_id = "00000000-0000-0000-0000-000000000000"
         files = {"file": ("test.pdf", b"fake pdf content", "application/pdf")}
 
         response = await authenticated_client.post(
-            f"/me/graphs/{fake_id}/upload-pdf",
+            f"/me/graphs/{fake_id}/upload-file",
             files=files,
         )
 
         assert response.status_code == status.HTTP_404_NOT_FOUND
 
     @pytest.mark.asyncio
-    async def test_upload_pdf_unauthenticated_fails(
+    async def test_upload_file_unauthenticated_fails(
         self,
         client: AsyncClient,
         private_graph_in_db: KnowledgeGraph,
@@ -742,7 +786,7 @@ class TestUploadPDF:
         files = {"file": ("test.pdf", b"fake pdf content", "application/pdf")}
 
         response = await client.post(
-            f"/me/graphs/{private_graph_in_db.id}/upload-pdf",
+            f"/me/graphs/{private_graph_in_db.id}/upload-file",
             files=files,
         )
 

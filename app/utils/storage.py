@@ -13,14 +13,14 @@ STORAGE_BASE = Path(settings.PIPELINE_STORAGE_PATH)
 RESULTS_BASE = Path(settings.PIPELINE_RESULTS_PATH)
 
 
-def get_task_storage_path(task_id: int) -> Path:
+def get_task_storage_path(task_id: str) -> Path:
     """Returns the dedicated directory for a specific task."""
     path = STORAGE_BASE / f"task_{task_id}"
     path.mkdir(parents=True, exist_ok=True)
     return path
 
 
-def save_task_markdown(task_id: int, content: str) -> str:
+def save_task_markdown(task_id: str, content: str) -> str:
     """
     Saves the extracted markdown to a persistent results directory.
     This stays after the pipeline cleanup until decided otherwise.
@@ -51,7 +51,7 @@ def save_graph_markdown(graph_id: str, content: str) -> str:
     return str(file_path)
 
 
-def save_upload_file(task_id: int, original_filename: str, content: bytes) -> str:
+def save_upload_file(task_id: str, original_filename: str, content: bytes) -> str:
     """
     Saves an uploaded file to a deterministic path based on task_id.
     Standardizes the filename to 'input.pdf' to simplify pipeline stages.
@@ -67,7 +67,7 @@ def save_upload_file(task_id: int, original_filename: str, content: bytes) -> st
     return str(file_path)
 
 
-def cleanup_task_storage(task_id: int):
+def cleanup_task_storage(task_id: str):
     """Removes all files associated with a task."""
     task_dir = STORAGE_BASE / f"task_{task_id}"
     if task_dir.exists() and task_dir.is_dir():
