@@ -10,8 +10,10 @@ These tests cover the new PostgreSQL-based knowledge graph endpoints:
 import pytest
 from fastapi import status
 from httpx import AsyncClient
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.knowledge_graph import KnowledgeGraph
+from app.models.knowledge_node import KnowledgeNode
 
 
 class TestCreateKnowledgeNode:
@@ -375,6 +377,39 @@ class TestCreatePrerequisite:
         assert response.status_code == status.HTTP_404_NOT_FOUND
 
     @pytest.mark.asyncio
+    async def test_create_prerequisite_node_not_in_graph(
+        self,
+        authenticated_client: AsyncClient,
+        private_graph_with_few_nodes_and_relations_in_db: dict,
+        private_graph_in_db: KnowledgeGraph,
+        test_db: AsyncSession,
+    ):
+        """Test creating prerequisite with node from another graph."""
+        graph_id = private_graph_with_few_nodes_and_relations_in_db["graph"].id
+        nodes = private_graph_with_few_nodes_and_relations_in_db["nodes"]
+
+        other_node = KnowledgeNode(
+            graph_id=private_graph_in_db.id,
+            node_name="Other Graph Node",
+        )
+        test_db.add(other_node)
+        await test_db.commit()
+        await test_db.refresh(other_node)
+
+        prereq_data = {
+            "from_node_id": str(other_node.id),
+            "to_node_id": str(nodes["derivatives"].id),
+        }
+
+        response = await authenticated_client.post(
+            f"/me/graphs/{graph_id}/prerequisites",
+            json=prereq_data,
+        )
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert "does not belong" in response.json()["detail"].lower()
+
+    @pytest.mark.asyncio
     async def test_create_prerequisite_duplicate(
         self,
         authenticated_client: AsyncClient,
@@ -490,6 +525,37 @@ class TestCreateQuestion:
         assert len(data["details"]["options"]) == 4
 
     @pytest.mark.asyncio
+    async def test_create_question_unauthenticated(
+        self,
+        client: AsyncClient,
+        private_graph_with_few_nodes_and_relations_in_db: dict,
+    ):
+        """Test that unauthenticated users cannot create questions."""
+        graph_id = private_graph_with_few_nodes_and_relations_in_db["graph"].id
+        nodes = private_graph_with_few_nodes_and_relations_in_db["nodes"]
+
+        question_data = {
+            "node_id": str(nodes["derivatives"].id),
+            "question_type": "multiple_choice",
+            "text": "Test question",
+            "difficulty": "easy",
+            "details": {
+                "question_type": "multiple_choice",
+                "options": ["A", "B"],
+                "correct_answer": 0,
+                "p_g": 0.5,
+                "p_s": 0.1,
+            },
+        }
+
+        response = await client.post(
+            f"/me/graphs/{graph_id}/questions",
+            json=question_data,
+        )
+
+        assert response.status_code == status.HTTP_401_UNAUTHORIZED
+
+    @pytest.mark.asyncio
     async def test_create_question_node_not_found(
         self,
         authenticated_client: AsyncClient,
@@ -516,6 +582,69 @@ class TestCreateQuestion:
 
         response = await authenticated_client.post(
             f"/me/graphs/{graph_id}/questions",
+            json=question_data,
+        )
+
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+
+    @pytest.mark.asyncio
+    async def test_create_question_invalid_graph_id(
+        self,
+        authenticated_client: AsyncClient,
+        private_graph_with_few_nodes_and_relations_in_db: dict,
+    ):
+        """Test creating question with invalid graph ID format."""
+        nodes = private_graph_with_few_nodes_and_relations_in_db["nodes"]
+
+        question_data = {
+            "node_id": str(nodes["derivatives"].id),
+            "question_type": "multiple_choice",
+            "text": "Test question",
+            "difficulty": "easy",
+            "details": {
+                "question_type": "multiple_choice",
+                "options": ["A", "B"],
+                "correct_answer": 0,
+                "p_g": 0.5,
+                "p_s": 0.1,
+            },
+        }
+
+        response = await authenticated_client.post(
+            "/me/graphs/invalid-uuid/questions",
+            json=question_data,
+        )
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+
+    @pytest.mark.asyncio
+    async def test_create_question_graph_not_found(
+        self,
+        authenticated_client: AsyncClient,
+        private_graph_with_few_nodes_and_relations_in_db: dict,
+    ):
+        """Test creating question in a graph that doesn't exist."""
+        from uuid import uuid4
+
+        fake_graph_id = uuid4()
+        nodes = private_graph_with_few_nodes_and_relations_in_db["nodes"]
+
+        question_data = {
+            "node_id": str(nodes["derivatives"].id),
+            "question_type": "multiple_choice",
+            "text": "Test question",
+            "difficulty": "easy",
+            "details": {
+                "question_type": "multiple_choice",
+                "options": ["A", "B"],
+                "correct_answer": 0,
+                "p_g": 0.5,
+                "p_s": 0.1,
+            },
+        }
+
+        response = await authenticated_client.post(
+            f"/me/graphs/{fake_graph_id}/questions",
             json=question_data,
         )
 
@@ -588,6 +717,47 @@ class TestCreateQuestion:
         data = response.json()
         assert data["question_type"] == "calculation"
         assert data["difficulty"] == "hard"
+
+    @pytest.mark.asyncio
+    async def test_create_question_node_not_in_graph(
+        self,
+        authenticated_client: AsyncClient,
+        private_graph_with_few_nodes_and_relations_in_db: dict,
+        private_graph_in_db: KnowledgeGraph,
+        test_db: AsyncSession,
+    ):
+        """Test creating question with node from another graph."""
+        graph_id = private_graph_with_few_nodes_and_relations_in_db["graph"].id
+
+        other_node = KnowledgeNode(
+            graph_id=private_graph_in_db.id,
+            node_name="Other Graph Node",
+        )
+        test_db.add(other_node)
+        await test_db.commit()
+        await test_db.refresh(other_node)
+
+        question_data = {
+            "node_id": str(other_node.id),
+            "question_type": "multiple_choice",
+            "text": "Question for wrong graph",
+            "difficulty": "easy",
+            "details": {
+                "question_type": "multiple_choice",
+                "options": ["A", "B"],
+                "correct_answer": 0,
+                "p_g": 0.5,
+                "p_s": 0.1,
+            },
+        }
+
+        response = await authenticated_client.post(
+            f"/me/graphs/{graph_id}/questions",
+            json=question_data,
+        )
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert "does not belong" in response.json()["detail"].lower()
 
     @pytest.mark.asyncio
     async def test_create_question_non_owner_forbidden(

@@ -10,6 +10,8 @@ Tests cover:
 - Getting graph content
 """
 
+from unittest.mock import AsyncMock, patch
+
 import pytest
 from fastapi import status
 from httpx import AsyncClient
@@ -17,7 +19,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.enrollment import GraphEnrollment
 from app.models.knowledge_graph import KnowledgeGraph
+from app.models.knowledge_node import KnowledgeNode
+from app.models.question import Question, QuestionDifficulty, QuestionType
 from app.models.user import User
+from app.services.question_rec import NodeSelectionResult
 
 
 class TestGetTemplateGraphs:
@@ -68,12 +73,18 @@ class TestGetTemplateGraphs:
     async def test_get_template_graphs_without_auth_succeeds(
         self,
         client: AsyncClient,
+        template_graph_in_db: KnowledgeGraph,
     ):
         """Test that getting templates without auth succeeds (endpoint uses optional auth)"""
         response = await client.get("/graphs/templates")
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
         assert isinstance(data, list)
+        template = next(
+            (g for g in data if g["id"] == str(template_graph_in_db.id)), None
+        )
+        assert template is not None
+        assert template["is_enrolled"] is None
 
 
 class TestEnrollInTemplateGraph:
@@ -212,6 +223,17 @@ class TestGetTemplateGraphDetails:
 
         assert response.status_code == status.HTTP_403_FORBIDDEN
 
+    @pytest.mark.asyncio
+    async def test_get_graph_details_nonexistent_fails(
+        self,
+        authenticated_client: AsyncClient,
+    ):
+        """Test that missing graph details return 404"""
+        fake_id = "00000000-0000-0000-0000-000000000000"
+        response = await authenticated_client.get(f"/graphs/{fake_id}/")
+
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+
 
 class TestGetNextQuestionInEnrolledGraph:
     """Test GET /graphs/{graph_id}/next-question endpoint"""
@@ -260,6 +282,129 @@ class TestGetNextQuestionInEnrolledGraph:
         data = response.json()
         # Graph might be empty, so question could be None
         assert "selection_reason" in data
+
+    @pytest.mark.asyncio
+    async def test_get_next_question_node_has_no_questions_returns_reason(
+        self,
+        authenticated_client: AsyncClient,
+        template_graph_in_db: KnowledgeGraph,
+        graph_enrollment_student_in_db: GraphEnrollment,
+        test_db: AsyncSession,
+    ):
+        """Test that selected nodes without questions return node_has_no_questions."""
+        node = KnowledgeNode(
+            graph_id=template_graph_in_db.id,
+            node_name="Limits",
+        )
+        test_db.add(node)
+        await test_db.commit()
+        await test_db.refresh(node)
+
+        selection_result = NodeSelectionResult(
+            knowledge_node=node,
+            selection_reason="new_learning",
+            priority_score=0.6,
+        )
+
+        with patch(
+            "app.routes.public_graph.QuestionService.select_next_node",
+            new=AsyncMock(return_value=selection_result),
+        ):
+            response = await authenticated_client.get(
+                f"/graphs/{template_graph_in_db.id}/next-question"
+            )
+
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        assert data["question"] is None
+        assert data["node_id"] == str(node.id)
+        assert data["selection_reason"] == "node_has_no_questions"
+
+    @pytest.mark.asyncio
+    async def test_get_next_question_returns_question(
+        self,
+        authenticated_client: AsyncClient,
+        template_graph_in_db: KnowledgeGraph,
+        graph_enrollment_student_in_db: GraphEnrollment,
+        test_db: AsyncSession,
+    ):
+        """Test that a selected node with questions returns a question."""
+        node = KnowledgeNode(
+            graph_id=template_graph_in_db.id,
+            node_name="Derivatives",
+        )
+        test_db.add(node)
+        await test_db.commit()
+        await test_db.refresh(node)
+
+        question = Question(
+            graph_id=template_graph_in_db.id,
+            node_id=node.id,
+            question_type=QuestionType.MULTIPLE_CHOICE.value,
+            text="What is the derivative of x^2?",
+            details={
+                "question_type": QuestionType.MULTIPLE_CHOICE.value,
+                "options": ["x", "2x"],
+                "correct_answer": 1,
+                "p_g": 0.25,
+                "p_s": 0.1,
+            },
+            difficulty=QuestionDifficulty.EASY.value,
+        )
+        test_db.add(question)
+        await test_db.commit()
+        await test_db.refresh(question)
+
+        selection_result = NodeSelectionResult(
+            knowledge_node=node,
+            selection_reason="new_learning",
+            priority_score=0.2,
+        )
+
+        with patch(
+            "app.routes.public_graph.QuestionService.select_next_node",
+            new=AsyncMock(return_value=selection_result),
+        ):
+            response = await authenticated_client.get(
+                f"/graphs/{template_graph_in_db.id}/next-question"
+            )
+
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        assert data["node_id"] == str(node.id)
+        assert data["selection_reason"] == "new_learning"
+        assert data["question"]["question_id"] == str(question.id)
+        assert data["question"]["question_type"] == "multiple_choice"
+        assert data["question"]["knowledge_node_id"] == str(node.id)
+
+    @pytest.mark.asyncio
+    async def test_get_next_question_nonexistent_graph_fails(
+        self,
+        authenticated_client: AsyncClient,
+    ):
+        """Test that next-question returns 404 for missing graph"""
+        fake_id = "00000000-0000-0000-0000-000000000000"
+        response = await authenticated_client.get(f"/graphs/{fake_id}/next-question")
+
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+
+    @pytest.mark.asyncio
+    async def test_get_next_question_service_error_returns_500(
+        self,
+        authenticated_client: AsyncClient,
+        template_graph_in_db: KnowledgeGraph,
+        graph_enrollment_student_in_db: GraphEnrollment,
+    ):
+        """Test that unexpected errors surface as 500 responses."""
+        with patch(
+            "app.routes.public_graph.QuestionService.select_next_node",
+            new=AsyncMock(side_effect=RuntimeError("boom")),
+        ):
+            response = await authenticated_client.get(
+                f"/graphs/{template_graph_in_db.id}/next-question"
+            )
+
+        assert response.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR
 
 
 class TestGetGraphVisualization:
@@ -332,6 +477,59 @@ class TestGetGraphVisualization:
 
         assert response.status_code == status.HTTP_403_FORBIDDEN
 
+    @pytest.mark.asyncio
+    async def test_get_visualization_private_owner_success(
+        self,
+        authenticated_client: AsyncClient,
+        private_graph_in_db: KnowledgeGraph,
+    ):
+        """Test that owner can access visualization for private graph"""
+        response = await authenticated_client.get(
+            f"/graphs/{private_graph_in_db.id}/visualization"
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        assert "nodes" in data
+        assert "edges" in data
+
+    @pytest.mark.asyncio
+    async def test_get_visualization_private_enrolled_success(
+        self,
+        other_user_client: AsyncClient,
+        other_user_in_db: User,
+        private_graph_in_db: KnowledgeGraph,
+        test_db: AsyncSession,
+    ):
+        """Test that enrolled users can access private graph visualization."""
+        enrollment = GraphEnrollment(
+            user_id=other_user_in_db.id,
+            graph_id=private_graph_in_db.id,
+            is_active=True,
+        )
+        test_db.add(enrollment)
+        await test_db.commit()
+
+        response = await other_user_client.get(
+            f"/graphs/{private_graph_in_db.id}/visualization"
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        assert "nodes" in data
+        assert "edges" in data
+
+    @pytest.mark.asyncio
+    async def test_get_visualization_graph_not_found(
+        self,
+        authenticated_client: AsyncClient,
+    ):
+        """Test that missing graphs return 404."""
+        fake_id = "00000000-0000-0000-0000-000000000000"
+        response = await authenticated_client.get(f"/graphs/{fake_id}/visualization")
+
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+
 
 class TestGetPublicGraphContent:
     """Test GET /graphs/{graph_id}/content endpoint"""
@@ -388,3 +586,14 @@ class TestGetPublicGraphContent:
 
         assert response.status_code == status.HTTP_403_FORBIDDEN
         assert "private" in response.json()["detail"].lower()
+
+    @pytest.mark.asyncio
+    async def test_get_content_graph_nonexistent_fails(
+        self,
+        authenticated_client: AsyncClient,
+    ):
+        """Test that content returns 404 for missing graph"""
+        fake_id = "00000000-0000-0000-0000-000000000000"
+        response = await authenticated_client.get(f"/graphs/{fake_id}/content")
+
+        assert response.status_code == status.HTTP_404_NOT_FOUND

@@ -136,10 +136,12 @@ class MasteryLogic:
             Dict[str, Any]: A dictionary of fields to update in the database.
         """
         fsrs_card = cls.build_fsrs_card(mastery)
-        old_stability = fsrs_card.stability
+        old_stability = fsrs_card.stability if fsrs_card.stability is not None else 0.0
 
         rating = cls.map_correctness_to_rating(is_correct)
         new_card, review_log = cls._fsrs_scheduler.review_card(fsrs_card, rating, now)
+        if new_card.stability is None:
+            new_card.stability = old_stability
 
         # Post-Calculation Adjustment Logic
         # 1. Guessing Adjustment
