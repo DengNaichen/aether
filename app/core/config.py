@@ -26,6 +26,10 @@ class Settings(BaseSettings):
     # AI API key
     GOOGLE_API_KEY: str
 
+    # Pipeline storage paths
+    PIPELINE_STORAGE_PATH: str = Field(default="temp/pipeline_storage")
+    PIPELINE_RESULTS_PATH: str = Field(default="temp/results")
+
     @property
     def is_testing(self) -> bool:
         return self.ENVIRONMENT == "test"
