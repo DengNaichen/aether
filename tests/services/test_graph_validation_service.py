@@ -84,49 +84,6 @@ class TestDetectPrerequisiteCycle:
         assert has_cycle is False
 
 
-class TestDetectSubtopicCycle:
-    """Test subtopic hierarchy cycle detection."""
-
-    # @pytest.mark.asyncio
-    # async def test_detects_subtopic_cycle(
-    #     self, test_db: AsyncSession, user_in_db: User
-    # ):
-    #     """Should detect cycle in subtopic hierarchy."""
-    #     graph = KnowledgeGraph(owner_id=user_in_db.id, name="Test", slug="test")
-    #     test_db.add(graph)
-    #     await test_db.flush()
-
-    #     parent = KnowledgeNode(graph_id=graph.id, node_name="Parent")
-    #     child = KnowledgeNode(graph_id=graph.id, node_name="Child")
-    #     grandchild = KnowledgeNode(graph_id=graph.id, node_name="Grandchild")
-    #     test_db.add_all([parent, child, grandchild])
-    #     await test_db.flush()
-
-    #     # Hierarchy: parent -> child -> grandchild
-    #     s1 = Subtopic(
-    #         graph_id=graph.id,
-    #         parent_node_id=parent.id,
-    #         child_node_id=child.id,
-    #         weight=1.0,
-    #     )
-    #     s2 = Subtopic(
-    #         graph_id=graph.id,
-    #         parent_node_id=child.id,
-    #         child_node_id=grandchild.id,
-    #         weight=1.0,
-    #     )
-    #     test_db.add_all([s1, s2])
-    #     await test_db.commit()
-
-    #     service = GraphValidationService(test_db)
-
-    #     # Adding grandchild -> parent would create cycle
-    #     has_cycle = await service.detect_subtopic_cycle(
-    #         graph.id, grandchild.id, parent.id
-    #     )
-    #     assert has_cycle is True
-
-
 # ==================== Topology Computation Tests ====================
 class TestComputeTopologicalLevels:
     """Test topological level computation."""
@@ -400,12 +357,6 @@ class TestValidateGraphStructure:
             to_node_id=parent.id,
             weight=1.0,
         )
-        # subtopic = Subtopic(
-        #     graph_id=graph.id,
-        #     parent_node_id=parent.id,
-        #     child_node_id=child.id,
-        #     weight=1.0,
-        # )
         test_db.add_all([prereq])
         await test_db.commit()
 

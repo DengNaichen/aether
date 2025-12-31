@@ -146,7 +146,6 @@ class GraphValidationService:
 
         Checks:
         - No cycles in prerequisites
-        - No cycles in subtopics
         - Topological levels are computable
 
         Args:
