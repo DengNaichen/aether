@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 
 class GraphGenerationResponse(BaseModel):
     """Response schema for graph generation from markdown."""
-    
+
     graph_id: str = Field(..., description="Graph UUID")
     nodes_created: int = Field(..., description="Number of new nodes created")
     prerequisites_created: int = Field(
