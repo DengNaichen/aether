@@ -167,6 +167,9 @@ scripts/
 !scripts/setup_dev_data_pg.py
 !scripts/import_pdf_to_graph.py
 !scripts/generate_questions_for_graph.py
+!scripts/extract_pdf.py
+!scripts/generate_graph_from_md.py
+!scripts/inspect_graph.py
 
 # ===================================================================
 # AI Assistant directories (Gemini, Claude, Cursor, etc.)

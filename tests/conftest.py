@@ -155,7 +155,6 @@ async def client(
 
     del app.dependency_overrides[get_db]
     del app.dependency_overrides[get_redis_client]
-    # del app.dependency_overrides[get_neo4j_driver]
 
 
 @pytest_asyncio.fixture(scope="function")
