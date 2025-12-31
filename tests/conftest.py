@@ -1,11 +1,13 @@
 # import asyncio
 import os
 import sys
+from datetime import datetime, timedelta
 
 # import uuid
 from pathlib import Path
 
 from dotenv import load_dotenv
+from jose import jwt
 
 # Set ENVIRONMENT to 'test' BEFORE loading .env file
 # This ensures Settings will load .env.test
@@ -66,6 +68,30 @@ SOURCE_KNOWLEDGE_NODE_ID = "source_test_node"
 SOURCE_KNOWLEDGE_NODE_NAME = "source test node"
 SOURCE_KNOWLEDGE_NODE_DESCRIPTION = "source test node description"
 TEST_RELATION = RelationType.HAS_PREREQUISITES  # Changed from HAS_SUBTOPIC
+
+
+def create_access_token(subject: Any, expires_delta: timedelta | None = None) -> str:
+    """
+    Create a JWT access token for testing purposes.
+    Simulates a Supabase token.
+    """
+    if expires_delta:
+        expire = datetime.utcnow() + expires_delta
+    else:
+        expire = datetime.utcnow() + timedelta(minutes=15)
+
+    # Supabase tokens usually use "sub" for user ID
+    to_encode = {
+        "sub": str(subject),
+        "exp": expire,
+        "aud": "authenticated",
+        "role": "authenticated",
+    }
+
+    encoded_jwt = jwt.encode(
+        to_encode, settings.SUPABASE_JWT_SECRET, algorithm=settings.ALGORITHM
+    )
+    return encoded_jwt
 
 
 # --- Fixtures ---
@@ -446,21 +472,19 @@ async def question_in_db(test_db: AsyncSession, user_in_db: User):
     return question
 
 
-# NOTE: These fixtures are commented out because create_access_token doesn't exist
-# If you need authenticated clients in tests, implement create_access_token first
-# @pytest_asyncio.fixture(scope="function")
-# async def authenticated_client(client: AsyncClient, user_in_db: User) -> AsyncClient:
-#     token = create_access_token(user_in_db)
-#     client.headers["Authorization"] = f"Bearer {token}"
-#     return client
+@pytest_asyncio.fixture(scope="function")
+async def authenticated_client(client: AsyncClient, user_in_db: User) -> AsyncClient:
+    token = create_access_token(user_in_db.id)
+    client.headers["Authorization"] = f"Bearer {token}"
+    return client
 
 
-# @pytest_asyncio.fixture(scope="function")
-# async def other_user_client(client: AsyncClient, other_user_in_db: User) -> AsyncClient:
-#     """Create an authenticated client for the second user (for testing non-owner access)."""
-#     token = create_access_token(other_user_in_db)
-#     client.headers["Authorization"] = f"Bearer {token}"
-#     return client
+@pytest_asyncio.fixture(scope="function")
+async def other_user_client(client: AsyncClient, other_user_in_db: User) -> AsyncClient:
+    """Create an authenticated client for the second user (for testing non-owner access)."""
+    token = create_access_token(other_user_in_db.id)
+    client.headers["Authorization"] = f"Bearer {token}"
+    return client
 
 
 @pytest_asyncio.fixture(scope="session", autouse=True)

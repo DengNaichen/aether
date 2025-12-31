@@ -375,8 +375,12 @@ async def import_structure(
 
     logger.info(
         f"Graph structure imported: graph_id={graph_id}, "
-        f"nodes={result.nodes_created}, prerequisites={result.prerequisites_created}, "
-        f"subtopics={result.subtopics_created}"
+        f"nodes={result.nodes_created}, prerequisites={result.prerequisites_created}"
+    )
+
+    result.message = (
+        f"Import complete: nodes={result.nodes_created}, "
+        f"prerequisites={result.prerequisites_created}"
     )
 
     return result

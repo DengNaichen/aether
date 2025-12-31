@@ -10,11 +10,8 @@ from uuid import UUID
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.crud.knowledge_graph import (
-    get_nodes_by_graph,
-    get_prerequisites_by_graph,
-    get_subtopics_by_graph,
-)
+from app.crud.knowledge_node import get_nodes_by_graph
+from app.crud.prerequisite import get_prerequisites_by_graph
 from app.models.enrollment import GraphEnrollment
 from app.models.knowledge_graph import KnowledgeGraph
 from app.models.knowledge_node import KnowledgeNode
@@ -22,7 +19,6 @@ from app.schemas.knowledge_graph import (
     GraphContentNode,
     GraphContentPrerequisite,
     GraphContentResponse,
-    GraphContentSubtopic,
     KnowledgeGraphResponse,
 )
 
@@ -89,10 +85,12 @@ class GraphContentService:
         user_id: UUID,
     ) -> GraphContentResponse:
         """
-        Get complete graph content including all nodes, prerequisites, and subtopics.
+        Get complete graph content including all nodes and prerequisites.
+
+        Note: Subtopics have been removed from the data model.
 
         This method:
-        1. Fetches all nodes, prerequisites, and subtopics
+        1. Fetches all nodes and prerequisites
         2. Enriches the graph with metadata (node_count, is_enrolled)
         3. Converts all data to response models
 
@@ -111,9 +109,6 @@ class GraphContentService:
         prerequisites = await get_prerequisites_by_graph(
             db_session=db_session, graph_id=graph_id
         )
-        subtopics = await get_subtopics_by_graph(
-            db_session=db_session, graph_id=graph_id
-        )
 
         # Enrich graph with metadata
         graph_response = await self.enrich_graph_with_metadata(
@@ -127,13 +122,9 @@ class GraphContentService:
         prerequisites_response = [
             GraphContentPrerequisite.model_validate(prereq) for prereq in prerequisites
         ]
-        subtopics_response = [
-            GraphContentSubtopic.model_validate(subtopic) for subtopic in subtopics
-        ]
 
         return GraphContentResponse(
             graph=graph_response,
             nodes=nodes_response,
             prerequisites=prerequisites_response,
-            subtopics=subtopics_response,
         )
