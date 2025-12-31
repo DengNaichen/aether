@@ -8,7 +8,7 @@ All endpoints require the user to be the owner of the graph.
 import logging
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Path, status
+from fastapi import APIRouter, Depends, HTTPException, Path, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.deps import get_current_active_user, get_db, get_owned_graph
@@ -380,3 +380,121 @@ async def import_structure(
     )
 
     return result
+
+
+@router.post(
+    "/{graph_id}/upload-pdf",
+    status_code=status.HTTP_201_CREATED,
+    summary="Upload and extract content from a PDF",
+    description="""
+    Upload a PDF file and extract its content as markdown.
+
+    The system will:
+    1. Validate the PDF file
+    2. Auto-detect if the content is handwritten or formatted
+    3. Extract text using the appropriate AI model
+    4. Save the extracted markdown to cloud storage
+
+    The extracted markdown is stored for later use (e.g., graph generation).
+    """,
+)
+async def upload_pdf(
+    file: UploadFile,
+    knowledge_graph=Depends(get_owned_graph),
+    db_session: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    """
+    Upload a PDF and extract its content as markdown.
+
+    Args:
+        file: The PDF file to upload
+        knowledge_graph: Owned knowledge graph (injected by get_owned_graph dependency)
+        db_session: Database session
+        current_user: Authenticated user (must be the graph owner)
+
+    Returns:
+        PDFExtractionResponse: Extraction result including metadata and file path
+
+    Raises:
+        HTTPException 400: If file is not a PDF
+        HTTPException 404: If the knowledge graph doesn't exist
+        HTTPException 403: If the user is not the owner
+        HTTPException 500: If extraction fails
+    """
+    import time
+
+    from app.schemas.file_pipeline import FilePipelineStatus, PDFExtractionResponse
+    from app.services.pdf_pipeline import (
+        PDFPipeline,
+        check_page_limit_stage,
+        detect_handwriting_stage,
+        extract_text_stage,
+        save_markdown_stage,
+        validate_and_extract_metadata_stage,
+        validate_file_type_stage,
+    )
+    from app.utils.storage import save_upload_file
+
+    # Validate file type
+    if not file.filename or not file.filename.lower().endswith(".pdf"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Only PDF files are supported.",
+        )
+
+    # Generate a simple task ID based on timestamp
+    task_id = int(time.time() * 1000) % 2147483647  # Keep within int32 range
+
+    try:
+        # Read and save uploaded file
+        content = await file.read()
+        file_path = save_upload_file(task_id, file.filename, content)
+
+        # Create and configure the pipeline
+        pipeline = PDFPipeline(task_id=task_id, file_path=file_path)
+
+        # Inject graph_id into context for storage organization
+        pipeline.context["graph_id"] = str(knowledge_graph.id)
+
+        # Add pre-OCR stages
+        pipeline.add_stage(validate_file_type_stage)
+        pipeline.add_stage(validate_and_extract_metadata_stage)
+        pipeline.add_stage(check_page_limit_stage)  # Enforce page limit
+        pipeline.add_stage(detect_handwriting_stage)
+
+        # Add extraction and save stages
+        pipeline.add_stage(extract_text_stage)
+        pipeline.add_stage(save_markdown_stage)
+
+        # Execute pipeline (cleanup=True will remove temp files after)
+        result_context = await pipeline.execute(cleanup=True)
+
+        logger.info(
+            f"PDF extraction completed for graph {knowledge_graph.id}: "
+            f"task_id={task_id}, pages={result_context['metadata'].get('page_count')}"
+        )
+
+        return PDFExtractionResponse(
+            task_id=task_id,
+            graph_id=str(knowledge_graph.id),
+            status=FilePipelineStatus.COMPLETED,
+            markdown_file_path=result_context["metadata"].get("markdown_file_path", ""),
+            metadata=result_context["metadata"],
+            message="PDF extracted successfully",
+        )
+
+    except ValueError as e:
+        # Validation errors (file type, page limit, etc.)
+        logger.warning(f"PDF validation failed for task {task_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        ) from e
+
+    except Exception as e:
+        logger.error(f"PDF extraction failed for task {task_id}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"PDF extraction failed: {str(e)}",
+        ) from e

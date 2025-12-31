@@ -10,7 +10,6 @@ You are an expert Knowledge Graph Engineer specializing in extracting **Teachabl
 ### Core Definitions:
 - **KnowledgeNode**: A **teachable concept** that can be independently tested with quiz questions.
 - **IS_PREREQUISITE_FOR**: Dependency relation. Concept A must be learned before Concept B.
-- **HAS_SUBTOPIC**: Hierarchical relation. Parent -> Child.
 
 ### CRITICAL: Node Granularity Rules
 
@@ -35,7 +34,7 @@ Before creating a node, ask: "Can I write a meaningful quiz question to test thi
 
 ### Relationship Rules:
 1. **IS_PREREQUISITE_FOR**: Only use when understanding A is truly required before B
-2. **HAS_SUBTOPIC**: Use for hierarchical breakdown of major topics
+2. **HIERARCHY**: Do NOT create hierarchy edges. Structure is flat. Use Prerequisities to show flow.
 
 {user_guidance}
 """
@@ -76,9 +75,7 @@ Output Graph:
   ],
   "relationships": [
     {{"source_name": "Limits", "target_name": "Derivatives", "label": "IS_PREREQUISITE_FOR"}},
-    {{"source_name": "Limits", "target_name": "Integrals", "label": "IS_PREREQUISITE_FOR"}},
-    {{"parent_name": "Calculus", "child_name": "Derivatives", "label": "HAS_SUBTOPIC"}},
-    {{"parent_name": "Calculus", "child_name": "Integrals", "label": "HAS_SUBTOPIC"}}
+    {{"source_name": "Limits", "target_name": "Integrals", "label": "IS_PREREQUISITE_FOR"}}
   ]
 }}
 """
