@@ -86,13 +86,9 @@ class TestDetectCycleWithNewEdge:
         }
 
         # Adding node1 -> node3 is safe
-        assert (
-            GraphTopologyLogic.detect_cycle_with_new_edge(adj, node1, node3) is False
-        )
+        assert GraphTopologyLogic.detect_cycle_with_new_edge(adj, node1, node3) is False
         # Adding node2 -> node3 is safe
-        assert (
-            GraphTopologyLogic.detect_cycle_with_new_edge(adj, node2, node3) is False
-        )
+        assert GraphTopologyLogic.detect_cycle_with_new_edge(adj, node2, node3) is False
 
     def test_cycle_created(self):
         """Test detecting a cycle when closing a path."""

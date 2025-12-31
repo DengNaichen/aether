@@ -142,12 +142,8 @@ async def client(
     async def override_get_redis_client() -> AsyncGenerator[Redis, None]:
         yield test_db_manager.redis_client
 
-    # async def override_get_neo4j_driver() -> AsyncGenerator[AsyncDriver, None]:
-    #     yield test_db_manager.neo4j_driver
-
     app.dependency_overrides[get_db] = override_get_db
     app.dependency_overrides[get_redis_client] = override_get_redis_client
-    # app.dependency_overrides[get_neo4j_driver] = override_get_neo4j_driver
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
