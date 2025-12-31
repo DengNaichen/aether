@@ -142,7 +142,7 @@ class TestPDFPipelineStages:
         # Test digital path
         context["metadata"]["is_handwritten"] = False
         with patch(
-            "app.services.ai_services.pdf_extraction_service.PDFExtractionService"
+            "app.services.ai_services.pdf_extraction.PDFExtractionService"
         ) as MockService:
             mock_instance = MockService.return_value
             mock_instance.extract_text_from_formatted_pdf = AsyncMock(
@@ -157,7 +157,7 @@ class TestPDFPipelineStages:
         # Test handwriting path
         context["metadata"]["is_handwritten"] = True
         with patch(
-            "app.services.ai_services.pdf_extraction_service.PDFExtractionService"
+            "app.services.ai_services.pdf_extraction.PDFExtractionService"
         ) as MockService:
             mock_instance = MockService.return_value
             mock_instance.extract_handwritten_notes = AsyncMock(
