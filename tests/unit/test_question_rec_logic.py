@@ -191,7 +191,11 @@ class TestCalculatePrioritySortKey:
             is_prerequisite=False, urgency_tier=2, level=5, cached_retrievability=0.9
         )
 
-        assert low_cached_retrievability_key < mid_cached_retrievability_key < high_cached_retrievability_key
+        assert (
+            low_cached_retrievability_key
+            < mid_cached_retrievability_key
+            < high_cached_retrievability_key
+        )
 
     def test_full_priority_hierarchy(self):
         """Verify complete priority hierarchy: prereq > urgency > level > cached_retrievability.
