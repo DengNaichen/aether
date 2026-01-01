@@ -1,6 +1,7 @@
+from datetime import datetime, timezone
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import or_, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -124,3 +125,52 @@ async def bulk_create_nodes(
         "message": f"Processed {len(values)} nodes, {nodes_created} created",
         "count": nodes_created,
     }
+
+
+async def get_nodes_missing_embeddings(
+    db_session: AsyncSession,
+    graph_id: UUID,
+    target_model: str,
+    limit: int = 100,
+) -> list[KnowledgeNode]:
+    """
+    Fetch nodes in a graph that need embeddings generated or refreshed.
+
+    Criteria:
+    - content_embedding is NULL OR embedding_model != target_model
+    """
+    stmt = (
+        select(KnowledgeNode)
+        .where(
+            KnowledgeNode.graph_id == graph_id,
+            or_(
+                KnowledgeNode.content_embedding.is_(None),
+                KnowledgeNode.embedding_model != target_model,
+            ),
+        )
+        .limit(limit)
+    )
+    result = await db_session.execute(stmt)
+    return list(result.scalars().all())
+
+
+async def update_node_embedding(
+    db_session: AsyncSession,
+    node_id: UUID,
+    embedding: list[float],
+    model_name: str,
+) -> None:
+    """
+    Update embedding fields for a single node.
+    """
+    stmt = (
+        update(KnowledgeNode)
+        .where(KnowledgeNode.id == node_id)
+        .values(
+            content_embedding=embedding,
+            embedding_model=model_name,
+            embedding_updated_at=datetime.now(timezone.utc),
+        )
+    )
+    await db_session.execute(stmt)
+    await db_session.commit()
