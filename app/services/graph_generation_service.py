@@ -15,11 +15,14 @@ Key Design:
 """
 
 import logging
+import tempfile
+from pathlib import Path
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.crud import knowledge_node, prerequisite
+from app.domain.graph_topology_logic import GraphTopologyLogic
 from app.schemas.knowledge_node import (
     GraphStructureLLM,
     KnowledgeNodeCreateWithStrId,
@@ -43,29 +46,29 @@ class GraphGenerationService:
         self,
         graph_id: UUID,
         markdown_content: str,
+        incremental: bool = True,
         user_guidance: str = "",
         config: PipelineConfig | None = None,
-        incremental: bool = True,
     ) -> dict:
         """
         Generate and save knowledge graph from Markdown (supports incremental append).
 
-        **Incremental Mode**:
-        - incremental=True (default): Read existing graph, merge with new content,
-          and **only append new nodes and relationships**
-        - incremental=False: Clear graph and regenerate (use with caution)
+        Incremental Mode:
+        - incremental=True: If Graph is NOT empty, read existing graph,
+        merge with new content,and only append new nodes and relationships
+        - incremental=False: If Graph is NOT empty, generate new.
 
-        **Immutability Guarantee**:
-        - Existing nodes and relationships **will not be modified or deleted**
+        Immutability Guarantee:
+        - Existing nodes and relationships will not be modified or deleted
         - `bulk_create_nodes()` automatically skips duplicates (based on `node_id_str`)
         - Relationship inserts also skip duplicates (based on unique constraints)
 
         Args:
             graph_id: Graph ID
             markdown_content: Markdown content to process
+            incremental: Whether to use incremental mode
             user_guidance: Additional instructions for the LLM (optional)
             config: AI pipeline configuration (optional)
-            incremental: Whether to use incremental mode (default True)
 
         Returns:
             {
@@ -99,8 +102,6 @@ class GraphGenerationService:
             # Note: process_markdown expects a file path, but we have string content
             # We need to either save to temp file or modify process_markdown
             # For now, let's create a temp file
-            import tempfile
-            from pathlib import Path
 
             with tempfile.NamedTemporaryFile(
                 mode="w", suffix=".md", delete=False
@@ -139,20 +140,27 @@ class GraphGenerationService:
             else:
                 merged_graph = new_graph
 
-            # Step 4: Persist to database (append-only)
-            logger.info("Persisting graph to database...")
-            stats = await self._persist_graph(graph_id, merged_graph)
+            # Step 4: Pre-flight validation (drop invalid relationships/cycles)
+            logger.info("Pre-flighting merged graph before persistence...")
+            cleaned_graph, preflight_stats = self._preflight_llm_graph(merged_graph)
+            if any(preflight_stats.values()):
+                logger.info(f"Pre-flight adjustments: {preflight_stats}")
 
-            # Step 5: Compute topology metrics
+            # Step 5: Persist to database (append-only)
+            logger.info("Persisting graph to database...")
+            stats = await self._persist_graph(graph_id, cleaned_graph)
+
+            # Step 6: Compute topology metrics
             logger.info("Computing topology metrics...")
-            nodes_updated, max_level = (
-                await self.validation_service.update_graph_topology(graph_id)
-            )
+            (
+                nodes_updated,
+                max_level,
+            ) = await self.validation_service.update_graph_topology(graph_id)
             logger.info(
                 f"Topology updated: {nodes_updated} nodes, max_level={max_level}"
             )
 
-            # Step 6: Get total node count
+            # Step 7: Get total node count
             all_nodes = await knowledge_node.get_nodes_by_graph(self.db, graph_id)
             total_nodes = len(all_nodes)
 
@@ -206,6 +214,160 @@ class GraphGenerationService:
             )
 
         return GraphStructureLLM(nodes=llm_nodes, relationships=llm_relationships)
+
+    def _preflight_llm_graph(
+        self, llm_graph: GraphStructureLLM
+    ) -> tuple[GraphStructureLLM, dict[str, int]]:
+        """
+        Validate LLM graph in-memory before touching the database.
+
+        - Deduplicate nodes (keep the longest description)
+        - Drop relationships pointing to missing nodes or self-loops
+        - Deduplicate relationships
+        - Remove a minimal set of edges to break cycles (one edge per detected cycle)
+        """
+        nodes_by_id: dict[str, KnowledgeNodeLLM] = {}
+        duplicate_nodes = 0
+
+        for node in llm_graph.nodes:
+            if node.id in nodes_by_id:
+                duplicate_nodes += 1
+                if len(node.description) > len(nodes_by_id[node.id].description):
+                    nodes_by_id[node.id] = node
+            else:
+                nodes_by_id[node.id] = node
+
+        drop_counts = {
+            "duplicate_nodes": duplicate_nodes,
+            "missing_node_rels": 0,
+            "self_loop_rels": 0,
+            "duplicate_rels": 0,
+            "cycle_rels_removed": 0,
+        }
+
+        seen_rels: set[tuple[str, str]] = set()
+        cleaned_rels: list[RelationshipLLM] = []
+        rel_lookup: dict[tuple[str, str], RelationshipLLM] = {}
+
+        for rel in llm_graph.relationships:
+            if rel.label != "IS_PREREQUISITE_FOR":
+                continue
+
+            if rel.source_id not in nodes_by_id or rel.target_id not in nodes_by_id:
+                drop_counts["missing_node_rels"] += 1
+                continue
+
+            if rel.source_id == rel.target_id:
+                drop_counts["self_loop_rels"] += 1
+                continue
+
+            sig = (rel.source_id, rel.target_id)
+            if sig in seen_rels:
+                drop_counts["duplicate_rels"] += 1
+                continue
+
+            seen_rels.add(sig)
+            cleaned_rels.append(rel)
+            rel_lookup[sig] = rel
+
+        adjacency = self._build_adjacency(cleaned_rels)
+        removed_cycle_edges: set[tuple[str, str]] = set()
+
+        while True:
+            cycle_edges = self._find_cycle_edges(adjacency)
+            if not cycle_edges:
+                break
+
+            edge_to_remove = self._choose_edge_to_remove(cycle_edges, rel_lookup)
+            removed_cycle_edges.add(edge_to_remove)
+            drop_counts["cycle_rels_removed"] += 1
+            self._remove_edge_from_adj(adjacency, edge_to_remove)
+
+        final_rels = [
+            rel
+            for rel in cleaned_rels
+            if (rel.source_id, rel.target_id) not in removed_cycle_edges
+        ]
+
+        # Sanity check that the cleaned graph is acyclic (should be, but verify)
+        nodes_set = set(nodes_by_id.keys())
+        adj_list = {src: list(targets) for src, targets in adjacency.items()}
+        GraphTopologyLogic.topological_sort_with_levels(nodes_set, adj_list)
+
+        cleaned_graph = GraphStructureLLM(
+            nodes=list(nodes_by_id.values()), relationships=final_rels
+        )
+        return cleaned_graph, drop_counts
+
+    def _build_adjacency(
+        self, relationships: list[RelationshipLLM]
+    ) -> dict[str, set[str]]:
+        adjacency: dict[str, set[str]] = {}
+
+        for rel in relationships:
+            adjacency.setdefault(rel.source_id, set()).add(rel.target_id)
+
+        return adjacency
+
+    def _find_cycle_edges(
+        self, adjacency: dict[str, set[str]]
+    ) -> list[tuple[str, str]] | None:
+        visited: set[str] = set()
+        stack: set[str] = set()
+        parent: dict[str, str] = {}
+
+        def dfs(node: str) -> list[tuple[str, str]] | None:
+            visited.add(node)
+            stack.add(node)
+
+            for neighbor in adjacency.get(node, set()):
+                if neighbor not in visited:
+                    parent[neighbor] = node
+                    cycle = dfs(neighbor)
+                    if cycle:
+                        return cycle
+                elif neighbor in stack:
+                    cycle_path = [(node, neighbor)]
+                    cur = node
+                    while cur != neighbor and cur in parent:
+                        prev = parent[cur]
+                        cycle_path.append((prev, cur))
+                        cur = prev
+                    return cycle_path
+
+            stack.remove(node)
+            return None
+
+        for node in adjacency:
+            if node not in visited:
+                cycle = dfs(node)
+                if cycle:
+                    return cycle
+
+        return None
+
+    def _choose_edge_to_remove(
+        self,
+        cycle_edges: list[tuple[str, str]],
+        rel_lookup: dict[tuple[str, str], RelationshipLLM],
+    ) -> tuple[str, str]:
+        def edge_weight(edge: tuple[str, str]) -> float:
+            rel = rel_lookup.get(edge)
+            return rel.weight if rel else 1.0
+
+        return min(cycle_edges, key=lambda e: (edge_weight(e), e[0], e[1]))
+
+    def _remove_edge_from_adj(
+        self, adjacency: dict[str, set[str]], edge: tuple[str, str]
+    ) -> None:
+        src, tgt = edge
+        targets = adjacency.get(src)
+        if not targets:
+            return
+
+        targets.discard(tgt)
+        if not targets:
+            adjacency.pop(src, None)
 
     async def _persist_graph(
         self, graph_id: UUID, llm_graph: GraphStructureLLM

@@ -208,6 +208,7 @@ docs/*-notes.md
 
 docs/deployment.md
 docs/deployment-checklist.md
+docs/git-workflow.md
 
 .agent/
 .agent/*
