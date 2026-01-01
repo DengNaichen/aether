@@ -1,7 +1,8 @@
 from datetime import UTC, datetime
 from uuid import UUID
 
-from sqlalchemy import or_, select, update
+from sqlalchemy import cast, column, or_, select, update
+from sqlalchemy import values as sa_values
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -162,13 +163,36 @@ async def update_node_embedding(
     """
     Update embedding fields for a single node.
     """
+    await update_node_embeddings(db_session, [(node_id, embedding)], model_name)
+
+
+async def update_node_embeddings(
+    db_session: AsyncSession,
+    embedding_updates: list[tuple[UUID, list[float]]],
+    model_name: str,
+) -> None:
+    """
+    Bulk update embedding fields for multiple nodes in one query.
+    """
+    if not embedding_updates:
+        return
+
+    updated_at = datetime.now(UTC)
+    updates_table = sa_values(
+        column("id", KnowledgeNode.id.type),
+        column("content_embedding", KnowledgeNode.content_embedding.type),
+        name="embedding_updates",
+    ).data(embedding_updates)
+
     stmt = (
         update(KnowledgeNode)
-        .where(KnowledgeNode.id == node_id)
+        .where(KnowledgeNode.id == updates_table.c.id)
         .values(
-            content_embedding=embedding,
+            content_embedding=cast(
+                updates_table.c.content_embedding, KnowledgeNode.content_embedding.type
+            ),
             embedding_model=model_name,
-            embedding_updated_at=datetime.now(UTC),
+            embedding_updated_at=updated_at,
         )
     )
     await db_session.execute(stmt)

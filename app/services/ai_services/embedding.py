@@ -64,6 +64,7 @@ class EmbeddingService:
                 break
 
             did_work = False
+            updates: list[tuple[UUID, list[float]]] = []
             for node in nodes:
                 content = self._build_content(node)
                 if not content:
@@ -72,11 +73,14 @@ class EmbeddingService:
                     continue
 
                 embedding = await self._embed_text(content)
-                await knowledge_node.update_node_embedding(
-                    self.db, node.id, embedding, self.model_name
-                )
+                updates.append((node.id, embedding))
                 total_embedded += 1
                 did_work = True
+
+            if updates:
+                await knowledge_node.update_node_embeddings(
+                    self.db, updates, self.model_name
+                )
 
             if not did_work:
                 # Prevent infinite loops if only empty-content nodes remain
