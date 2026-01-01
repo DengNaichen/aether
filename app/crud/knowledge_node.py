@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import UUID
 
 from sqlalchemy import or_, select, update
@@ -48,7 +48,7 @@ async def create_knowledge_node(
         description=description,
     )
     db_session.add(node)
-    await db_session.commit()
+    await db_session.flush()
     await db_session.refresh(node)
     return node
 
@@ -117,7 +117,6 @@ async def bulk_create_nodes(
     stmt = stmt.on_conflict_do_nothing(index_elements=["graph_id", "node_id_str"])
 
     result = await db_session.execute(stmt)
-    await db_session.commit()
 
     nodes_created = result.rowcount if result.rowcount else 0
 
@@ -169,8 +168,7 @@ async def update_node_embedding(
         .values(
             content_embedding=embedding,
             embedding_model=model_name,
-            embedding_updated_at=datetime.now(timezone.utc),
+            embedding_updated_at=datetime.now(UTC),
         )
     )
     await db_session.execute(stmt)
-    await db_session.commit()
