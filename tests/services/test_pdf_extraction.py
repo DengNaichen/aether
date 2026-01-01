@@ -3,6 +3,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from app.core.prompts import PDF_ACADEMIC_OCR_PROMPT, PDF_HANDWRITING_PROMPT
+from app.services.ai_services import pdf_extraction
 from app.services.ai_services.pdf_extraction import PDFExtractionService
 
 
@@ -203,6 +204,7 @@ class TestPDFExtractionServiceChunking:
             prompt=PDF_ACADEMIC_OCR_PROMPT.strip(),
             model_id=mock_service.model_id,
             chunk_size=30,
+            max_concurrency=pdf_extraction.DEFAULT_PDF_MAX_CONCURRENCY,
             chunk_type="chunk",
         )
 
@@ -219,5 +221,6 @@ class TestPDFExtractionServiceChunking:
             prompt=PDF_HANDWRITING_PROMPT.strip(),
             model_id="custom-model",
             chunk_size=20,
+            max_concurrency=pdf_extraction.DEFAULT_PDF_MAX_CONCURRENCY,
             chunk_type="handwritten chunk",
         )

@@ -43,6 +43,7 @@ class Settings(BaseSettings):
     PDF_CHUNK_SIZE: int = 20
     PDF_PROCESSING_TIMEOUT_SECONDS: int = 60
     PDF_POLL_INTERVAL_SECONDS: int = 2
+    PDF_MAX_CONCURRENCY: int = 2
 
     # Pipeline storage paths
     PIPELINE_STORAGE_PATH: str = Field(default="temp/pipeline_storage")
