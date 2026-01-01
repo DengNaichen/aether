@@ -16,6 +16,7 @@ from app.core.deps import get_current_active_user, get_db, get_owned_graph
 from app.crud.graph_structure import get_graph_visualization, import_graph_structure
 from app.crud.knowledge_graph import (
     create_knowledge_graph,
+    get_graph_by_id,
     get_graph_by_owner_and_slug,
     get_graphs_by_owner,
 )
@@ -34,6 +35,8 @@ from app.schemas.knowledge_node import (
     GraphStructureImport,
     GraphStructureImportResponse,
 )
+from app.schemas.questions import GenerateQuestionsRequest
+from app.services.ai_services.generate_questions import generate_questions_for_graph
 from app.services.graph_generation_service import GraphGenerationService
 from app.services.pdf_pipeline import (
     PDFPipeline,
@@ -367,7 +370,6 @@ async def import_structure(
         ) from e
 
     # Check graph exists and user owns it
-    from app.crud.knowledge_graph import get_graph_by_id
 
     graph = await get_graph_by_id(db_session, graph_uuid)
     if not graph:
@@ -576,4 +578,58 @@ async def upload_file(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"File processing failed: {str(e)}",
+        ) from e
+
+
+@router.post(
+    "/{graph_id}/generate-questions",
+    status_code=status.HTTP_200_OK,
+    summary="Generate questions for a knowledge graph using AI",
+    description="""
+    Trigger AI generation of questions for nodes in the knowledge graph.
+    This process is asynchronous and may take some time.
+
+    You can control:
+    - Number of questions per node
+    - Difficulty distribution
+    - Question types
+    - Whether to skip nodes that already have questions
+    """,
+)
+async def generate_questions(
+    request: GenerateQuestionsRequest,
+    knowledge_graph=Depends(get_owned_graph),
+    db_session: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    """
+    Generate questions for a knowledge graph.
+
+    Args:
+        request: Configuration for question generation
+        knowledge_graph: Owned knowledge graph (injected by get_owned_graph dependency)
+        db_session: Database session
+        current_user: Authenticated user (must be the graph owner)
+
+    Returns:
+        dict: Generation statistics
+    """
+    try:
+        # Call the generation service
+        stats = await generate_questions_for_graph(
+            graph_id=str(knowledge_graph.id),
+            questions_per_node=request.questions_per_node,
+            difficulty_distribution=request.difficulty_distribution,
+            question_types=request.question_types,
+            user_guidance=request.user_guidance,
+            only_nodes_without_questions=request.only_nodes_without_questions,
+        )
+
+        return stats
+
+    except Exception as e:
+        logger.error(f"Question generation failed for graph {knowledge_graph.id}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Question generation failed: {str(e)}",
         ) from e

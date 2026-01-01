@@ -1,4 +1,11 @@
-.PHONY: help up down restart logs shell test clean build
+.PHONY: help up down restart logs shell test clean build deploy
+
+# Configuration
+PROJECT_ID ?= airy-web-476402-f4
+REGION ?= northamerica-northeast2
+REPOSITORY ?= aether
+SERVICE_NAME ?= aether
+IMAGE_NAME = $(REGION)-docker.pkg.dev/$(PROJECT_ID)/$(REPOSITORY)/aether-app
 
 # Default target - show help
 help:
@@ -31,6 +38,15 @@ help:
 	@echo "  test-cov     - Run tests with coverage report"
 	@echo "  test-all     - Start test services, run tests, then stop"
 	@echo "  test-shell   - Connect to test database shells"
+	@echo ""
+	@echo "Deployment (Google Cloud Run):"
+	@echo "  gcp-setup    - Setup GCP project and enable required APIs"
+	@echo "  gcp-build    - Build and push Docker image to Artifact Registry"
+	@echo "  gcp-deploy   - Deploy to Cloud Run (requires env.yaml)"
+	@echo "  gcp-logs     - View Cloud Run logs"
+	@echo "  gcp-url      - Get the deployed service URL"
+	@echo "  gcp-status   - Check Cloud Run service status"
+	@echo "  deploy-all   - Build and deploy in one command"
 	@echo ""
 	@echo "Utilities:"
 	@echo "  shell        - Open bash shell in web container"
@@ -231,3 +247,161 @@ status:
 	@echo "💡 Quick Reference:"
 	@echo "   Development: localhost:5432 (PostgreSQL), localhost:6379 (Redis)"
 	@echo "   Test:        localhost:5433 (PostgreSQL), localhost:6380 (Redis)"
+
+# ================================
+# Google Cloud Run Deployment
+# ================================
+
+# Setup GCP project and enable required APIs
+gcp-setup:
+	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+	@echo "🔧 Setting up Google Cloud Project"
+	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+	@echo ""
+	@echo "Project ID: $(PROJECT_ID)"
+	@echo "Region: $(REGION)"
+	@echo ""
+	@echo "Enabling required APIs..."
+	gcloud services enable \
+		run.googleapis.com \
+		cloudbuild.googleapis.com \
+		artifactregistry.googleapis.com \
+		--project=$(PROJECT_ID)
+	@echo ""
+	@echo "Creating Artifact Registry repository (if not exists)..."
+	gcloud artifacts repositories create $(REPOSITORY) \
+		--repository-format=docker \
+		--location=$(REGION) \
+		--description="Aether Learning Platform Docker images" \
+		--project=$(PROJECT_ID) 2>/dev/null || echo "Repository already exists"
+	@echo ""
+	@echo "✓ GCP setup completed"
+
+# Build and push Docker image using Cloud Build
+gcp-build:
+	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+	@echo "🏗️  Building and pushing Docker image"
+	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+	@echo ""
+	@echo "Image: $(IMAGE_NAME):latest"
+	@echo ""
+	gcloud builds submit \
+		--config=cloudbuild.yaml \
+		--project=$(PROJECT_ID)
+	@echo ""
+	@echo "✓ Image built and pushed successfully"
+
+# Deploy to Cloud Run
+gcp-deploy:
+	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+	@echo "🚀 Deploying to Google Cloud Run"
+	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+	@echo ""
+	@if [ ! -f env.yaml ]; then \
+		echo "❌ Error: env.yaml file not found!"; \
+		echo ""; \
+		echo "Please create env.yaml with your production environment variables."; \
+		echo "See https://cloud.google.com/run/docs/configuring/environment-variables#yaml"; \
+		exit 1; \
+	fi
+	@echo "Service: $(SERVICE_NAME)"
+	@echo "Region: $(REGION)"
+	@echo ""
+	gcloud run deploy $(SERVICE_NAME) \
+		--image=$(IMAGE_NAME):latest \
+		--platform=managed \
+		--region=$(REGION) \
+		--allow-unauthenticated \
+		--port=8000 \
+		--memory=2Gi \
+		--cpu=2 \
+		--timeout=300 \
+		--max-instances=10 \
+		--min-instances=0 \
+		--env-vars-file=env.yaml \
+		--project=$(PROJECT_ID)
+	@echo ""
+	@echo "✓ Deployment completed!"
+	@echo ""
+	@make gcp-url
+
+# Build and deploy in one command
+deploy-all:
+	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+	@echo "🚀 Complete Deployment Pipeline"
+	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+	@make gcp-build
+	@echo ""
+	@make gcp-deploy
+
+# View Cloud Run logs
+gcp-logs:
+	@echo "📋 Viewing Cloud Run logs (press Ctrl+C to exit)..."
+	@echo ""
+	gcloud run services logs tail $(SERVICE_NAME) \
+		--region=$(REGION) \
+		--project=$(PROJECT_ID)
+
+# Get the deployed service URL
+gcp-url:
+	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+	@echo "🌐 Service URL"
+	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+	@echo ""
+	@gcloud run services describe $(SERVICE_NAME) \
+		--region=$(REGION) \
+		--project=$(PROJECT_ID) \
+		--format='value(status.url)' 2>/dev/null | \
+		awk '{print "API URL:  " $$1 "\nAPI Docs: " $$1 "/docs\nHealth:   " $$1 "/health"}'
+	@echo ""
+
+# Check Cloud Run service status
+gcp-status:
+	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+	@echo "📊 Cloud Run Service Status"
+	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+	@echo ""
+	gcloud run services describe $(SERVICE_NAME) \
+		--region=$(REGION) \
+		--project=$(PROJECT_ID) \
+		--format='table(status.conditions.type,status.conditions.status,status.url)'
+	@echo ""
+	@echo "Recent revisions:"
+	gcloud run revisions list \
+		--service=$(SERVICE_NAME) \
+		--region=$(REGION) \
+		--project=$(PROJECT_ID) \
+		--limit=5 \
+		--format='table(metadata.name,status.conditions.status,metadata.creationTimestamp)'
+
+# Update environment variables without redeploying
+gcp-update-env:
+	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+	@echo "🔄 Updating environment variables"
+	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+	@echo ""
+	@if [ ! -f env.yaml ]; then \
+		echo "❌ Error: env.yaml file not found!"; \
+		exit 1; \
+	fi
+	gcloud run services update $(SERVICE_NAME) \
+		--region=$(REGION) \
+		--env-vars-file=env.yaml \
+		--project=$(PROJECT_ID)
+	@echo ""
+	@echo "✓ Environment variables updated"
+
+# Delete the Cloud Run service
+gcp-delete:
+	@echo "⚠️  WARNING: This will delete the Cloud Run service!"
+	@read -p "Are you sure? [y/N] " -n 1 -r; \
+	echo; \
+	if [[ $$REPLY =~ ^[Yy]$$ ]]; then \
+		gcloud run services delete $(SERVICE_NAME) \
+			--region=$(REGION) \
+			--project=$(PROJECT_ID); \
+		echo "✓ Service deleted"; \
+	else \
+		echo "Cancelled"; \
+	fi
+

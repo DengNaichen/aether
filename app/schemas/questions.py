@@ -172,3 +172,15 @@ class QuestionResponseFromGraph(BaseModel):
     created_at: datetime  # Datetime from database
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class GenerateQuestionsRequest(BaseModel):
+    """
+    Schema for request body of question generation endpoint.
+    """
+
+    questions_per_node: int = Field(default=3, ge=1, le=10)
+    difficulty_distribution: dict[str, int] | None = None
+    question_types: list[str] = Field(default=["multiple_choice"])
+    only_nodes_without_questions: bool = Field(default=True)
+    user_guidance: str = Field(default="")

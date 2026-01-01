@@ -205,3 +205,9 @@ docs/*-notes.md
 .env.*.local
 
 *.sql
+
+docs/deployment.md
+docs/deployment-checklist.md
+
+.agent/
+.agent/*
