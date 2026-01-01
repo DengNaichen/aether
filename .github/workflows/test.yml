@@ -22,7 +22,7 @@ jobs:
     # Service containers for testing
     services:
       postgres:
-        image: postgres:15
+        image: pgvector/pgvector:pg16
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
@@ -61,6 +61,16 @@ jobs:
       
       - name: Install dependencies
         run: uv sync --frozen
+
+      - name: Install PostgreSQL client
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+
+      - name: Enable pgvector extension
+        env:
+          PGPASSWORD: postgres
+        run: |
+          until pg_isready -h localhost -p 5432; do sleep 1; done
+          psql -h localhost -U postgres -d aether_test -c "CREATE EXTENSION IF NOT EXISTS vector;"
       
       - name: Run tests with coverage
         run: uv run pytest --cov=app --cov-report=term-missing --cov-report=xml --cov-report=html -v

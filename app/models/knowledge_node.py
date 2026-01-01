@@ -29,6 +29,7 @@ Key Design:
 
 import uuid
 
+from pgvector.sqlalchemy import Vector
 from sqlalchemy import (
     CheckConstraint,
     Column,
@@ -67,12 +68,17 @@ class KnowledgeNode(Base):
         description: Detailed explanation for LLM/UI
         level: Topological level in prerequisite DAG (-1 = not computed)
         dependents_count: Number of nodes that depend on this (cached)
+        content_embedding: Vector embedding of node content (name + description)
+                          Used for semantic similarity search and entity resolution
+        embedding_model: Model used to generate the embedding (e.g., "text-embedding-004")
+        embedding_updated_at: When the embedding was last generated
         created_at: Creation timestamp
         updated_at: Last modification timestamp
 
     Constraints:
         - (graph_id, node_id_str) must be unique if node_id_str is provided
         - level and dependents_count are computed/cached for performance
+        - content_embedding is 768-dimensional (Gemini text-embedding-004)
     """
 
     __tablename__ = "knowledge_nodes"
@@ -96,6 +102,11 @@ class KnowledgeNode(Base):
         Integer, default=0, index=True
     )  # How many nodes depend on this
 
+    # Vector embedding for semantic search (content only, not relationships)
+    content_embedding = Column(Vector(768), nullable=True)  # Gemini embedding dimension
+    embedding_model = Column(String, nullable=True)  # Track model version
+    embedding_updated_at = Column(DateTime(timezone=True), nullable=True)
+
     created_at = Column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
@@ -116,6 +127,13 @@ class KnowledgeNode(Base):
             "idx_nodes_graph_str", "graph_id", "node_id_str"
         ),  # For node_id_str lookups
         Index("idx_nodes_level", "graph_id", "level"),  # For topological queries
+        Index(
+            "idx_nodes_embedding_hnsw",
+            "content_embedding",
+            postgresql_using="hnsw",
+            postgresql_with={"m": 16, "ef_construction": 64},
+            postgresql_ops={"content_embedding": "vector_cosine_ops"},
+        ),  # For vector similarity search
     )
 
     def __repr__(self):

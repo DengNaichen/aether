@@ -1,5 +1,4 @@
 import logging
-import os
 from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
@@ -8,6 +7,7 @@ from google import genai
 from google.genai import types
 from tenacity import retry, stop_after_attempt, wait_exponential
 
+from app.core.config import settings
 from app.core.prompts import (
     GRAPH_FIX_SYSTEM_PROMPT,
     GRAPH_FIX_USER_TEMPLATE,
@@ -17,12 +17,12 @@ from app.core.prompts import (
 from app.schemas.knowledge_node import GraphStructureLLM, RelationshipType
 from app.utils.split_text import split_text_content
 
-# Configuration defaults
-DEFAULT_MODEL_NAME = "gemini-3-pro-preview"
-DEFAULT_MODEL_TEMPERATURE = 0
-DEFAULT_MAX_RETRY_ATTEMPTS = 3
-DEFAULT_CHUNK_SIZE = 30000
-DEFAULT_CHUNK_OVERLAP = 2000
+# Configuration defaults (centralized in settings)
+DEFAULT_MODEL_NAME = settings.GEMINI_GRAPH_MODEL
+DEFAULT_MODEL_TEMPERATURE = settings.GEMINI_GRAPH_TEMPERATURE
+DEFAULT_MAX_RETRY_ATTEMPTS = settings.GEMINI_GRAPH_MAX_RETRY_ATTEMPTS
+DEFAULT_CHUNK_SIZE = settings.GEMINI_GRAPH_CHUNK_SIZE  # ~75k tokens
+DEFAULT_CHUNK_OVERLAP = settings.GEMINI_GRAPH_CHUNK_OVERLAP  # ~2.5k tokens
 
 
 @dataclass
@@ -49,13 +49,13 @@ class MissingAPIKeyError(Exception):
     pass
 
 
-def _get_client():
+def _get_client(api_key: str | None = None):
     """Initialize Google GenAI Client."""
-    api_key = os.environ.get("GOOGLE_API_KEY")
+    api_key = api_key or settings.GOOGLE_API_KEY
     if not api_key:
         raise MissingAPIKeyError(
-            "GOOGLE_API_KEY environment variable is not set. "
-            "Please set it before running the pipeline."
+            "GOOGLE_API_KEY is not set in settings. "
+            "Please configure it before running the pipeline."
         )
     return genai.Client(api_key=api_key)
 

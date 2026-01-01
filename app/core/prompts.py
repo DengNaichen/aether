@@ -103,21 +103,23 @@ Please generate corrected 'IS_PREREQUISITE_FOR' relationships connecting the Sou
 # ==================== PDF Extraction Prompts ====================
 
 PDF_ACADEMIC_OCR_PROMPT = r"""
-Role: You are a high-precision academic OCR engine.
-Task: Transcribe the text from this PDF document into Markdown format verbatim.
+Role: You are a high-precision academic OCR engine specialized in extracting educational content.
+Task: Transcribe the core teachable content from this PDF into Markdown.
 
 STRICT REQUIREMENTS:
-1. **No Summarization**: Do NOT summarize. Extract full text exactly as it appears.
+1. **Content Filtering (Crucial)**:
+   - **EXTRACT**: Definitions, theorems, core explanations, key examples, formulas, and structural headings.
+   - **OMIT**: Purely narrative side-stories, fictional introductions, standard exercises, review questions, and "fun facts" that do not contain core definitions.
+   - **OMIT**: References, bibliographies, and index pages.
+
 2. **Math Formulas**: You MUST convert all mathematical expressions to LaTeX format (e.g., use $f_{DM}$ for variables, $\sim$ for approximations).
+
 3. **Structure**:
    - Merge dual-column text into a single logical reading flow.
-   - Preserve headers (##) and lists.
+   - Preserve headers (##) and lists to maintain hierarchy.
    - Convert tables to Markdown tables.
-4. **Clean Up (Crucial)**:
-   - Remove page numbers, running heads, and irrelevant footers.
-   - **EXCLUDE the 'References' / 'Bibliography' section.** Stop transcription immediately before the references list begins. Do not list the cited works.
-   - **Keep Inline Citations**: You MUST keep the citation markers in the text (e.g., "[1]", "(Smith et al.)"), just don't list the full reference details at the end.
-5. **Language**: Keep the original language of the document.
+
+4. **Language**: Keep the original language (e.g., English, Chinese).
 """
 
 PDF_HANDWRITING_PROMPT = """
