@@ -21,7 +21,7 @@ def _make_graph(nodes, relationships):
 
 
 def test_get_client_missing_key(monkeypatch):
-    monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
+    monkeypatch.setattr(generate_graph.settings, "GOOGLE_API_KEY", "", raising=False)
     with pytest.raises(MissingAPIKeyError, match="GOOGLE_API_KEY"):
         generate_graph._get_client()
 

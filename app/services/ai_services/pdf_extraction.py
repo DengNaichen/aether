@@ -13,6 +13,13 @@ from app.utils.split_pdf import split_pdf
 
 logger = logging.getLogger(__name__)
 
+DEFAULT_PDF_MODEL_ID = settings.PDF_GEMINI_MODEL
+DEFAULT_PDF_CHUNK_SIZE = settings.PDF_CHUNK_SIZE
+DEFAULT_PDF_TEMPERATURE = settings.PDF_GEMINI_TEMPERATURE
+DEFAULT_PDF_TOP_P = settings.PDF_GEMINI_TOP_P
+DEFAULT_PDF_PROCESSING_TIMEOUT_SECONDS = settings.PDF_PROCESSING_TIMEOUT_SECONDS
+DEFAULT_PDF_POLL_INTERVAL_SECONDS = settings.PDF_POLL_INTERVAL_SECONDS
+
 
 class PDFExtractionService:
     """Service for extracting text from PDFs using Google Gemini's multimodal capabilities.
@@ -41,7 +48,7 @@ class PDFExtractionService:
             raise ValueError(error_msg)
 
         self.client = genai.Client(api_key=api_key)
-        self.model_id = "gemini-2.5-flash"
+        self.model_id = DEFAULT_PDF_MODEL_ID
 
     # --- Sync helpers for Tenacity Retry ---
 
@@ -112,7 +119,7 @@ class PDFExtractionService:
 
             # 2. Poll with Timeout
             start_time = time.time()
-            timeout_seconds = 60  # 1 minute timeout for processing
+            timeout_seconds = DEFAULT_PDF_PROCESSING_TIMEOUT_SECONDS
 
             while file_upload.state.name == "PROCESSING":
                 elapsed = time.time() - start_time
@@ -122,7 +129,7 @@ class PDFExtractionService:
                     )
 
                 logger.info(f"Processing PDF... ({int(elapsed)}s)")
-                await asyncio.sleep(2)
+                await asyncio.sleep(DEFAULT_PDF_POLL_INTERVAL_SECONDS)
 
                 file_upload = await asyncio.to_thread(
                     self._poll_file_sync, file_upload.name
@@ -152,8 +159,8 @@ class PDFExtractionService:
                     )
                 ],
                 config=types.GenerateContentConfig(
-                    temperature=0.0,
-                    top_p=0.95,
+                    temperature=DEFAULT_PDF_TEMPERATURE,
+                    top_p=DEFAULT_PDF_TOP_P,
                 ),
             )
 
@@ -180,7 +187,7 @@ class PDFExtractionService:
         file_path: str,
         prompt: str,
         model_id: str,
-        chunk_size: int = 20,
+        chunk_size: int = DEFAULT_PDF_CHUNK_SIZE,
         chunk_type: str = "chunk",
     ) -> str:
         """Generic method to extract text from a PDF with chunking support.
@@ -202,32 +209,26 @@ class PDFExtractionService:
         Raises:
             FileNotFoundError: If the file does not exist.
         """
-        # Define a sync function that uses the context manager
-        def process_with_split():
-            with split_pdf(file_path, chunk_size) as chunks:
-                # Return chunks to be processed
-                return list(chunks)
-
-        # Run the context manager in a thread
-        chunks = await asyncio.to_thread(process_with_split)
-
         results = []
-        for i, chunk_path in enumerate(chunks):
-            if len(chunks) > 1:
-                logger.info(f"Processing {chunk_type} {i+1}/{len(chunks)}...")
+        with split_pdf(file_path, chunk_size) as chunks:
+            for i, chunk_path in enumerate(chunks):
+                if len(chunks) > 1:
+                    logger.info(f"Processing {chunk_type} {i+1}/{len(chunks)}...")
 
-            text = await self._process_pdf_with_gemini(chunk_path, prompt, model_id)
-            results.append(text)
+                text = await self._process_pdf_with_gemini(
+                    chunk_path, prompt, model_id
+                )
+                results.append(text)
 
         return "\n\n".join(results)
-        # Cleanup happens automatically when context manager exits in the thread
+
 
     async def extract_text_from_formatted_pdf(
         self,
         file_path: str,
         model_id: str | None = None,
         prompt: str | None = None,
-        chunk_size: int = 20,
+        chunk_size: int = DEFAULT_PDF_CHUNK_SIZE,
     ) -> str:
         """Extracts text from a structured/academic PDF into Markdown.
 
@@ -260,7 +261,10 @@ class PDFExtractionService:
         )
 
     async def extract_handwritten_notes(
-        self, file_path: str, model_id: str = "gemini-2.5-flash", chunk_size: int = 20
+        self,
+        file_path: str,
+        model_id: str | None = None,
+        chunk_size: int = DEFAULT_PDF_CHUNK_SIZE,
     ) -> str:
         """Extracts text from handwritten notes or unstructured documents.
 
@@ -269,7 +273,7 @@ class PDFExtractionService:
 
         Args:
             file_path: Absolute path to the PDF file.
-            model_id: Model to use (defaults to 'gemini-2.5-flash').
+            model_id: Model to use (defaults to settings.PDF_GEMINI_MODEL).
             chunk_size: Number of pages per chunk (default: 20).
 
         Returns:
@@ -280,10 +284,12 @@ class PDFExtractionService:
         """
         target_prompt = PDF_HANDWRITING_PROMPT.strip()
 
+        target_model_id = model_id or self.model_id
+
         return await self._extract_text_with_chunking(
             file_path=file_path,
             prompt=target_prompt,
-            model_id=model_id,
+            model_id=target_model_id,
             chunk_size=chunk_size,
             chunk_type="handwritten chunk",
         )

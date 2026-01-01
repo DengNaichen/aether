@@ -6,7 +6,7 @@ services:
   # Test PostgreSQL Database
   # Runs on different port (5433) to avoid conflicts with development DB
   test-db:
-    image: postgres:15-alpine
+    image: pgvector/pgvector:pg16
     container_name: aether-test-db
     environment:
       POSTGRES_USER: aether_user
@@ -16,6 +16,7 @@ services:
       - "5433:5432"  # External: 5433, Internal: 5432
     volumes:
       - test_postgres_data:/var/lib/postgresql/data
+      - ./docker/initdb:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U aether_user -d aether_test_db"]
       interval: 5s
