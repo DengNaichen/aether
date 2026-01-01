@@ -21,7 +21,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.knowledge_graph import KnowledgeGraph
 from app.models.user import User
 
-
 # ==================== Local Fixtures ====================
 
 
