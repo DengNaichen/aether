@@ -33,7 +33,7 @@ class Settings(BaseSettings):
     GEMINI_GRAPH_CHUNK_SIZE: int = 300000
     GEMINI_GRAPH_CHUNK_OVERLAP: int = 10000
 
-    GEMINI_QUESTION_MODEL: str = "gemini-3-pro-preview"
+    GEMINI_QUESTION_MODEL: str = "gemini-2.5-flash"
     GEMINI_QUESTION_TEMPERATURE: float = 0.7
     GEMINI_QUESTION_MAX_RETRY_ATTEMPTS: int = 3
 

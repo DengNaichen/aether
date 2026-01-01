@@ -18,10 +18,9 @@ graph TD
 
     %% Service Layer
     subgraph Services ["Business Logic Services"]
-        BKT["BKT Engine<br/>(Bayesian Knowledge Tracing)"]
         FSRS["FSRS Scheduler<br/>(Spaced Repetition)"]
         GraphGen["Graph Generator<br/>(LangChain + Agent)"]
-        RecEngine["Recommendation Engine<br/>(Hybrid BKT + FSRS)"]
+        RecEngine["Recommendation Engine<br/>(FSRS + Topology)"]
     end
 
     %% AI Layer
@@ -46,18 +45,15 @@ graph TD
     LangChain -->|API Call| Gemini
     
     QuestionAPI --> RecEngine
-    RecEngine -->|Get Mastery State| BKT
-    RecEngine -->|Get Schedule| FSRS
+    RecEngine -->|Get Schedule + Mastery| FSRS
     
-    MasteryAPI --> BKT
     MasteryAPI --> FSRS
 
     %% Database Connections
     Auth --> Postgres
     GraphAPI --> Postgres
     MasteryAPI --> Postgres
-    BKT -.->|Read/Write State| Postgres
-    FSRS -.->|Read/Write Logs| Postgres
+    FSRS -.->|Read/Write State| Postgres
 
     %% Styling
     classDef client fill:#e1f5fe,stroke:#01579b,stroke-width:2px;
@@ -78,8 +74,8 @@ graph TD
 1.  **Adaptive Learning Loop**:
     *   User requests a question via **Web App**.
     *   **Recommendation Engine** queries **PostgreSQL** for current mastery state.
-    *   **FSRS** filters for due reviews.
-    *   **BKT** prioritizes based on prerequisite chains and probability scores.
+    *   **FSRS** filters for due reviews and supplies stability/retrievability.
+    *   **RecEngine** sorts by prerequisites/topology, urgency, and mastery gap.
     *   Optimal question is returned.
 
 2.  **AI Content Generation**:
