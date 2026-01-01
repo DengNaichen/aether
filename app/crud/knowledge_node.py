@@ -1,6 +1,8 @@
+from datetime import UTC, datetime
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import cast, column, or_, select, update
+from sqlalchemy import values as sa_values
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -47,7 +49,7 @@ async def create_knowledge_node(
         description=description,
     )
     db_session.add(node)
-    await db_session.commit()
+    await db_session.flush()
     await db_session.refresh(node)
     return node
 
@@ -116,7 +118,6 @@ async def bulk_create_nodes(
     stmt = stmt.on_conflict_do_nothing(index_elements=["graph_id", "node_id_str"])
 
     result = await db_session.execute(stmt)
-    await db_session.commit()
 
     nodes_created = result.rowcount if result.rowcount else 0
 
@@ -124,3 +125,74 @@ async def bulk_create_nodes(
         "message": f"Processed {len(values)} nodes, {nodes_created} created",
         "count": nodes_created,
     }
+
+
+async def get_nodes_missing_embeddings(
+    db_session: AsyncSession,
+    graph_id: UUID,
+    target_model: str,
+    limit: int = 100,
+) -> list[KnowledgeNode]:
+    """
+    Fetch nodes in a graph that need embeddings generated or refreshed.
+
+    Criteria:
+    - content_embedding is NULL OR embedding_model != target_model
+    """
+    stmt = (
+        select(KnowledgeNode)
+        .where(
+            KnowledgeNode.graph_id == graph_id,
+            or_(
+                KnowledgeNode.content_embedding.is_(None),
+                KnowledgeNode.embedding_model != target_model,
+            ),
+        )
+        .limit(limit)
+    )
+    result = await db_session.execute(stmt)
+    return list(result.scalars().all())
+
+
+async def update_node_embedding(
+    db_session: AsyncSession,
+    node_id: UUID,
+    embedding: list[float],
+    model_name: str,
+) -> None:
+    """
+    Update embedding fields for a single node.
+    """
+    await update_node_embeddings(db_session, [(node_id, embedding)], model_name)
+
+
+async def update_node_embeddings(
+    db_session: AsyncSession,
+    embedding_updates: list[tuple[UUID, list[float]]],
+    model_name: str,
+) -> None:
+    """
+    Bulk update embedding fields for multiple nodes in one query.
+    """
+    if not embedding_updates:
+        return
+
+    updated_at = datetime.now(UTC)
+    updates_table = sa_values(
+        column("id", KnowledgeNode.id.type),
+        column("content_embedding", KnowledgeNode.content_embedding.type),
+        name="embedding_updates",
+    ).data(embedding_updates)
+
+    stmt = (
+        update(KnowledgeNode)
+        .where(KnowledgeNode.id == updates_table.c.id)
+        .values(
+            content_embedding=cast(
+                updates_table.c.content_embedding, KnowledgeNode.content_embedding.type
+            ),
+            embedding_model=model_name,
+            embedding_updated_at=updated_at,
+        )
+    )
+    await db_session.execute(stmt)
