@@ -154,6 +154,26 @@ async def get_nodes_missing_embeddings(
     return list(result.scalars().all())
 
 
+async def clear_node_embeddings(
+    db_session: AsyncSession,
+    graph_id: UUID,
+) -> int:
+    """
+    Clear embedding fields for all nodes in a graph.
+    """
+    stmt = (
+        update(KnowledgeNode)
+        .where(KnowledgeNode.graph_id == graph_id)
+        .values(
+            content_embedding=None,
+            embedding_model=None,
+            embedding_updated_at=None,
+        )
+    )
+    result = await db_session.execute(stmt)
+    return result.rowcount or 0
+
+
 async def update_node_embedding(
     db_session: AsyncSession,
     node_id: UUID,
