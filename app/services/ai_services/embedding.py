@@ -13,8 +13,7 @@ import logging
 from typing import Any
 from uuid import UUID
 
-from google import genai
-from google.genai import types
+from llama_index.embeddings.google_genai import GoogleGenAIEmbedding
 from sqlalchemy.ext.asyncio import AsyncSession
 from tenacity import retry, stop_after_attempt, wait_exponential
 
@@ -43,7 +42,12 @@ class EmbeddingService:
         self.model_name = model_name or settings.GEMINI_EMBEDDING_MODEL
         if not settings.GOOGLE_API_KEY:
             raise MissingAPIKeyError("GOOGLE_API_KEY is not set")
-        self.client = genai.Client(api_key=settings.GOOGLE_API_KEY)
+
+        # Use LlamaIndex's Google GenAI embedding (new unified SDK)
+        self.embed_model = GoogleGenAIEmbedding(
+            model_name=self.model_name,
+            api_key=settings.GOOGLE_API_KEY,
+        )
 
     async def embed_graph_nodes(
         self, graph_id: UUID, batch_size: int = 32
@@ -111,22 +115,11 @@ class EmbeddingService:
         reraise=True,
     )
     def _embed_text_sync(self, text: str) -> list[float]:
-        response = self.client.models.embed_content(
-            model=self.model_name,
-            contents=text,
-            config=types.EmbedContentConfig(
-                output_dimensionality=settings.GEMINI_EMBEDDING_DIM,
-            ),
-        )
+        # LlamaIndex handles all the API complexity
+        embedding = self.embed_model.get_text_embedding(text)
 
-        # Newer SDK returns embeddings list
-        values = None
-        if getattr(response, "embedding", None) is not None:
-            values = response.embedding.values  # type: ignore[attr-defined]
-        elif getattr(response, "embeddings", None):
-            values = response.embeddings[0].values  # type: ignore[assignment]
+        # Ensure we return a list[float]
+        if not isinstance(embedding, list):
+            embedding = list(embedding)
 
-        if not values:
-            raise ValueError("Gemini embedding response missing values")
-
-        return list(values)
+        return embedding
