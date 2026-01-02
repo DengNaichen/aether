@@ -216,3 +216,30 @@ async def update_node_embeddings(
         )
     )
     await db_session.execute(stmt)
+
+
+async def get_nodes_with_embeddings(
+    db_session: AsyncSession,
+    graph_id: UUID,
+) -> list[KnowledgeNode]:
+    """
+    Fetch all nodes in a graph that have embeddings.
+    Used for entity resolution to compare new nodes against existing ones.
+
+    Args:
+        db_session: Database session
+        graph_id: Which graph to query
+
+    Returns:
+        List of KnowledgeNode objects with non-null embeddings
+    """
+    stmt = (
+        select(KnowledgeNode)
+        .where(
+            KnowledgeNode.graph_id == graph_id,
+            KnowledgeNode.content_embedding.is_not(None),
+        )
+    )
+    result = await db_session.execute(stmt)
+    return list(result.scalars().all())
+

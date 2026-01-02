@@ -26,6 +26,7 @@ from app.schemas.knowledge_node import (
     KnowledgeNodeLLM,
     RelationshipLLM,
 )
+from app.services.ai_services.entity_resolution import EntityResolutionResult
 from app.services.ai_services.generate_graph import PipelineConfig, process_markdown
 from app.services.graph_validation_service import GraphValidationService
 
@@ -139,6 +140,26 @@ class GraphGenerationService:
             else:
                 merged_graph = new_graph
 
+            # Step 3.5: Entity resolution (detect duplicates using embeddings)
+            if incremental:
+                logger.info("Running entity resolution...")
+                from app.services.ai_services.entity_resolution import (
+                    EntityResolutionService,
+                )
+
+                resolver = EntityResolutionService(self.db)
+                resolution_result = await resolver.resolve_entities(
+                    graph_id, merged_graph.nodes
+                )
+
+                logger.info(
+                    f"Entity resolution: {resolution_result.duplicates_found} duplicates, "
+                    f"{resolution_result.new_nodes_count} new nodes"
+                )
+
+                # Apply resolution to graph (remove duplicates, update references)
+                merged_graph = self._apply_resolution(merged_graph, resolution_result)
+
             # Step 4: Persist to database (append-only)
             logger.info("Persisting graph to database...")
             stats = await self._persist_graph(graph_id, merged_graph)
@@ -168,6 +189,72 @@ class GraphGenerationService:
         except Exception as e:
             logger.error(f"Graph generation failed: {e}", exc_info=True)
             raise
+
+    def _apply_resolution(
+        self, graph: GraphStructureLLM, resolution: EntityResolutionResult
+    ) -> GraphStructureLLM:
+        """
+        Apply entity resolution by removing duplicate nodes and updating references.
+
+        Args:
+            graph: Original graph with potential duplicates
+            resolution: Entity resolution result with node mapping
+
+        Returns:
+            Updated graph with duplicates removed and references updated
+        """
+        from app.schemas.knowledge_node import (
+            RelationshipLLM,
+        )
+
+        # Build reverse mapping: node_id -> existing_uuid (for duplicates)
+        duplicate_mapping = {
+            node_id: existing_uuid
+            for node_id, existing_uuid in resolution.node_mapping.items()
+            if existing_uuid is not None
+        }
+
+        if not duplicate_mapping:
+            # No duplicates found, return original graph
+            return graph
+
+        # Filter out duplicate nodes
+        new_nodes = [
+            node for node in graph.nodes if node.id not in duplicate_mapping
+        ]
+
+        # Update relationship references
+        new_relationships = []
+        for rel in graph.relationships:
+            # Check if source or target is a duplicate
+            source_id = duplicate_mapping.get(rel.source_id, rel.source_id)
+            target_id = duplicate_mapping.get(rel.target_id, rel.target_id)
+
+            # Skip self-referencing relationships
+            if source_id == target_id:
+                logger.warning(
+                    f"Skipping self-referencing relationship after resolution: "
+                    f"{rel.source_name} -> {rel.target_name}"
+                )
+                continue
+
+            # Create updated relationship
+            updated_rel = RelationshipLLM(
+                label=rel.label,
+                source_id=source_id,
+                source_name=rel.source_name,
+                target_id=target_id,
+                target_name=rel.target_name,
+                weight=rel.weight,
+            )
+            new_relationships.append(updated_rel)
+
+        logger.info(
+            f"Applied resolution: removed {len(duplicate_mapping)} duplicate nodes, "
+            f"updated {len(new_relationships)} relationships"
+        )
+
+        return GraphStructureLLM(nodes=new_nodes, relationships=new_relationships)
 
     async def _load_existing_graph(self, graph_id: UUID) -> GraphStructureLLM:
         """
