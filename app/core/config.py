@@ -37,6 +37,13 @@ class Settings(BaseSettings):
     GEMINI_QUESTION_TEMPERATURE: float = 0.7
     GEMINI_QUESTION_MAX_RETRY_ATTEMPTS: int = 3
 
+    GEMINI_EMBEDDING_MODEL: str = "text-embedding-004"
+    GEMINI_EMBEDDING_DIM: int = 768
+
+    # Entity Resolution
+    ENTITY_RESOLUTION_ENABLED: bool = True
+    ENTITY_RESOLUTION_THRESHOLD: float = 0.85
+
     PDF_GEMINI_MODEL: str = "gemini-2.5-flash-lite"
     PDF_GEMINI_TEMPERATURE: float = 0.0
     PDF_GEMINI_TOP_P: float = 0.95

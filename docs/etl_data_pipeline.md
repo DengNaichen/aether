@@ -76,7 +76,11 @@ async def extract_text_stage(context: dict):
 
 Current behavior:
 - `process_markdown` converts Markdown into `GraphStructureLLM`
-- Append-only inserts into `knowledge_node` and `prerequisite`
+- Pre-flight validation runs in-memory before DB writes:
+  - deduplicates nodes by `node_id_str` (keeps longest description)
+  - drops relationships pointing to missing nodes, self-loops, and duplicates
+  - breaks cycles by removing a minimal edge set (lowest-weight edge per detected cycle)
+- Append-only inserts into `knowledge_node` and `prerequisite` using the cleaned graph
 - `GraphValidationService.update_graph_topology` updates levels and dependents
 
 Incremental behavior is planned; the hook exists but merge/dedup logic is still a TODO.

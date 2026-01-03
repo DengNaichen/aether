@@ -15,18 +15,22 @@ Key Design:
 """
 
 import logging
+import tempfile
+from pathlib import Path
 from uuid import UUID
 
 import networkx as nx
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.crud import knowledge_node, prerequisite
+from app.domain.graph_topology_logic import GraphTopologyLogic
 from app.schemas.knowledge_node import (
     GraphStructureLLM,
     KnowledgeNodeCreateWithStrId,
     KnowledgeNodeLLM,
     RelationshipLLM,
 )
+from app.services.ai_services.entity_resolution import EntityResolutionResult
 from app.services.ai_services.generate_graph import PipelineConfig, process_markdown
 from app.services.graph_validation_service import GraphValidationService
 
@@ -44,17 +48,17 @@ class GraphGenerationService:
         self,
         graph_id: UUID,
         markdown_content: str,
+        incremental: bool = True,
         user_guidance: str = "",
         config: PipelineConfig | None = None,
-        incremental: bool = True,
     ) -> dict:
         """
         Generate and save knowledge graph from Markdown (supports incremental append).
 
-        **Incremental Mode**:
-        - incremental=True (default): Read existing graph, merge with new content,
-          and **only append new nodes and relationships**
-        - incremental=False: Clear graph and regenerate (use with caution)
+        Incremental Mode:
+        - incremental=True: If Graph is NOT empty, read existing graph,
+        merge with new content,and only append new nodes and relationships
+        - incremental=False: If Graph is NOT empty, generate new.
 
         **Immutability Guarantee**:
         - Existing nodes and relationships **will not be modified or deleted**
@@ -64,9 +68,9 @@ class GraphGenerationService:
         Args:
             graph_id: Graph ID
             markdown_content: Markdown content to process
+            incremental: Whether to use incremental mode
             user_guidance: Additional instructions for the LLM (optional)
             config: AI pipeline configuration (optional)
-            incremental: Whether to use incremental mode (default True)
 
         Returns:
             {
@@ -99,8 +103,6 @@ class GraphGenerationService:
             # Note: process_markdown expects a file path, but we have string content
             # We need to either save to temp file or modify process_markdown
             # For now, let's create a temp file
-            import tempfile
-            from pathlib import Path
 
             with tempfile.NamedTemporaryFile(
                 mode="w", suffix=".md", delete=False
@@ -139,7 +141,34 @@ class GraphGenerationService:
             else:
                 merged_graph = new_graph
 
+            # Step 3.5: Entity resolution (detect duplicates using embeddings)
+            if incremental:
+                logger.info("Running entity resolution...")
+                from app.services.ai_services.entity_resolution import (
+                    EntityResolutionService,
+                )
+
+                resolver = EntityResolutionService(self.db)
+                resolution_result = await resolver.resolve_entities(
+                    graph_id, merged_graph.nodes
+                )
+
+                logger.info(
+                    f"Entity resolution: {resolution_result.duplicates_found} duplicates, "
+                    f"{resolution_result.new_nodes_count} new nodes"
+                )
+
+                # Apply resolution to graph (remove duplicates, update references)
+                merged_graph = self._apply_resolution(merged_graph, resolution_result)
+
             # Step 4: Persist to database (append-only)
+            # Step 4: Pre-flight validation (drop invalid relationships/cycles)
+            logger.info("Pre-flighting merged graph before persistence...")
+            cleaned_graph, preflight_stats = self._preflight_llm_graph(merged_graph)
+            if any(preflight_stats.values()):
+                logger.info(f"Pre-flight adjustments: {preflight_stats}")
+
+            # Step 5: Persist to database (append-only)
             logger.info("Persisting graph to database...")
             prereq_edges_str, prereq_skipped_cycles = await self._precheck_edges_str(
                 graph_id, merged_graph
@@ -148,16 +177,17 @@ class GraphGenerationService:
                 graph_id, merged_graph, prereq_edges_str, prereq_skipped_cycles
             )
 
-            # Step 5: Compute topology metrics
+            # Step 6: Compute topology metrics
             logger.info("Computing topology metrics...")
-            nodes_updated, max_level = (
-                await self.validation_service.update_graph_topology(graph_id)
-            )
+            (
+                nodes_updated,
+                max_level,
+            ) = await self.validation_service.update_graph_topology(graph_id)
             logger.info(
                 f"Topology updated: {nodes_updated} nodes, max_level={max_level}"
             )
 
-            # Step 6: Get total node count
+            # Step 7: Get total node count
             all_nodes = await knowledge_node.get_nodes_by_graph(self.db, graph_id)
             total_nodes = len(all_nodes)
 
@@ -173,6 +203,72 @@ class GraphGenerationService:
         except Exception as e:
             logger.error(f"Graph generation failed: {e}", exc_info=True)
             raise
+
+    def _apply_resolution(
+        self, graph: GraphStructureLLM, resolution: EntityResolutionResult
+    ) -> GraphStructureLLM:
+        """
+        Apply entity resolution by removing duplicate nodes and updating references.
+
+        Args:
+            graph: Original graph with potential duplicates
+            resolution: Entity resolution result with node mapping
+
+        Returns:
+            Updated graph with duplicates removed and references updated
+        """
+        from app.schemas.knowledge_node import (
+            RelationshipLLM,
+        )
+
+        # Build reverse mapping: node_id -> existing_uuid (for duplicates)
+        duplicate_mapping = {
+            node_id: existing_uuid
+            for node_id, existing_uuid in resolution.node_mapping.items()
+            if existing_uuid is not None
+        }
+
+        if not duplicate_mapping:
+            # No duplicates found, return original graph
+            return graph
+
+        # Filter out duplicate nodes
+        new_nodes = [
+            node for node in graph.nodes if node.id not in duplicate_mapping
+        ]
+
+        # Update relationship references
+        new_relationships = []
+        for rel in graph.relationships:
+            # Check if source or target is a duplicate
+            source_id = duplicate_mapping.get(rel.source_id, rel.source_id)
+            target_id = duplicate_mapping.get(rel.target_id, rel.target_id)
+
+            # Skip self-referencing relationships
+            if source_id == target_id:
+                logger.warning(
+                    f"Skipping self-referencing relationship after resolution: "
+                    f"{rel.source_name} -> {rel.target_name}"
+                )
+                continue
+
+            # Create updated relationship
+            updated_rel = RelationshipLLM(
+                label=rel.label,
+                source_id=source_id,
+                source_name=rel.source_name,
+                target_id=target_id,
+                target_name=rel.target_name,
+                weight=rel.weight,
+            )
+            new_relationships.append(updated_rel)
+
+        logger.info(
+            f"Applied resolution: removed {len(duplicate_mapping)} duplicate nodes, "
+            f"updated {len(new_relationships)} relationships"
+        )
+
+        return GraphStructureLLM(nodes=new_nodes, relationships=new_relationships)
 
     async def _load_existing_graph(self, graph_id: UUID) -> GraphStructureLLM:
         """

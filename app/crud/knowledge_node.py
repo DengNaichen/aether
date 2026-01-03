@@ -1,6 +1,8 @@
+from datetime import UTC, datetime
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import cast, column, or_, select, update
+from sqlalchemy import values as sa_values
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -47,7 +49,7 @@ async def create_knowledge_node(
         description=description,
     )
     db_session.add(node)
-    await db_session.commit()
+    await db_session.flush()
     await db_session.refresh(node)
     return node
 
