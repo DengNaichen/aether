@@ -469,13 +469,19 @@ async def upload_file(
         .where(KnowledgeNode.graph_id == knowledge_graph.id)
         .limit(1)
     )
-    if result.scalar_one_or_none():
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Graph already has data. Incremental updates are not enabled yet.",
-        )
+    has_existing_data = result.scalar_one_or_none() is not None
 
-    incremental = False
+    # Enable incremental mode with entity resolution
+    incremental = True  # Always use incremental mode (entity resolution handles deduplication)
+
+    if has_existing_data:
+        logger.info(
+            f"Graph {knowledge_graph.id} has existing data, "
+            "using incremental mode with entity resolution"
+        )
+    else:
+        logger.info(f"Graph {knowledge_graph.id} is empty, creating initial graph")
+
 
     try:
         # Route to appropriate processing based on file type
@@ -523,7 +529,10 @@ async def upload_file(
                 prerequisites_created=graph_stats.get("prerequisites_created", 0),
                 total_nodes=graph_stats.get("total_nodes", 0),
                 max_level=graph_stats.get("max_level", 0),
-                message=f"Knowledge graph generated from PDF: {file.filename}",
+                message=(
+                    f"Knowledge graph {'updated' if has_existing_data else 'generated'} "
+                    f"from PDF: {file.filename}"
+                ),
             )
 
         else:  # .md file
@@ -555,7 +564,10 @@ async def upload_file(
                 prerequisites_created=stats["prerequisites_created"],
                 total_nodes=stats["total_nodes"],
                 max_level=stats["max_level"],
-                message=f"Knowledge graph generated from Markdown: {file.filename}",
+                message=(
+                    f"Knowledge graph {'updated' if has_existing_data else 'generated'} "
+                    f"from Markdown: {file.filename}"
+                ),
             )
 
     except UnicodeDecodeError as e:
