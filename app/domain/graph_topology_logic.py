@@ -221,20 +221,17 @@ class GraphTopologyLogic:
         graph = nx.DiGraph()
 
         if nodes:
+            # Pre-add nodes to include isolated ones not present in the adj_list.
             graph.add_nodes_from(nodes)
 
-        if nodes is None:
-            for source, targets in adj_list.items():
-                graph.add_node(source)
-                for target in targets:
-                    graph.add_edge(source, target)
-        else:
-            for source, targets in adj_list.items():
-                if source not in nodes:
+        for source, targets in adj_list.items():
+            # If a node set is provided, only process sources within that set.
+            if nodes and source not in nodes:
+                continue
+            for target in targets:
+                # If a node set is provided, only add edges where the target is also in the set.
+                if nodes and target not in nodes:
                     continue
-                for target in targets:
-                    if target not in nodes:
-                        continue
-                    graph.add_edge(source, target)
+                graph.add_edge(source, target)
 
         return graph

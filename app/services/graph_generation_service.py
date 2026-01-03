@@ -227,6 +227,9 @@ class GraphGenerationService:
             Tuple of (accepted_edges, skip_counts) where skip_counts has keys:
             'bad_edge', 'duplicate', 'cycle'
         """
+        # TODO: Potential race condition - these two reads are not transactional.
+        # If concurrent request modifies graph between reads, state could be inconsistent.
+        # Low priority: same graph rarely modified concurrently, ON CONFLICT provides safety net.
         existing_nodes = await knowledge_node.get_nodes_by_graph(self.db, graph_id)
         id_to_str = {
             node.id: node.node_id_str for node in existing_nodes if node.node_id_str
