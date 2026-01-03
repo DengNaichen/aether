@@ -91,18 +91,18 @@ async def get_nodes_by_graph(
     return list(result.scalars().all())
 
 
-async def bulk_create_nodes(
+async def bulk_insert_nodes_tx(
     db_session: AsyncSession,
     graph_id: UUID,
     nodes_data: list[KnowledgeNodeCreateWithStrId],
-):
+) -> int:
     """
-    Bulk create knowledge nodes with idempotency.
+    Transaction-safe bulk insert without committing.
 
-    Duplicate nodes (same graph_id + node_id_str) are silently skipped.
+    Uses ON CONFLICT DO NOTHING on (graph_id, node_id_str).
     """
     if not nodes_data:
-        return {"message": "No nodes to process", "count": 0}
+        return 0
 
     values = [
         {
@@ -114,132 +114,12 @@ async def bulk_create_nodes(
         for node in nodes_data
     ]
 
-    stmt = insert(KnowledgeNode).values(values)
-    stmt = stmt.on_conflict_do_nothing(index_elements=["graph_id", "node_id_str"])
-
-    result = await db_session.execute(stmt)
-
-    nodes_created = result.rowcount if result.rowcount else 0
-
-    return {
-        "message": f"Processed {len(values)} nodes, {nodes_created} created",
-        "count": nodes_created,
-    }
-
-
-async def get_nodes_missing_embeddings(
-    db_session: AsyncSession,
-    graph_id: UUID,
-    target_model: str,
-    limit: int = 100,
-) -> list[KnowledgeNode]:
-    """
-    Fetch nodes in a graph that need embeddings generated or refreshed.
-
-    Criteria:
-    - content_embedding is NULL OR embedding_model != target_model
-    """
     stmt = (
-        select(KnowledgeNode)
-        .where(
-            KnowledgeNode.graph_id == graph_id,
-            or_(
-                KnowledgeNode.content_embedding.is_(None),
-                KnowledgeNode.embedding_model != target_model,
-            ),
-        )
-        .limit(limit)
+        insert(KnowledgeNode)
+        .values(values)
+        .on_conflict_do_nothing(index_elements=["graph_id", "node_id_str"])
     )
-    result = await db_session.execute(stmt)
-    return list(result.scalars().all())
 
-
-async def clear_node_embeddings(
-    db_session: AsyncSession,
-    graph_id: UUID,
-) -> int:
-    """
-    Clear embedding fields for all nodes in a graph.
-    """
-    stmt = (
-        update(KnowledgeNode)
-        .where(KnowledgeNode.graph_id == graph_id)
-        .values(
-            content_embedding=None,
-            embedding_model=None,
-            embedding_updated_at=None,
-        )
-    )
     result = await db_session.execute(stmt)
+    await db_session.flush()
     return result.rowcount or 0
-
-
-async def update_node_embedding(
-    db_session: AsyncSession,
-    node_id: UUID,
-    embedding: list[float],
-    model_name: str,
-) -> None:
-    """
-    Update embedding fields for a single node.
-    """
-    await update_node_embeddings(db_session, [(node_id, embedding)], model_name)
-
-
-async def update_node_embeddings(
-    db_session: AsyncSession,
-    embedding_updates: list[tuple[UUID, list[float]]],
-    model_name: str,
-) -> None:
-    """
-    Bulk update embedding fields for multiple nodes in one query.
-    """
-    if not embedding_updates:
-        return
-
-    updated_at = datetime.now(UTC)
-    updates_table = sa_values(
-        column("id", KnowledgeNode.id.type),
-        column("content_embedding", KnowledgeNode.content_embedding.type),
-        name="embedding_updates",
-    ).data(embedding_updates)
-
-    stmt = (
-        update(KnowledgeNode)
-        .where(KnowledgeNode.id == updates_table.c.id)
-        .values(
-            content_embedding=cast(
-                updates_table.c.content_embedding, KnowledgeNode.content_embedding.type
-            ),
-            embedding_model=model_name,
-            embedding_updated_at=updated_at,
-        )
-    )
-    await db_session.execute(stmt)
-
-
-async def get_nodes_with_embeddings(
-    db_session: AsyncSession,
-    graph_id: UUID,
-) -> list[KnowledgeNode]:
-    """
-    Fetch all nodes in a graph that have embeddings.
-    Used for entity resolution to compare new nodes against existing ones.
-
-    Args:
-        db_session: Database session
-        graph_id: Which graph to query
-
-    Returns:
-        List of KnowledgeNode objects with non-null embeddings
-    """
-    stmt = (
-        select(KnowledgeNode)
-        .where(
-            KnowledgeNode.graph_id == graph_id,
-            KnowledgeNode.content_embedding.is_not(None),
-        )
-    )
-    result = await db_session.execute(stmt)
-    return list(result.scalars().all())
-

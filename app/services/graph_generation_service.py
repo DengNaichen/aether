@@ -19,6 +19,7 @@ import tempfile
 from pathlib import Path
 from uuid import UUID
 
+import networkx as nx
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.crud import knowledge_node, prerequisite
@@ -59,9 +60,9 @@ class GraphGenerationService:
         merge with new content,and only append new nodes and relationships
         - incremental=False: If Graph is NOT empty, generate new.
 
-        Immutability Guarantee:
-        - Existing nodes and relationships will not be modified or deleted
-        - `bulk_create_nodes()` automatically skips duplicates (based on `node_id_str`)
+        **Immutability Guarantee**:
+        - Existing nodes and relationships **will not be modified or deleted**
+        - Node inserts are idempotent on `node_id_str` (duplicates skipped)
         - Relationship inserts also skip duplicates (based on unique constraints)
 
         Args:
@@ -75,7 +76,6 @@ class GraphGenerationService:
             {
                 "nodes_created": int,       # New nodes added (excludes skipped duplicates)
                 "prerequisites_created": int,
-                "subtopics_created": int,
                 "total_nodes": int,         # Total nodes in graph after operation
                 "max_level": int
             }
@@ -170,7 +170,12 @@ class GraphGenerationService:
 
             # Step 5: Persist to database (append-only)
             logger.info("Persisting graph to database...")
-            stats = await self._persist_graph(graph_id, cleaned_graph)
+            prereq_edges_str, prereq_skipped_cycles = await self._precheck_edges_str(
+                graph_id, merged_graph
+            )
+            stats = await self._persist_graph(
+                graph_id, merged_graph, prereq_edges_str, prereq_skipped_cycles
+            )
 
             # Step 6: Compute topology metrics
             logger.info("Computing topology metrics...")
@@ -303,216 +308,177 @@ class GraphGenerationService:
 
         return GraphStructureLLM(nodes=llm_nodes, relationships=llm_relationships)
 
-    def _preflight_llm_graph(
-        self, llm_graph: GraphStructureLLM
-    ) -> tuple[GraphStructureLLM, dict[str, int]]:
+    async def _precheck_edges_str(
+        self, graph_id: UUID, graph_struct: GraphStructureLLM
+    ) -> tuple[list[tuple[str, str, float | None]], dict[str, int]]:
         """
-        Validate LLM graph in-memory before touching the database.
+        Build a string-ID graph with existing and new edges, filter invalid edges before DB work.
 
-        - Deduplicate nodes (keep the longest description)
-        - Drop relationships pointing to missing nodes or self-loops
-        - Deduplicate relationships
-        - Remove a minimal set of edges to break cycles (one edge per detected cycle)
+        Validation order:
+        1. Bad edge: source or target node doesn't exist in graph
+        2. Duplicate: edge already exists
+        3. Cycle: adding edge would create a cycle
+
+        Returns:
+            Tuple of (accepted_edges, skip_counts) where skip_counts has keys:
+            'bad_edge', 'duplicate', 'cycle'
         """
-        nodes_by_id: dict[str, KnowledgeNodeLLM] = {}
-        duplicate_nodes = 0
-
-        for node in llm_graph.nodes:
-            if node.id in nodes_by_id:
-                duplicate_nodes += 1
-                if len(node.description) > len(nodes_by_id[node.id].description):
-                    nodes_by_id[node.id] = node
-            else:
-                nodes_by_id[node.id] = node
-
-        drop_counts = {
-            "duplicate_nodes": duplicate_nodes,
-            "missing_node_rels": 0,
-            "self_loop_rels": 0,
-            "duplicate_rels": 0,
-            "cycle_rels_removed": 0,
+        # TODO: Potential race condition - these two reads are not transactional.
+        # If concurrent request modifies graph between reads, state could be inconsistent.
+        # Low priority: same graph rarely modified concurrently, ON CONFLICT provides safety net.
+        existing_nodes = await knowledge_node.get_nodes_by_graph(self.db, graph_id)
+        id_to_str = {
+            node.id: node.node_id_str for node in existing_nodes if node.node_id_str
         }
 
-        seen_rels: set[tuple[str, str]] = set()
-        cleaned_rels: list[RelationshipLLM] = []
-        rel_lookup: dict[tuple[str, str], RelationshipLLM] = {}
+        existing_prereqs = await prerequisite.get_prerequisites_by_graph(
+            self.db, graph_id
+        )
 
-        for rel in llm_graph.relationships:
-            if rel.label != "IS_PREREQUISITE_FOR":
-                continue
+        # Build graph with existing nodes and edges
+        string_graph = nx.DiGraph()
+        string_graph.add_nodes_from(id_to_str.values())
+        # Add incoming nodes from new graph to cover isolated nodes
+        string_graph.add_nodes_from([node.id for node in graph_struct.nodes])
 
-            if rel.source_id not in nodes_by_id or rel.target_id not in nodes_by_id:
-                drop_counts["missing_node_rels"] += 1
-                continue
+        for prereq_rel in existing_prereqs:
+            from_str = id_to_str.get(prereq_rel.from_node_id)
+            to_str = id_to_str.get(prereq_rel.to_node_id)
+            if from_str and to_str:
+                string_graph.add_edge(from_str, to_str)
 
-            if rel.source_id == rel.target_id:
-                drop_counts["self_loop_rels"] += 1
-                continue
+        # Collect valid node IDs for bad edge check
+        valid_node_ids = set(string_graph.nodes())
 
-            sig = (rel.source_id, rel.target_id)
-            if sig in seen_rels:
-                drop_counts["duplicate_rels"] += 1
-                continue
-
-            seen_rels.add(sig)
-            cleaned_rels.append(rel)
-            rel_lookup[sig] = rel
-
-        adjacency = self._build_adjacency(cleaned_rels)
-        removed_cycle_edges: set[tuple[str, str]] = set()
-
-        while True:
-            cycle_edges = self._find_cycle_edges(adjacency)
-            if not cycle_edges:
-                break
-
-            edge_to_remove = self._choose_edge_to_remove(cycle_edges, rel_lookup)
-            removed_cycle_edges.add(edge_to_remove)
-            drop_counts["cycle_rels_removed"] += 1
-            self._remove_edge_from_adj(adjacency, edge_to_remove)
-
-        final_rels = [
-            rel
-            for rel in cleaned_rels
-            if (rel.source_id, rel.target_id) not in removed_cycle_edges
+        prereq_candidates_str = [
+            (rel.source_id, rel.target_id, rel.weight)
+            for rel in graph_struct.relationships
+            if rel.label == "IS_PREREQUISITE_FOR"
         ]
 
-        # Sanity check that the cleaned graph is acyclic (should be, but verify)
-        nodes_set = set(nodes_by_id.keys())
-        adj_list = {src: list(targets) for src, targets in adjacency.items()}
-        GraphTopologyLogic.topological_sort_with_levels(nodes_set, adj_list)
-
-        cleaned_graph = GraphStructureLLM(
-            nodes=list(nodes_by_id.values()), relationships=final_rels
+        filtered_edges, skip_counts = self._filter_edges_str(
+            prereq_candidates_str, string_graph, valid_node_ids
         )
-        return cleaned_graph, drop_counts
 
-    def _build_adjacency(
-        self, relationships: list[RelationshipLLM]
-    ) -> dict[str, set[str]]:
-        adjacency: dict[str, set[str]] = {}
-
-        for rel in relationships:
-            adjacency.setdefault(rel.source_id, set()).add(rel.target_id)
-
-        return adjacency
-
-    def _find_cycle_edges(
-        self, adjacency: dict[str, set[str]]
-    ) -> list[tuple[str, str]] | None:
-        visited: set[str] = set()
-        stack: set[str] = set()
-        parent: dict[str, str] = {}
-
-        def dfs(node: str) -> list[tuple[str, str]] | None:
-            visited.add(node)
-            stack.add(node)
-
-            for neighbor in adjacency.get(node, set()):
-                if neighbor not in visited:
-                    parent[neighbor] = node
-                    cycle = dfs(neighbor)
-                    if cycle:
-                        return cycle
-                elif neighbor in stack:
-                    cycle_path = [(node, neighbor)]
-                    cur = node
-                    while cur != neighbor and cur in parent:
-                        prev = parent[cur]
-                        cycle_path.append((prev, cur))
-                        cur = prev
-                    return cycle_path
-
-            stack.remove(node)
-            return None
-
-        for node in adjacency:
-            if node not in visited:
-                cycle = dfs(node)
-                if cycle:
-                    return cycle
-
-        return None
-
-    def _choose_edge_to_remove(
-        self,
-        cycle_edges: list[tuple[str, str]],
-        rel_lookup: dict[tuple[str, str], RelationshipLLM],
-    ) -> tuple[str, str]:
-        def edge_weight(edge: tuple[str, str]) -> float:
-            rel = rel_lookup.get(edge)
-            return rel.weight if rel else 1.0
-
-        return min(cycle_edges, key=lambda e: (edge_weight(e), e[0], e[1]))
-
-    def _remove_edge_from_adj(
-        self, adjacency: dict[str, set[str]], edge: tuple[str, str]
-    ) -> None:
-        src, tgt = edge
-        targets = adjacency.get(src)
-        if not targets:
-            return
-
-        targets.discard(tgt)
-        if not targets:
-            adjacency.pop(src, None)
+        return filtered_edges, skip_counts
 
     async def _persist_graph(
-        self, graph_id: UUID, llm_graph: GraphStructureLLM
+        self,
+        graph_id: UUID,
+        processed_graph: GraphStructureLLM,
+        prereq_edges_str: list[tuple[str, str, float | None]],
+        prereq_skip_counts: dict[str, int],
     ) -> dict:
         """
         Persist LLM graph to database (append-only).
 
         Args:
             graph_id: Graph ID
-            llm_graph: Graph structure from LLM
+            processed_graph: Graph structure after merge/resolution
+            prereq_edges_str: pre-validated prerequisite edges using string IDs
+            prereq_skip_counts: dict with skip counts by reason (bad_edge, duplicate, cycle)
 
         Returns:
-            {"nodes_created": int, "prerequisites_created": int, "subtopics_created": int}
+            {"nodes_created": int, "prerequisites_created": int, "prerequisites_skipped": int}
         """
-        # 1. Bulk insert nodes
-        nodes_data = [
-            KnowledgeNodeCreateWithStrId(
-                node_str_id=node.id,
-                node_name=node.name,
-                description=node.description,
+        async with self.db.begin_nested():
+            # 1. Bulk insert nodes (idempotent)
+            nodes_data = [
+                KnowledgeNodeCreateWithStrId(
+                    node_str_id=node.id,
+                    node_name=node.name,
+                    description=node.description,
+                )
+                for node in processed_graph.nodes
+            ]
+
+            nodes_created = await knowledge_node.bulk_insert_nodes_tx(
+                self.db, graph_id, nodes_data
             )
-            for node in llm_graph.nodes
-        ]
 
-        node_result = await knowledge_node.bulk_create_nodes(
-            self.db, graph_id, nodes_data
-        )
-        nodes_created = node_result["count"]
+            # 2. Build node_id_str -> UUID mapping (within same transaction)
+            all_nodes = await knowledge_node.get_nodes_by_graph(self.db, graph_id)
+            str_id_to_uuid = {
+                node.node_id_str: node.id for node in all_nodes if node.node_id_str
+            }
 
-        # 2. Build node_id_str -> UUID mapping
-        # We need to query the database to get the actual UUIDs
-        all_nodes = await knowledge_node.get_nodes_by_graph(self.db, graph_id)
-        str_id_to_uuid = {
-            node.node_id_str: node.id for node in all_nodes if node.node_id_str
-        }
+            # 3. Map pre-validated string edges to UUIDs and insert
+            prereq_data = self._map_string_edges_to_uuid(
+                prereq_edges_str, str_id_to_uuid
+            )
 
-        # 3. Bulk insert prerequisites
-        prereq_data = []
-        for rel in llm_graph.relationships:
-            if rel.label == "IS_PREREQUISITE_FOR":
-                from_uuid = str_id_to_uuid.get(rel.source_id)
-                to_uuid = str_id_to_uuid.get(rel.target_id)
-                if from_uuid and to_uuid:
-                    prereq_data.append((from_uuid, to_uuid, rel.weight))
-                else:
-                    logger.warning(
-                        f"Skipping prerequisite {rel.source_name} -> {rel.target_name}: "
-                        f"node not found"
-                    )
+            prereq_skipped_total = sum(prereq_skip_counts.values())
+            if prereq_skipped_total:
+                logger.warning(
+                    f"Skipped {prereq_skipped_total} prerequisite relationships: "
+                    f"bad_edge={prereq_skip_counts.get('bad_edge', 0)}, "
+                    f"duplicate={prereq_skip_counts.get('duplicate', 0)}, "
+                    f"cycle={prereq_skip_counts.get('cycle', 0)}"
+                )
 
-        prereq_result = await prerequisite.bulk_create_prerequisites(
-            self.db, graph_id, prereq_data
-        )
-        prerequisites_created = prereq_result["count"]
+            prerequisites_created = await prerequisite.bulk_insert_prerequisites_tx(
+                self.db, graph_id, prereq_data
+            )
 
         return {
             "nodes_created": nodes_created,
             "prerequisites_created": prerequisites_created,
-            # "subtopics_created": subtopics_created,
+            "prerequisites_skipped": prereq_skipped_total,
         }
+
+    @staticmethod
+    def _filter_edges_str(
+        candidate_edges: list[tuple[str, str, float | None]],
+        graph: nx.DiGraph,
+        valid_node_ids: set[str],
+    ) -> tuple[list[tuple[str, str, float | None]], dict[str, int]]:
+        """
+        Filter edges in order: bad edge → duplicate → cycle.
+
+        Args:
+            candidate_edges: List of (from_id, to_id, weight) tuples
+            graph: NetworkX DiGraph with existing edges
+            valid_node_ids: Set of valid node string IDs
+
+        Returns:
+            Tuple of (accepted_edges, skip_counts)
+        """
+        accepted: list[tuple[str, str, float | None]] = []
+        skip_counts = {"bad_edge": 0, "duplicate": 0, "cycle": 0}
+
+        for from_id, to_id, weight in candidate_edges:
+            # 1. Bad edge: node doesn't exist
+            if from_id not in valid_node_ids or to_id not in valid_node_ids:
+                skip_counts["bad_edge"] += 1
+                continue
+
+            # 2. Duplicate: edge already exists
+            if graph.has_edge(from_id, to_id):
+                skip_counts["duplicate"] += 1
+                continue
+
+            # 3. Cycle: would create a cycle
+            if nx.has_path(graph, to_id, from_id):
+                skip_counts["cycle"] += 1
+                continue
+
+            # Accept edge and add to graph for future cycle checks
+            graph.add_edge(from_id, to_id)
+            accepted.append((from_id, to_id, weight))
+
+        return accepted, skip_counts
+
+    @staticmethod
+    def _map_string_edges_to_uuid(
+        validated_edges: list[tuple[str, str, float | None]],
+        str_id_to_uuid: dict[str, UUID],
+    ) -> list[tuple[UUID, UUID, float | None]]:
+        """
+        Map pre-validated string-based edges to UUIDs.
+
+        Note: Edges are already validated, so all nodes should exist.
+        """
+        return [
+            (str_id_to_uuid[from_str], str_id_to_uuid[to_str], weight)
+            for from_str, to_str, weight in validated_edges
+        ]
