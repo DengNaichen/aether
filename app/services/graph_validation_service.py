@@ -38,6 +38,11 @@ class GraphValidationService:
         """
         Detect if adding a prerequisite relationship would create a cycle.
 
+        Note:
+            For bulk edge insertion, GraphGenerationService._filter_cyclic_edges_str
+            uses NetworkX for in-memory cycle detection before DB writes.
+            This method is intended for single-edge validation in API routes.
+
         Args:
             graph_id: The knowledge graph ID
             from_node_id: The prerequisite node (source)

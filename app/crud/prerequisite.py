@@ -3,7 +3,6 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-# from app.crud.knowledge_node import is_leaf_node  # No longer needed - all nodes are equal
 from app.models.knowledge_node import Prerequisite
 
 
@@ -54,30 +53,18 @@ async def get_prerequisites_by_graph(
     return list(result.scalars().all())
 
 
-async def bulk_create_prerequisites(
+async def bulk_insert_prerequisites_tx(
     db_session: AsyncSession,
     graph_id: UUID,
-    prerequisites_data: list[tuple[UUID, UUID, float]],
-) -> dict:
+    prerequisites_data: list[tuple[UUID, UUID, float | None]],
+) -> int:
     """
-    Batch create prerequisite relationships, skipping duplicates.
-
-    NOTE: This function DOES NOT validate leaf node constraints.
-    This is intentional for AI-generated graphs where leaf status
-    is unknown at insertion time.
-
-    Args:
-        db_session: Database session
-        graph_id: Which graph these relationships belong to
-        prerequisites_data: List of (from_node_id, to_node_id, weight)
-
-    Returns:
-        {"message": str, "count": int}
+    Transaction-safe bulk insert without committing.
     """
     from sqlalchemy.dialects.postgresql import insert
 
     if not prerequisites_data:
-        return {"message": "No prerequisites to process", "count": 0}
+        return 0
 
     values = [
         {
@@ -89,16 +76,14 @@ async def bulk_create_prerequisites(
         for from_id, to_id, weight in prerequisites_data
     ]
 
-    stmt = insert(Prerequisite).values(values)
-    # Skip duplicates based on primary key (graph_id, from_node_id, to_node_id)
-    stmt = stmt.on_conflict_do_nothing()
+    stmt = (
+        insert(Prerequisite)
+        .values(values)
+        .on_conflict_do_nothing(
+            index_elements=["graph_id", "from_node_id", "to_node_id"]
+        )
+    )
 
     result = await db_session.execute(stmt)
-    await db_session.commit()
-
-    count = result.rowcount if result.rowcount else 0
-
-    return {
-        "message": f"Processed {len(values)} prerequisites, {count} created",
-        "count": count,
-    }
+    await db_session.flush()
+    return result.rowcount or 0

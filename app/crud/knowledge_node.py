@@ -89,18 +89,18 @@ async def get_nodes_by_graph(
     return list(result.scalars().all())
 
 
-async def bulk_create_nodes(
+async def bulk_insert_nodes_tx(
     db_session: AsyncSession,
     graph_id: UUID,
     nodes_data: list[KnowledgeNodeCreateWithStrId],
-):
+) -> int:
     """
-    Bulk create knowledge nodes with idempotency.
+    Transaction-safe bulk insert without committing.
 
-    Duplicate nodes (same graph_id + node_id_str) are silently skipped.
+    Uses ON CONFLICT DO NOTHING on (graph_id, node_id_str).
     """
     if not nodes_data:
-        return {"message": "No nodes to process", "count": 0}
+        return 0
 
     values = [
         {
@@ -112,15 +112,12 @@ async def bulk_create_nodes(
         for node in nodes_data
     ]
 
-    stmt = insert(KnowledgeNode).values(values)
-    stmt = stmt.on_conflict_do_nothing(index_elements=["graph_id", "node_id_str"])
+    stmt = (
+        insert(KnowledgeNode)
+        .values(values)
+        .on_conflict_do_nothing(index_elements=["graph_id", "node_id_str"])
+    )
 
     result = await db_session.execute(stmt)
-    await db_session.commit()
-
-    nodes_created = result.rowcount if result.rowcount else 0
-
-    return {
-        "message": f"Processed {len(values)} nodes, {nodes_created} created",
-        "count": nodes_created,
-    }
+    await db_session.flush()
+    return result.rowcount or 0
