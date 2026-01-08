@@ -161,7 +161,9 @@ class TestConvertToQuestionCreate:
             text="Explain the process of photosynthesis.",
             difficulty="hard",
             options=None,
-            expected_answers=["Plants use sunlight to convert CO2 and water into glucose"],
+            expected_answers=[
+                "Plants use sunlight to convert CO2 and water into glucose"
+            ],
             explanation="This tests understanding of the full photosynthesis process.",
         )
         node_id = str(uuid4())
@@ -220,9 +222,7 @@ class TestGenerateQuestionsForNode:
     def test_generate_questions_success(self, sample_question_batch):
         """Test successful question generation."""
         with (
-            patch(
-                "app.services.ai.question_generation._get_llm"
-            ) as mock_get_llm,
+            patch("app.services.ai.question_generation._get_llm") as mock_get_llm,
             patch(
                 "app.services.ai.question_generation._create_generate_with_retry"
             ) as mock_create_retry,
@@ -240,12 +240,12 @@ class TestGenerateQuestionsForNode:
             assert len(result.questions) == 2
             mock_get_llm.assert_called_once()
 
-    def test_generate_questions_with_difficulty_distribution(self, sample_question_batch):
+    def test_generate_questions_with_difficulty_distribution(
+        self, sample_question_batch
+    ):
         """Test question generation with custom difficulty distribution."""
         with (
-            patch(
-                "app.services.ai.question_generation._get_llm"
-            ),
+            patch("app.services.ai.question_generation._get_llm"),
             patch(
                 "app.services.ai.question_generation._create_generate_with_retry"
             ) as mock_create_retry,
@@ -267,9 +267,7 @@ class TestGenerateQuestionsForNode:
     def test_generate_questions_with_question_types(self, sample_question_batch):
         """Test question generation with specific question types."""
         with (
-            patch(
-                "app.services.ai.question_generation._get_llm"
-            ),
+            patch("app.services.ai.question_generation._get_llm"),
             patch(
                 "app.services.ai.question_generation._create_generate_with_retry"
             ) as mock_create_retry,
@@ -290,9 +288,7 @@ class TestGenerateQuestionsForNode:
     def test_generate_questions_llm_failure_returns_none(self):
         """Test that LLM failure returns None."""
         with (
-            patch(
-                "app.services.ai.question_generation._get_llm"
-            ),
+            patch("app.services.ai.question_generation._get_llm"),
             patch(
                 "app.services.ai.question_generation._create_generate_with_retry"
             ) as mock_create_retry,
@@ -317,14 +313,18 @@ class TestGenerateQuestionsForNodes:
     def test_generate_questions_for_multiple_nodes(self, sample_question_batch):
         """Test generating questions for multiple nodes."""
         nodes = [
-            {"name": "Photosynthesis", "description": "Process of converting light to energy."},
-            {"name": "Cellular Respiration", "description": "Process of breaking down glucose."},
+            {
+                "name": "Photosynthesis",
+                "description": "Process of converting light to energy.",
+            },
+            {
+                "name": "Cellular Respiration",
+                "description": "Process of breaking down glucose.",
+            },
         ]
 
         with (
-            patch(
-                "app.services.ai.question_generation._get_llm"
-            ),
+            patch("app.services.ai.question_generation._get_llm"),
             patch(
                 "app.services.ai.question_generation._create_generate_with_retry"
             ) as mock_create_retry,
@@ -348,9 +348,7 @@ class TestGenerateQuestionsForNodes:
         ]
 
         with (
-            patch(
-                "app.services.ai.question_generation._get_llm"
-            ),
+            patch("app.services.ai.question_generation._get_llm"),
             patch(
                 "app.services.ai.question_generation._create_generate_with_retry"
             ) as mock_create_retry,
@@ -387,9 +385,7 @@ class TestGenerateQuestionsForNodes:
             return sample_question_batch
 
         with (
-            patch(
-                "app.services.ai.question_generation._get_llm"
-            ),
+            patch("app.services.ai.question_generation._get_llm"),
             patch(
                 "app.services.ai.question_generation._create_generate_with_retry"
             ) as mock_create_retry,
@@ -459,8 +455,7 @@ class TestGenerateQuestionsForGraph:
         batch_result = MultiNodeQuestionBatchLLM(
             node_batches=[
                 NodeQuestionBatchLLM(
-                    node_name="Test Node",
-                    questions=sample_question_batch.questions
+                    node_name="Test Node", questions=sample_question_batch.questions
                 )
             ]
         )
@@ -526,7 +521,7 @@ class TestGenerateQuestionsForGraph:
             node_batches=[
                 NodeQuestionBatchLLM(
                     node_name="Node Without Questions",
-                    questions=sample_question_batch.questions
+                    questions=sample_question_batch.questions,
                 )
             ]
         )

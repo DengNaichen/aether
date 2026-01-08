@@ -21,9 +21,7 @@ class TestDetectPrerequisiteCycle:
     """Test prerequisite cycle detection."""
 
     @pytest.mark.asyncio
-    async def test_detects_simple_cycle(
-        self, test_db: AsyncSession, user_in_db: User
-    ):
+    async def test_detects_simple_cycle(self, test_db: AsyncSession, user_in_db: User):
         """Should detect a simple 3-node cycle."""
         graph = KnowledgeGraph(owner_id=user_in_db.id, name="Test", slug="test")
         test_db.add(graph)
@@ -235,9 +233,7 @@ class TestUpdateGraphTopology:
         assert n3.dependents_count == 0  # Nothing depends on it
 
     @pytest.mark.asyncio
-    async def test_handles_empty_graph(
-        self, test_db: AsyncSession, user_in_db: User
-    ):
+    async def test_handles_empty_graph(self, test_db: AsyncSession, user_in_db: User):
         """Should handle empty graph gracefully."""
         graph = KnowledgeGraph(owner_id=user_in_db.id, name="Empty", slug="empty")
         test_db.add(graph)
@@ -255,9 +251,7 @@ class TestValidateGraphStructure:
     """Test comprehensive graph validation."""
 
     @pytest.mark.asyncio
-    async def test_valid_graph_passes(
-        self, test_db: AsyncSession, user_in_db: User
-    ):
+    async def test_valid_graph_passes(self, test_db: AsyncSession, user_in_db: User):
         """Should return is_valid=True for valid graph."""
         graph = KnowledgeGraph(owner_id=user_in_db.id, name="Test", slug="test")
         test_db.add(graph)
@@ -337,9 +331,7 @@ class TestValidateGraphStructure:
         assert any("orphaned" in warn.lower() for warn in report["warnings"])
 
     @pytest.mark.asyncio
-    async def test_includes_statistics(
-        self, test_db: AsyncSession, user_in_db: User
-    ):
+    async def test_includes_statistics(self, test_db: AsyncSession, user_in_db: User):
         """Should include comprehensive statistics in report."""
         graph = KnowledgeGraph(owner_id=user_in_db.id, name="Test", slug="test")
         test_db.add(graph)

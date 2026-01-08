@@ -18,7 +18,7 @@ jobs:
   test:
     name: Run Tests
     runs-on: ubuntu-latest
-    
+
     # Service containers for testing
     services:
       postgres:
@@ -34,31 +34,22 @@ jobs:
           --health-retries 5
         ports:
           - 5432:5432
-      
-      redis:
-        image: redis:7-alpine
-        options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 6379:6379
-    
+
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      
+
       - name: Set up Python 3.12
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      
+
       - name: Install uv
         uses: astral-sh/setup-uv@v4
         with:
           enable-cache: true
-      
+
       - name: Install dependencies
         run: uv sync --frozen
 
@@ -71,17 +62,16 @@ jobs:
         run: |
           until pg_isready -h localhost -p 5432; do sleep 1; done
           psql -h localhost -U postgres -d aether_test -c "CREATE EXTENSION IF NOT EXISTS vector;"
-      
+
       - name: Run tests with coverage
         run: uv run pytest --cov=app --cov-report=term-missing --cov-report=xml --cov-report=html -v
         env:
           # Test environment configuration
           ENVIRONMENT: test
           DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/aether_test
-          REDIS_URL: redis://localhost:6379/0
           SUPABASE_JWT_SECRET: test-secret-key-for-ci-only-not-secure
           GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
-      
+
       - name: Upload coverage reports to Codecov (optional)
         uses: codecov/codecov-action@v4
         if: always()
@@ -90,7 +80,7 @@ jobs:
           fail_ci_if_error: false
           token: ${{ secrets.CODECOV_TOKEN }}
         continue-on-error: true
-      
+
       - name: Upload coverage HTML report
         uses: actions/upload-artifact@v4
         if: always()

@@ -75,9 +75,7 @@ def _format_edges_for_prompt(edges: list[PrerequisiteLLM]) -> str:
     return "\n".join(lines)
 
 
-def _create_generate_with_retry(
-    max_attempts: int, model_name: str, temperature: float
-):
+def _create_generate_with_retry(max_attempts: int, model_name: str, temperature: float):
     """Factory function to create generate function with configurable retry."""
 
     @retry(

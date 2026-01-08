@@ -99,7 +99,8 @@ def is_handwritten(pdf_path: str, threshold: float = 0.15) -> bool:
             )
 
             has_handwriting_font = any(
-                any(kw in f[3].lower() for kw in handwriting_font_keywords) for f in fonts
+                any(kw in f[3].lower() for kw in handwriting_font_keywords)
+                for f in fonts
             )
 
             # A page is "native" (digital text) if:

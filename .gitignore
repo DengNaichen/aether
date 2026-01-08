@@ -144,6 +144,8 @@ Resource/
 !supabase/migrations/*.sql
 !**/migrations/*.sql
 !**/schema/*.sql
+# Local test DB
+tests/test.db
 
 # ===================================================================
 # Supabase
@@ -155,6 +157,8 @@ supabase/.temp
 # Google Cloud / Deployment
 # ===================================================================
 .gcloudignore
+docker/manifest.json
+manifest.json
 
 # ===================================================================
 # Scripts (if they contain sensitive data or are temporary)

@@ -322,4 +322,3 @@ class PDFExtractionService:
             max_concurrency=max_concurrency,
             chunk_type="handwritten chunk",
         )
-

@@ -91,14 +91,10 @@ packages = ["app"]
 
 [dependency-groups]
 dev = [
-    "black>=25.11.0",
+    "pre-commit>=3.5.0",
     "pytest-cov>=7.0.0",
     "ruff>=0.8.0",
 ]
-
-[tool.black]
-line-length = 88
-target-version = ['py312']
 
 [tool.ruff]
 line-length = 88

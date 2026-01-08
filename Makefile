@@ -23,12 +23,9 @@ help:
 	@echo "  build        - Rebuild Docker images"
 	@echo "  logs         - View logs from all services"
 	@echo "  logs-web     - View web server logs only"
-	@echo "  logs-worker  - View worker logs only"
 	@echo ""
 	@echo "Database:"
 	@echo "  init-data    - Initialize development data (course + knowledge graph)"
-	@echo "  db-shell     - Open PostgreSQL shell"
-	@echo "  redis-shell  - Open Redis CLI"
 	@echo ""
 	@echo "Testing:"
 	@echo "  test-up      - Start isolated test database services"
@@ -47,6 +44,17 @@ help:
 	@echo "  gcp-url      - Get the deployed service URL"
 	@echo "  gcp-status   - Check Cloud Run service status"
 	@echo "  deploy-all   - Build and deploy in one command"
+	@echo ""
+	@echo "Code Quality:"
+	@echo "  lint         - Run ruff linter"
+	@echo "  lint-fix     - Run ruff linter and auto-fix"
+	@echo "  format       - Run ruff formatter"
+	@echo "  format-check - Check formatting without fixing"
+	@echo "  quality      - Run all quality checks (lint + format-check)"
+	@echo ""
+	@echo "Pre-commit:"
+	@echo "  pre-commit-install - Install pre-commit hooks"
+	@echo "  pre-commit-run     - Run all hooks on all files"
 	@echo ""
 	@echo "Utilities:"
 	@echo "  shell        - Open bash shell in web container"
@@ -69,6 +77,11 @@ setup:
 
 # Start services
 up:
+	@if [ ! -f .env.local ]; then \
+		echo "❌ Error: .env.local not found!"; \
+		echo "Please run 'make setup' first or create .env.local manually."; \
+		exit 1; \
+	fi
 	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 	@echo "🚀 Starting Aether Learning Platform..."
 	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -81,11 +94,16 @@ up:
 	@echo "💡 Press Ctrl+C to stop services"
 	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 	@echo ""
-	docker-compose up
+	docker-compose up --build
 
 # Start services in background
 up-d:
-	docker-compose up -d
+	@if [ ! -f .env.local ]; then \
+		echo "❌ Error: .env.local not found!"; \
+		echo "Please run 'make setup' first or create .env.local manually."; \
+		exit 1; \
+	fi
+	docker-compose up -d --build
 	@echo ""
 	@echo "✓ Services started in background"
 	@echo "  API docs: http://localhost:8000/docs"
@@ -109,22 +127,6 @@ build:
 logs:
 	docker-compose logs -f
 
-logs-web:
-	docker-compose logs -f web
-
-logs-worker:
-	docker-compose logs -f worker
-
-logs-db:
-	docker-compose logs -f db
-
-# Database shells
-db-shell:
-	docker-compose exec db psql -U aether_user -d aether_db
-
-redis-shell:
-	docker-compose exec redis redis-cli
-
 # Open bash in web container
 shell:
 	docker-compose exec web bash
@@ -135,6 +137,11 @@ shell:
 
 # Start test database services
 test-up:
+	@if [ ! -f .env.test ]; then \
+		echo "❌ Error: .env.test not found!"; \
+		echo "Please create .env.test from .env.example first."; \
+		exit 1; \
+	fi
 	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 	@echo "🧪 Starting isolated test database services..."
 	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -142,7 +149,6 @@ test-up:
 	@echo ""
 	@echo "✓ Test services started:"
 	@echo "  • PostgreSQL:  localhost:5433"
-	@echo "  • Redis:       localhost:6380"
 	@echo ""
 	@echo "Waiting for services to be healthy..."
 	@sleep 5
@@ -157,10 +163,14 @@ test-down:
 
 # Run tests (requires test services to be running)
 test:
+	@if [ ! -f .env.test ]; then \
+		echo "❌ Error: .env.test not found!"; \
+		exit 1; \
+	fi
 	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 	@echo "🧪 Running tests..."
 	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-	uv run pytest
+	ENVIRONMENT=test uv run pytest
 	@echo ""
 	@echo "✓ Tests completed"
 
@@ -191,10 +201,6 @@ test-all:
 test-db-shell:
 	@echo "🔌 Connecting to test PostgreSQL..."
 	docker-compose -f docker-compose.test.yml exec test-db psql -U aether_user -d aether_test_db
-
-test-redis-shell:
-	@echo "🔌 Connecting to test Redis..."
-	docker-compose -f docker-compose.test.yml exec test-redis redis-cli
 
 # Clean test volumes (WARNING: deletes test data!)
 test-clean:
@@ -232,21 +238,49 @@ health:
 	@echo "Checking service health..."
 	@curl -s http://localhost:8000/health | python3 -m json.tool || echo "❌ Service not responding"
 
+# ================================
+# Code Quality & Linting
+# ================================
+
+lint:
+	uv run ruff check .
+
+lint-fix:
+	uv run ruff check --fix .
+
+format:
+	uv run ruff format .
+
+format-check:
+	uv run ruff format --check .
+
+quality: lint format-check
+
+# ================================
+# Pre-commit Hooks
+# ================================
+
+pre-commit-install:
+	uv run pre-commit install
+
+pre-commit-run:
+	uv run pre-commit run --all-files
+
 # Show status of all database containers
 status:
 	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 	@echo "📊 Database Services Status"
 	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 	@echo ""
-	@echo "🔧 Development Databases:"
-	@docker-compose ps --format "table {{.Name}}\t{{.Status}}\t{{.Ports}}" 2>/dev/null | grep -E "db|redis" || echo "  No development databases running"
+	@echo "🔧 Development (Client):"
+	@docker-compose ps --format "table {{.Name}}\t{{.Status}}\t{{.Ports}}" 2>/dev/null || echo "  No development services running"
 	@echo ""
 	@echo "🧪 Test Databases:"
 	@docker-compose -f docker-compose.test.yml ps --format "table {{.Name}}\t{{.Status}}\t{{.Ports}}" 2>/dev/null || echo "  No test databases running"
 	@echo ""
 	@echo "💡 Quick Reference:"
-	@echo "   Development: localhost:5432 (PostgreSQL), localhost:6379 (Redis)"
-	@echo "   Test:        localhost:5433 (PostgreSQL), localhost:6380 (Redis)"
+	@echo "   Development: Uses host machine services (Supabase, local scripts)"
+	@echo "   Test:        localhost:5433 (PostgreSQL)"
 
 # ================================
 # Google Cloud Run Deployment
@@ -404,4 +438,3 @@ gcp-delete:
 	else \
 		echo "Cancelled"; \
 	fi
-

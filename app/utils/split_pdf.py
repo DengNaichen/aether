@@ -83,4 +83,3 @@ def split_pdf(file_path: str, chunk_size: int) -> Iterator[list[str]]:
                     logger.debug(f"Cleaned up temp chunk: {path}")
                 except Exception as cleanup_err:
                     logger.warning(f"Failed to delete temp file {path}: {cleanup_err}")
-

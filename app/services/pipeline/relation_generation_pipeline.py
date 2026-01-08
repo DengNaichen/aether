@@ -82,7 +82,9 @@ class RelationGenerationPipeline:
 
         # Step 1: Read nodes and existing edges from DB
         nodes_db = await node_crud.get_nodes_by_graph(self.db, graph_id)
-        existing_prereqs = await prereq_crud.get_prerequisites_by_graph(self.db, graph_id)
+        existing_prereqs = await prereq_crud.get_prerequisites_by_graph(
+            self.db, graph_id
+        )
 
         if len(nodes_db) < 2:
             logger.warning(f"Graph {graph_id} has less than 2 nodes, skipping")
@@ -163,7 +165,9 @@ class RelationGenerationPipeline:
             nodes_updated, max_level = await validation_service.update_graph_topology(
                 graph_id
             )
-            logger.info(f"Topology updated: {nodes_updated} nodes, max_level={max_level}")
+            logger.info(
+                f"Topology updated: {nodes_updated} nodes, max_level={max_level}"
+            )
 
         return RelationGenerationResult(
             edges_created=edges_created,
@@ -238,9 +242,7 @@ class RelationGenerationPipeline:
             # would create a cycle
             if nx.has_path(graph, target_id, source_id):
                 result.cycle_edges += 1
-                logger.debug(
-                    f"Cycle edge: {edge.source_name} -> {edge.target_name}"
-                )
+                logger.debug(f"Cycle edge: {edge.source_name} -> {edge.target_name}")
                 continue
 
             # Edge is valid - add to graph and result

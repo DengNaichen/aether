@@ -17,7 +17,6 @@ os.environ["ENVIRONMENT"] = "test"
 # Use override=True to ensure test settings override any existing env vars
 load_dotenv(dotenv_path=Path(__file__).parent.parent / ".env.test", override=True)
 
-from redis.asyncio import Redis  # noqa: E402
 
 ROOT_DIR = Path(__file__).parent.parent
 sys.path.insert(0, str(ROOT_DIR))
@@ -35,7 +34,7 @@ from sqlalchemy.ext.asyncio import AsyncSession  # noqa: E402
 # from neo4j import AsyncGraphDatabase, AsyncDriver
 from app.core.config import settings  # noqa: E402
 from app.core.database import DatabaseManager  # noqa: E402
-from app.core.deps import get_db, get_redis_client  # noqa: E402
+from app.core.deps import get_db  # noqa: E402
 
 # from app.core.security import create_access_token, get_password_hash
 # Configure neomodel BEFORE importing app.main (which triggers lifespan)
@@ -120,17 +119,17 @@ async def test_db(
             await session.close()
 
 
-@pytest_asyncio.fixture(scope="function")
-async def test_redis(
-    test_db_manager: DatabaseManager,
-) -> AsyncGenerator[Redis, None]:
-    """
-    provide a redis client for each test function, and clean after
-    """
-    redis_client = test_db_manager.redis_client
-    await redis_client.flushall()
-    yield redis_client
-    await redis_client.flushall()
+# @pytest_asyncio.fixture(scope="function")
+# async def test_redis(
+#     test_db_manager: DatabaseManager,
+# ) -> AsyncGenerator[Redis, None]:
+#     """
+#     provide a redis client for each test function, and clean after
+#     """
+#     redis_client = test_db_manager.redis_client
+#     await redis_client.flushall()
+#     yield redis_client
+#     await redis_client.flushall()
 
 
 @pytest_asyncio.fixture(scope="function")
@@ -140,18 +139,18 @@ async def client(
     def override_get_db() -> AsyncGenerator[AsyncSession, None]:
         yield test_db
 
-    async def override_get_redis_client() -> AsyncGenerator[Redis, None]:
-        yield test_db_manager.redis_client
+    # async def override_get_redis_client() -> AsyncGenerator[Redis, None]:
+    #     yield test_db_manager.redis_client
 
     app.dependency_overrides[get_db] = override_get_db
-    app.dependency_overrides[get_redis_client] = override_get_redis_client
+    # app.dependency_overrides[get_redis_client] = override_get_redis_client
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
         yield ac
 
     del app.dependency_overrides[get_db]
-    del app.dependency_overrides[get_redis_client]
+    # del app.dependency_overrides[get_redis_client]
 
 
 @pytest_asyncio.fixture(scope="function")

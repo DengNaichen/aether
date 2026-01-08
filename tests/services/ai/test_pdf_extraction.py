@@ -11,18 +11,14 @@ class TestPDFExtractionServiceInit:
     """Tests for service initialization."""
 
     def test_init_success(self):
-        with patch(
-            "app.services.ai.pdf_extraction.settings"
-        ) as mock_settings:
+        with patch("app.services.ai.pdf_extraction.settings") as mock_settings:
             mock_settings.GOOGLE_API_KEY = "valid_key"
             service = PDFExtractionService(api_key="valid_key")
             assert service.client is not None
             assert service.model_id == "gemini-2.5-flash-lite"
 
     def test_init_missing_key(self):
-        with patch(
-            "app.services.ai.pdf_extraction.settings"
-        ) as mock_settings:
+        with patch("app.services.ai.pdf_extraction.settings") as mock_settings:
             mock_settings.GOOGLE_API_KEY = None
             with pytest.raises(ValueError, match="GOOGLE_API_KEY is not set"):
                 PDFExtractionService(api_key="")
@@ -185,9 +181,7 @@ class TestPDFExtractionServiceChunking:
             "app.services.ai.pdf_extraction.split_pdf",
             side_effect=mock_split_pdf,
         ):
-            result = await mock_service._extract_text_with_chunking(
-                original, "P", "M"
-            )
+            result = await mock_service._extract_text_with_chunking(original, "P", "M")
 
             # Should have joined 2 results
             assert result == "Content\n\nContent"

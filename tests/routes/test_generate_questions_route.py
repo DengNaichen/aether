@@ -235,10 +235,7 @@ class TestGenerateQuestionsRoute:
             assert response.status_code == status.HTTP_200_OK
 
             call_kwargs = mock_generate.call_args.kwargs
-            assert (
-                "practical applications"
-                in call_kwargs["user_guidance"]
-            )
+            assert "practical applications" in call_kwargs["user_guidance"]
 
     @pytest.mark.asyncio
     async def test_generate_questions_include_nodes_with_questions(

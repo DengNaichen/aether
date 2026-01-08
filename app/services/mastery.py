@@ -26,7 +26,6 @@ logger = logging.getLogger(__name__)
 
 
 class MasteryService:
-
     # === Core Update Flow ===
 
     async def update_mastery_from_grading(

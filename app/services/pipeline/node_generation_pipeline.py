@@ -106,9 +106,7 @@ class NodeGenerationService:
             finally:
                 Path(tmp_path).unlink(missing_ok=True)
 
-            logger.info(
-                f"AI extracted {len(nodes_result.nodes)} nodes"
-            )
+            logger.info(f"AI extracted {len(nodes_result.nodes)} nodes")
 
             # Step 2: Entity resolution - generates embeddings for all nodes
             # This is the unified embedding generation point

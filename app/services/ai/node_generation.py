@@ -158,9 +158,7 @@ def generate_nodes_from_markdown(
 
             graph = extract(client, chunk, chunk_guidance)
             extracted_nodes.extend(graph.nodes)
-            logger.info(
-                f"Chunk {i + 1}: Found {len(graph.nodes)} nodes"
-            )
+            logger.info(f"Chunk {i + 1}: Found {len(graph.nodes)} nodes")
         except Exception as e:
             logger.error(f"Failed to extract from chunk {i + 1}: {e}")
             # Continue with other chunks instead of failing completely?

@@ -45,9 +45,7 @@ async def test_extract_text_uses_handwriting_flag():
     }
 
     await _extract_text(context, extractor)
-    extractor.extract_text_from_formatted_pdf.assert_awaited_once_with(
-        "/tmp/test.pdf"
-    )
+    extractor.extract_text_from_formatted_pdf.assert_awaited_once_with("/tmp/test.pdf")
     assert context["markdown_content"] == "# Digital Content"
 
     context["metadata"]["is_handwritten"] = True

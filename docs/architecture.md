@@ -43,10 +43,10 @@ graph TD
     GraphAPI --> GraphGen
     GraphGen -->|Prompt Engineering| LangChain
     LangChain -->|API Call| Gemini
-    
+
     QuestionAPI --> RecEngine
     RecEngine -->|Get Schedule + Mastery| FSRS
-    
+
     MasteryAPI --> FSRS
 
     %% Database Connections
