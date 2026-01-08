@@ -95,7 +95,7 @@ class TestTemplateFormatting:
         assert user_guidance in formatted
         # Should still contain the core instructions
         assert "KnowledgeNode" in formatted
-        assert "IS_PREREQUISITE_FOR" in formatted
+        assert "Do NOT include relationships" in formatted
 
     def test_graph_gen_system_prompt_empty_guidance(self):
         """Test GRAPH_GEN_SYSTEM_PROMPT works with empty user_guidance."""
@@ -204,11 +204,10 @@ class TestPromptContentQuality:
         for json_block in json_blocks:
             try:
                 parsed = json.loads(json_block)
-                # Should have 'nodes' and 'relationships' keys
+                # Should have 'nodes' key only
                 assert "nodes" in parsed
-                assert "relationships" in parsed
                 assert isinstance(parsed["nodes"], list)
-                assert isinstance(parsed["relationships"], list)
+                assert "relationships" not in parsed
             except json.JSONDecodeError as e:
                 pytest.fail(f"Invalid JSON in few-shot example: {e}\n{json_block}")
 
@@ -263,16 +262,4 @@ class TestPromptContentQuality:
             for node in parsed["nodes"]:
                 assert "name" in node, "Node should have 'name' field"
                 assert "description" in node, "Node should have 'description' field"
-
-            # Check relationships structure
-            for rel in parsed["relationships"]:
-                assert (
-                    "source_name" in rel
-                ), "Relationship should have 'source_name' field"
-                assert (
-                    "target_name" in rel
-                ), "Relationship should have 'target_name' field"
-                assert "label" in rel, "Relationship should have 'label' field"
-                assert (
-                    rel["label"] == "IS_PREREQUISITE_FOR"
-                ), "Label should be 'IS_PREREQUISITE_FOR'"
+            assert "relationships" not in parsed

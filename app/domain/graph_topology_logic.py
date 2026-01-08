@@ -3,17 +3,18 @@ Graph Topology Analysis - Pure functional algorithms for graph analysis.
 
 This module contains all the graph analysis algorithms with NO database dependencies.
 It provides pure functions for:
-- Cycle detection (DFS)
-- Topological sorting (Kahn's algorithm)
+- Cycle detection
+- Topological sorting / level computation
 - Dependency counting
-- Graph structure validation
+- DAG validation
 
-These functions operate on in-memory data structures (adjacency lists).
-Database access should be handled by the service layer.
+These functions operate on in-memory data structures (adjacency lists) and rely on
+networkx for graph operations. Database access should be handled by the service layer.
 """
 
-from collections import defaultdict, deque
 from uuid import UUID
+
+import networkx as nx
 
 
 class GraphTopologyLogic:
@@ -23,62 +24,12 @@ class GraphTopologyLogic:
     """
 
     @staticmethod
-    def has_path_dfs(
-        adj_list: dict[UUID, list[UUID]], start: UUID, target: UUID
-    ) -> bool:
-        """
-        Check if there's a path from start to target using Depth-First Search.
-
-        Args:
-            adj_list: Adjacency list representation {node_id: [neighbor_ids]}
-            start: Starting node UUID
-            target: Target node UUID
-
-        Returns:
-            True if a path exists from start to target, False otherwise
-
-        Time Complexity: O(V + E) where V = vertices, E = edges
-        Space Complexity: O(V) for visited set and stack
-
-        Example:
-            >>> adj = {1: [2, 3], 2: [4], 3: [4], 4: []}
-            >>> has_path_dfs(adj, 1, 4)  # True (path: 1->2->4)
-            >>> has_path_dfs(adj, 4, 1)  # False (no backward path)
-        """
-        if start == target:
-            return True
-
-        visited: set[UUID] = set()
-        stack = [start]
-
-        while stack:
-            node = stack.pop()
-
-            if node == target:
-                return True
-
-            if node in visited:
-                continue
-
-            visited.add(node)
-
-            # Add all unvisited neighbors to stack
-            for neighbor in adj_list.get(node, []):
-                if neighbor not in visited:
-                    stack.append(neighbor)
-
-        return False
-
-    @staticmethod
     def detect_cycle_with_new_edge(
         adj_list: dict[UUID, list[UUID]], from_node: UUID, to_node: UUID
     ) -> bool:
         """
-        Detect if adding a new edge would create a cycle in a directed graph.
-
-        Strategy:
-        - If there's already a path from to_node to from_node,
-          then adding from_node -> to_node would create a cycle.
+        Detect if adding a new edge would create a cycle in a directed graph by
+        adding the edge to a DiGraph and checking DAG validity.
 
         Args:
             adj_list: Current adjacency list (without the new edge)
@@ -97,16 +48,18 @@ class GraphTopologyLogic:
         if from_node == to_node:
             return True
 
-        # Check if there's a path from to_node back to from_node
-        # If yes, adding from_node -> to_node would close the cycle
-        return GraphTopologyLogic.has_path_dfs(adj_list, to_node, from_node)
+        graph = GraphTopologyLogic._build_graph(adj_list)
+        graph.add_edge(from_node, to_node)
+
+        # If resulting graph is no longer a DAG, the new edge introduces a cycle
+        return not nx.is_directed_acyclic_graph(graph)
 
     @staticmethod
     def topological_sort_with_levels(
         nodes: set[UUID], adj_list: dict[UUID, list[UUID]]
     ) -> dict[UUID, int]:
         """
-        Compute topological levels for all nodes using Kahn's algorithm.
+        Compute topological levels for all nodes using networkx.topological_generations.
 
         Level Definition:
         - Level 0: Nodes with no incoming edges (no prerequisites)
@@ -123,9 +76,6 @@ class GraphTopologyLogic:
         Raises:
             ValueError: If the graph contains a cycle (DAG requirement violated)
 
-        Time Complexity: O(V + E)
-        Space Complexity: O(V)
-
         Example:
             >>> nodes = {1, 2, 3, 4}
             >>> adj = {1: [2, 3], 2: [4], 3: [4], 4: []}
@@ -135,47 +85,23 @@ class GraphTopologyLogic:
         if not nodes:
             return {}
 
-        # Build in-degree map (count incoming edges for each node)
-        in_degree: dict[UUID, int] = dict.fromkeys(nodes, 0)
+        graph = GraphTopologyLogic._build_graph(adj_list, nodes)
 
-        for _source, targets in adj_list.items():
-            for target in targets:
-                if target in in_degree:  # Only count if target is in our node set
-                    in_degree[target] += 1
-
-        # Initialize queue with nodes that have no incoming edges (level 0)
-        queue = deque()
-        for node, degree in in_degree.items():
-            if degree == 0:
-                queue.append((node, 0))  # (node_id, level)
-
-        # Process nodes level by level using Kahn's algorithm
         levels: dict[UUID, int] = {}
-        processed_count = 0
+        try:
+            generations = nx.topological_generations(graph)
+            for level, generation in enumerate(generations):
+                for node in generation:
+                    levels[node] = level
+        except nx.NetworkXUnfeasible as exc:
+            raise ValueError("Graph contains a cycle") from exc
 
-        while queue:
-            node, level = queue.popleft()
-            levels[node] = level
-            processed_count += 1
-
-            # Process all nodes that depend on the current node
-            for dependent in adj_list.get(node, []):
-                if dependent not in in_degree:
-                    continue  # Skip if not in our node set
-
-                in_degree[dependent] -= 1
-
-                # If all prerequisites are processed, this node is ready
-                if in_degree[dependent] == 0:
-                    # Its level = max(prerequisite_levels) + 1
-                    queue.append((dependent, level + 1))
-
-        # Cycle detection: if we couldn't process all nodes, there's a cycle
-        if processed_count != len(nodes):
-            unprocessed = nodes - set(levels.keys())
+        # Safety check: all nodes should be covered
+        if len(levels) != len(nodes):
+            missing = nodes - set(levels.keys())
             raise ValueError(
-                f"Graph contains a cycle. Could not process {len(unprocessed)} nodes. "
-                f"Affected nodes: {list(unprocessed)[:5]}..."  # Show first 5
+                f"Graph contains a cycle. Could not process {len(missing)} nodes. "
+                f"Affected nodes: {list(missing)[:5]}..."
             )
 
         return levels
@@ -185,7 +111,7 @@ class GraphTopologyLogic:
         nodes: set[UUID], adj_list: dict[UUID, list[UUID]]
     ) -> dict[UUID, int]:
         """
-        Compute out-degree (number of outgoing edges) for each node.
+        Compute out-degree (number of outgoing edges) for each node via DiGraph.out_degree.
 
         For prerequisite graphs, this represents "dependents count" -
         how many nodes depend on this node as a prerequisite.
@@ -203,20 +129,18 @@ class GraphTopologyLogic:
             >>> degrees = compute_out_degree(nodes, adj)
             >>> # Result: {1: 2, 2: 1, 3: 0, 4: 0}
         """
-        out_degree: dict[UUID, int] = dict.fromkeys(nodes, 0)
+        if not nodes:
+            return {}
 
-        for source, targets in adj_list.items():
-            if source in out_degree:
-                out_degree[source] = len(targets)
-
-        return out_degree
+        graph = GraphTopologyLogic._build_graph(adj_list, nodes)
+        return {node: graph.out_degree(node) for node in nodes}
 
     @staticmethod
     def find_orphaned_nodes(
         nodes: set[UUID], adj_list: dict[UUID, list[UUID]]
     ) -> set[UUID]:
         """
-        Find nodes with no incoming or outgoing edges (isolated nodes).
+        Find nodes with no incoming or outgoing edges (isolated nodes) via graph degree.
 
         Args:
             nodes: Set of all node UUIDs
@@ -231,22 +155,11 @@ class GraphTopologyLogic:
             >>> find_orphaned_nodes(nodes, adj)
             >>> # Result: {4, 5}
         """
-        # Build reverse adjacency list (incoming edges)
-        reverse_adj: dict[UUID, list[UUID]] = defaultdict(list)
-        for source, targets in adj_list.items():
-            for target in targets:
-                reverse_adj[target].append(source)
+        if not nodes:
+            return set()
 
-        # Node is orphaned if it has no incoming AND no outgoing edges
-        orphaned = set()
-        for node in nodes:
-            has_incoming = node in reverse_adj and len(reverse_adj[node]) > 0
-            has_outgoing = node in adj_list and len(adj_list[node]) > 0
-
-            if not has_incoming and not has_outgoing:
-                orphaned.add(node)
-
-        return orphaned
+        graph = GraphTopologyLogic._build_graph(adj_list, nodes)
+        return {node for node in nodes if graph.degree(node) == 0}
 
     @staticmethod
     def validate_dag_structure(
@@ -296,3 +209,28 @@ class GraphTopologyLogic:
             errors.append(str(e))
 
         return (len(errors) == 0, errors)
+
+    @staticmethod
+    def _build_graph(
+        adj_list: dict[UUID, list[UUID]], nodes: set[UUID] | None = None
+    ) -> nx.DiGraph:
+        """
+        Build a directed graph from adjacency list, optionally constrained to a node set.
+        """
+        graph = nx.DiGraph()
+
+        if nodes:
+            # Pre-add nodes to include isolated ones not present in the adj_list.
+            graph.add_nodes_from(nodes)
+
+        for source, targets in adj_list.items():
+            # If a node set is provided, only process sources within that set.
+            if nodes and source not in nodes:
+                continue
+            for target in targets:
+                # If a node set is provided, only add edges where the target is also in the set.
+                if nodes and target not in nodes:
+                    continue
+                graph.add_edge(source, target)
+
+        return graph

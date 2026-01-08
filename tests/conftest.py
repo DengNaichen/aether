@@ -1,7 +1,7 @@
 # import asyncio
 import os
 import sys
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
 # import uuid
 from pathlib import Path
@@ -48,7 +48,8 @@ from app.models.base import Base  # noqa: E402
 from app.models.enrollment import GraphEnrollment  # noqa: E402
 from app.models.knowledge_graph import KnowledgeGraph  # noqa: E402
 from app.models.user import User  # noqa: E402
-from app.schemas.knowledge_node import RelationType  # noqa: E402
+
+# from app.schemas.knowledge_node import RelationType  # noqa: E402
 
 # --- test constant ---
 TEST_USER_NAME = "test user conf"
@@ -67,7 +68,7 @@ TARGET_KNOWLEDGE_NODE_DESCRIPTION = "target test node description"
 SOURCE_KNOWLEDGE_NODE_ID = "source_test_node"
 SOURCE_KNOWLEDGE_NODE_NAME = "source test node"
 SOURCE_KNOWLEDGE_NODE_DESCRIPTION = "source test node description"
-TEST_RELATION = RelationType.HAS_PREREQUISITES  # Changed from HAS_SUBTOPIC
+# TEST_RELATION = RelationType.HAS_PREREQUISITES  # Changed from HAS_SUBTOPIC
 
 
 def create_access_token(subject: Any, expires_delta: timedelta | None = None) -> str:
@@ -76,9 +77,9 @@ def create_access_token(subject: Any, expires_delta: timedelta | None = None) ->
     Simulates a Supabase token.
     """
     if expires_delta:
-        expire = datetime.utcnow() + expires_delta
+        expire = datetime.now(UTC) + expires_delta
     else:
-        expire = datetime.utcnow() + timedelta(minutes=15)
+        expire = datetime.now(UTC) + timedelta(minutes=15)
 
     # Supabase tokens usually use "sub" for user ID
     to_encode = {
@@ -319,14 +320,10 @@ async def private_graph_with_few_nodes_and_relations_in_db(
     for prereq in prerequisites:
         await test_db.refresh(prereq)
 
-    # Subtopic relationships removed - using tags instead
-    subtopics = []  # Keep empty list for backward compatibility
-
     return {
         "graph": graph,
         "nodes": nodes,
         "prerequisites": prerequisites,
-        "subtopics": subtopics,  # Empty list
     }
 
 

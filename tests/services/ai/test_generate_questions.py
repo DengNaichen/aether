@@ -15,7 +15,7 @@ from uuid import uuid4
 
 import pytest
 
-from app.services.ai_services.generate_questions import (
+from app.services.ai.question_generation import (
     GeneratedQuestionLLM,
     MissingAPIKeyError,
     PipelineConfig,
@@ -104,7 +104,7 @@ class TestLLMInitialization:
 
     def test_get_llm_missing_api_key(self, monkeypatch):
         """Test that MissingAPIKeyError is raised when API key is not set."""
-        from app.services.ai_services import generate_questions as gq_module
+        from app.services.ai import question_generation as gq_module
 
         monkeypatch.setattr(gq_module.settings, "GOOGLE_API_KEY", "", raising=False)
 
@@ -221,10 +221,10 @@ class TestGenerateQuestionsForNode:
         """Test successful question generation."""
         with (
             patch(
-                "app.services.ai_services.generate_questions._get_llm"
+                "app.services.ai.question_generation._get_llm"
             ) as mock_get_llm,
             patch(
-                "app.services.ai_services.generate_questions._create_generate_with_retry"
+                "app.services.ai.question_generation._create_generate_with_retry"
             ) as mock_create_retry,
         ):
             mock_generate = MagicMock(return_value=sample_question_batch)
@@ -244,10 +244,10 @@ class TestGenerateQuestionsForNode:
         """Test question generation with custom difficulty distribution."""
         with (
             patch(
-                "app.services.ai_services.generate_questions._get_llm"
+                "app.services.ai.question_generation._get_llm"
             ),
             patch(
-                "app.services.ai_services.generate_questions._create_generate_with_retry"
+                "app.services.ai.question_generation._create_generate_with_retry"
             ) as mock_create_retry,
         ):
             mock_generate = MagicMock(return_value=sample_question_batch)
@@ -268,10 +268,10 @@ class TestGenerateQuestionsForNode:
         """Test question generation with specific question types."""
         with (
             patch(
-                "app.services.ai_services.generate_questions._get_llm"
+                "app.services.ai.question_generation._get_llm"
             ),
             patch(
-                "app.services.ai_services.generate_questions._create_generate_with_retry"
+                "app.services.ai.question_generation._create_generate_with_retry"
             ) as mock_create_retry,
         ):
             mock_generate = MagicMock(return_value=sample_question_batch)
@@ -291,10 +291,10 @@ class TestGenerateQuestionsForNode:
         """Test that LLM failure returns None."""
         with (
             patch(
-                "app.services.ai_services.generate_questions._get_llm"
+                "app.services.ai.question_generation._get_llm"
             ),
             patch(
-                "app.services.ai_services.generate_questions._create_generate_with_retry"
+                "app.services.ai.question_generation._create_generate_with_retry"
             ) as mock_create_retry,
         ):
             mock_generate = MagicMock(side_effect=Exception("LLM Error"))
@@ -323,10 +323,10 @@ class TestGenerateQuestionsForNodes:
 
         with (
             patch(
-                "app.services.ai_services.generate_questions._get_llm"
+                "app.services.ai.question_generation._get_llm"
             ),
             patch(
-                "app.services.ai_services.generate_questions._create_generate_with_retry"
+                "app.services.ai.question_generation._create_generate_with_retry"
             ) as mock_create_retry,
         ):
             mock_generate = MagicMock(return_value=sample_question_batch)
@@ -349,10 +349,10 @@ class TestGenerateQuestionsForNodes:
 
         with (
             patch(
-                "app.services.ai_services.generate_questions._get_llm"
+                "app.services.ai.question_generation._get_llm"
             ),
             patch(
-                "app.services.ai_services.generate_questions._create_generate_with_retry"
+                "app.services.ai.question_generation._create_generate_with_retry"
             ) as mock_create_retry,
         ):
             mock_generate = MagicMock(return_value=sample_question_batch)
@@ -388,10 +388,10 @@ class TestGenerateQuestionsForNodes:
 
         with (
             patch(
-                "app.services.ai_services.generate_questions._get_llm"
+                "app.services.ai.question_generation._get_llm"
             ),
             patch(
-                "app.services.ai_services.generate_questions._create_generate_with_retry"
+                "app.services.ai.question_generation._create_generate_with_retry"
             ) as mock_create_retry,
         ):
             mock_create_retry.return_value = mock_generate_func
@@ -416,7 +416,7 @@ class TestGenerateQuestionsForGraph:
     @pytest.mark.asyncio
     async def test_generate_questions_for_graph_no_nodes(self):
         """Test that empty stats are returned when graph has no nodes."""
-        from app.services.ai_services.generate_questions import (
+        from app.services.ai.question_generation import (
             generate_questions_for_graph,
         )
 
@@ -440,7 +440,7 @@ class TestGenerateQuestionsForGraph:
     @pytest.mark.asyncio
     async def test_generate_questions_for_graph_success(self, sample_question_batch):
         """Test successful question generation for a graph."""
-        from app.services.ai_services.generate_questions import (
+        from app.services.ai.question_generation import (
             MultiNodeQuestionBatchLLM,
             NodeQuestionBatchLLM,
             generate_questions_for_graph,
@@ -476,7 +476,7 @@ class TestGenerateQuestionsForGraph:
             patch("app.crud.question.get_questions_by_graph") as mock_get_questions,
             patch("app.crud.question.bulk_create_questions") as mock_bulk_create,
             patch(
-                "app.services.ai_services.generate_questions.generate_questions_for_nodes_batch"
+                "app.services.ai.question_generation.generate_questions_for_nodes_batch"
             ) as mock_batch_gen,
         ):
             mock_db_manager.get_sql_session.return_value = mock_context_manager
@@ -496,7 +496,7 @@ class TestGenerateQuestionsForGraph:
         self, sample_question_batch
     ):
         """Test that nodes with existing questions are skipped."""
-        from app.services.ai_services.generate_questions import (
+        from app.services.ai.question_generation import (
             MultiNodeQuestionBatchLLM,
             NodeQuestionBatchLLM,
             generate_questions_for_graph,
@@ -542,7 +542,7 @@ class TestGenerateQuestionsForGraph:
             patch("app.crud.question.get_questions_by_graph") as mock_get_questions,
             patch("app.crud.question.bulk_create_questions") as mock_bulk_create,
             patch(
-                "app.services.ai_services.generate_questions.generate_questions_for_nodes_batch"
+                "app.services.ai.question_generation.generate_questions_for_nodes_batch"
             ) as mock_batch_gen,
         ):
             mock_db_manager.get_sql_session.return_value = mock_context_manager
@@ -571,7 +571,7 @@ class TestGenerateQuestionsForGraph:
         self, sample_question_batch
     ):
         """Test that nodes without description are skipped."""
-        from app.services.ai_services.generate_questions import (
+        from app.services.ai.question_generation import (
             generate_questions_for_graph,
         )
 
@@ -593,7 +593,7 @@ class TestGenerateQuestionsForGraph:
             patch("app.crud.knowledge_node.get_nodes_by_graph") as mock_get_nodes,
             patch("app.crud.question.get_questions_by_graph") as mock_get_questions,
             patch(
-                "app.services.ai_services.generate_questions.generate_questions_for_nodes_batch"
+                "app.services.ai.question_generation.generate_questions_for_nodes_batch"
             ) as mock_batch_gen,
         ):
             mock_db_manager.get_sql_session.return_value = mock_context_manager

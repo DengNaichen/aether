@@ -4,7 +4,7 @@ from app.core.config import settings
 from app.crud import knowledge_node
 from app.models.knowledge_graph import KnowledgeGraph
 from app.models.knowledge_node import KnowledgeNode
-from app.services.ai_services.embedding import EmbeddingService
+from app.services.ai.embedding import EmbeddingService
 
 
 def _vec(val: float = 0.05) -> list[float]:

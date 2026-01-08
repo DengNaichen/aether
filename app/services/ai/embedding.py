@@ -20,6 +20,7 @@ from tenacity import retry, stop_after_attempt, wait_exponential
 from app.core.config import settings
 from app.crud import knowledge_node
 from app.models.knowledge_node import KnowledgeNode
+from app.schemas.knowledge_node import KnowledgeNodeLLM, KnowledgeNodeWithEmbedding
 
 logger = logging.getLogger(__name__)
 
@@ -96,10 +97,29 @@ class EmbeddingService:
             "model": self.model_name,
         }
 
+    async def embed_nodes(
+        self, nodes: list[KnowledgeNodeLLM]
+    ) -> list[KnowledgeNodeWithEmbedding]:
+        """Generate embeddings for new nodes without persisting them."""
+        nodes_with_embeddings: list[KnowledgeNodeWithEmbedding] = []
+        for node in nodes:
+            content = self._build_content_from_parts(node.name, node.description)
+            embedding = await self._embed_text(content)
+            nodes_with_embeddings.append(
+                KnowledgeNodeWithEmbedding.from_llm_node(node, embedding)
+            )
+        return nodes_with_embeddings
+
     def _build_content(self, node: KnowledgeNode) -> str:
-        parts = [node.node_name or ""]
-        if node.description:
-            parts.append(node.description)
+        return self._build_content_from_parts(node.node_name, node.description)
+
+    @staticmethod
+    def _build_content_from_parts(
+        name: str | None, description: str | None
+    ) -> str:
+        parts = [name or ""]
+        if description:
+            parts.append(description)
         text = "\n\n".join(part.strip() for part in parts if part)
         return text.strip()
 
@@ -115,7 +135,6 @@ class EmbeddingService:
         reraise=True,
     )
     def _embed_text_sync(self, text: str) -> list[float]:
-        # LlamaIndex handles all the API complexity
         embedding = self.embed_model.get_text_embedding(text)
 
         # Ensure we return a list[float]

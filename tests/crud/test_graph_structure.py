@@ -133,7 +133,6 @@ class TestGetGraphVisualization:
         graph = private_graph_with_few_nodes_and_relations_in_db["graph"]
         nodes = private_graph_with_few_nodes_and_relations_in_db["nodes"]
         prereqs = private_graph_with_few_nodes_and_relations_in_db["prerequisites"]
-        subtopics = private_graph_with_few_nodes_and_relations_in_db["subtopics"]
 
         result = await get_graph_visualization(test_db, graph.id, user_in_db.id)
 
@@ -142,10 +141,8 @@ class TestGetGraphVisualization:
 
         # Check edges count
         prereq_edges = [e for e in result.edges if e.type == "IS_PREREQUISITE_FOR"]
-        subtopic_edges = [e for e in result.edges if e.type == "HAS_SUBTOPIC"]
 
         assert len(prereq_edges) == len(prereqs)
-        assert len(subtopic_edges) == len(subtopics)
 
     @pytest.mark.asyncio
     async def test_node_includes_all_fields(
