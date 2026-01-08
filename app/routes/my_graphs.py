@@ -466,7 +466,9 @@ async def upload_file(
     has_existing_data = result.scalar_one_or_none() is not None
 
     # Enable incremental mode with entity resolution
-    incremental = True  # Always use incremental mode (entity resolution handles deduplication)
+    incremental = (
+        True  # Always use incremental mode (entity resolution handles deduplication)
+    )
 
     if has_existing_data:
         logger.info(
@@ -613,7 +615,10 @@ async def generate_questions(
         return stats
 
     except Exception as e:
-        logger.error(f"Question generation failed for graph {knowledge_graph.id}: {e}", exc_info=True)
+        logger.error(
+            f"Question generation failed for graph {knowledge_graph.id}: {e}",
+            exc_info=True,
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Question generation failed: {str(e)}",

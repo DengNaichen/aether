@@ -23,16 +23,17 @@ from app.services.ai.entity_resolution import EntityResolutionService
 def _vec(val: float = 0.5) -> list[float]:
     """Helper to create a test embedding vector with variation."""
     import numpy as np
+
     # Create distinct vectors based on val
     # Use different patterns for different values to ensure low similarity
     if val < 0.5:
         # Low values: concentrate in first half
         vector = np.zeros(settings.GEMINI_EMBEDDING_DIM)
-        vector[:settings.GEMINI_EMBEDDING_DIM//2] = val
+        vector[: settings.GEMINI_EMBEDDING_DIM // 2] = val
     else:
         # High values: concentrate in second half
         vector = np.zeros(settings.GEMINI_EMBEDDING_DIM)
-        vector[settings.GEMINI_EMBEDDING_DIM//2:] = val
+        vector[settings.GEMINI_EMBEDDING_DIM // 2 :] = val
 
     # Normalize to unit length
     norm = np.linalg.norm(vector)
@@ -76,7 +77,7 @@ async def test_resolve_entities_exact_duplicate(test_db, user_in_db):
     async def mock_embed_text(text: str):
         return _vec(0.8)  # Same as existing node
 
-    with patch.object(service.embedding_service, '_embed_text', new=mock_embed_text):
+    with patch.object(service.embedding_service, "_embed_text", new=mock_embed_text):
         result = await service.resolve_entities(graph.id, new_nodes)
 
     # Should detect as duplicate
@@ -118,7 +119,7 @@ async def test_resolve_entities_high_similarity(test_db, user_in_db):
     async def mock_embed_text(text: str):
         return _vec(0.82)  # Slightly different, but high cosine similarity
 
-    with patch.object(service.embedding_service, '_embed_text', new=mock_embed_text):
+    with patch.object(service.embedding_service, "_embed_text", new=mock_embed_text):
         result = await service.resolve_entities(graph.id, new_nodes)
 
     # Should detect as duplicate (similarity will be high due to similar vectors)
@@ -160,7 +161,7 @@ async def test_resolve_entities_low_similarity(test_db, user_in_db):
     async def mock_embed_text(text: str):
         return _vec(0.9)  # Very different from 0.2
 
-    with patch.object(service.embedding_service, '_embed_text', new=mock_embed_text):
+    with patch.object(service.embedding_service, "_embed_text", new=mock_embed_text):
         result = await service.resolve_entities(graph.id, new_nodes)
 
     # Should NOT detect as duplicate
@@ -274,7 +275,7 @@ async def test_resolve_entities_multiple_candidates(test_db, user_in_db):
     async def mock_embed_text(text: str):
         return _vec(0.85)  # Also high value, should match node_2
 
-    with patch.object(service.embedding_service, '_embed_text', new=mock_embed_text):
+    with patch.object(service.embedding_service, "_embed_text", new=mock_embed_text):
         result = await service.resolve_entities(graph.id, new_nodes)
 
     # Should match to node_2 (higher similarity)

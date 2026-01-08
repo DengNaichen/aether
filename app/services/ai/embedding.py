@@ -114,9 +114,7 @@ class EmbeddingService:
         return self._build_content_from_parts(node.node_name, node.description)
 
     @staticmethod
-    def _build_content_from_parts(
-        name: str | None, description: str | None
-    ) -> str:
+    def _build_content_from_parts(name: str | None, description: str | None) -> str:
         parts = [name or ""]
         if description:
             parts.append(description)

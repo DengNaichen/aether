@@ -276,4 +276,3 @@ A concept A is a PREREQUISITE for concept B if:
 Return a JSON object with a "prerequisites" field containing a list of new relationships.
 Each relationship has: source_name (prerequisite), target_name (dependent concept), weight (0.0-1.0, default 1.0).
 """
-

@@ -97,7 +97,6 @@ class MultiNodeQuestionBatchLLM(BaseModel):
     )
 
 
-
 # ==================== Pipeline Configuration ====================
 
 
@@ -356,16 +355,17 @@ def generate_questions_for_nodes_batch(
         return None
 
     # Filter out invalid nodes
-    valid_nodes = [
-        n for n in nodes
-        if n.get("name") and n.get("description")
-    ]
+    valid_nodes = [n for n in nodes if n.get("name") and n.get("description")]
 
     if not valid_nodes:
-        logger.warning("No valid nodes (with name and description) for batch generation")
+        logger.warning(
+            "No valid nodes (with name and description) for batch generation"
+        )
         return None
 
-    logger.info(f"Batch generating questions for {len(valid_nodes)} nodes in ONE LLM call")
+    logger.info(
+        f"Batch generating questions for {len(valid_nodes)} nodes in ONE LLM call"
+    )
 
     # Build difficulty instruction
     if difficulty_distribution:
@@ -385,10 +385,12 @@ def generate_questions_for_nodes_batch(
         type_str = f"\nPreferred question types: {', '.join(question_types)}"
 
     # Build the batch prompt with all nodes
-    nodes_description = "\n\n".join([
-        f"Node {i+1}: {node['name']}\nDescription: {node['description']}"
-        for i, node in enumerate(valid_nodes)
-    ])
+    nodes_description = "\n\n".join(
+        [
+            f"Node {i + 1}: {node['name']}\nDescription: {node['description']}"
+            for i, node in enumerate(valid_nodes)
+        ]
+    )
 
     formatted_system_prompt = QUESTION_GEN_SYSTEM_PROMPT.format(
         user_guidance=(
@@ -591,7 +593,9 @@ async def generate_questions_for_graph(
             logger.info("No valid nodes to process")
             return stats
 
-        logger.info(f"🚀 Batch generating questions for {len(valid_nodes)} nodes in ONE LLM call")
+        logger.info(
+            f"🚀 Batch generating questions for {len(valid_nodes)} nodes in ONE LLM call"
+        )
 
         try:
             # Use batch generation - ONE LLM call for all nodes!
@@ -618,7 +622,9 @@ async def generate_questions_for_graph(
 
                 # Find the corresponding node
                 if node_name not in node_map:
-                    logger.warning(f"LLM returned questions for unknown node: {node_name}")
+                    logger.warning(
+                        f"LLM returned questions for unknown node: {node_name}"
+                    )
                     stats["errors"].append(f"Unknown node in batch result: {node_name}")
                     continue
 
@@ -647,16 +653,10 @@ async def generate_questions_for_graph(
                             db_session, graph_uuid, node_questions_data
                         )
                         stats["questions_saved"] += saved
-                        logger.info(
-                            f"✅ Saved {saved} questions for node: {node_name}"
-                        )
+                        logger.info(f"✅ Saved {saved} questions for node: {node_name}")
                     except Exception as e:
-                        stats["errors"].append(
-                            f"Save error for {node_name}: {e}"
-                        )
-                        logger.error(
-                            f"Failed to save questions for {node_name}: {e}"
-                        )
+                        stats["errors"].append(f"Save error for {node_name}: {e}")
+                        logger.error(f"Failed to save questions for {node_name}: {e}")
 
         except Exception as e:
             logger.error(f"Batch generation failed: {e}")

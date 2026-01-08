@@ -1,6 +1,7 @@
 """
 Graph generation response schema.
 """
+
 from pydantic import BaseModel, Field
 
 
@@ -26,9 +27,6 @@ class RelationGenerationResponse(BaseModel):
     bad_edges: int = Field(..., description="Edges with invalid node references")
     duplicate_edges: int = Field(..., description="Edges that already exist")
     cycle_edges: int = Field(..., description="Edges that would create cycles")
-    nodes_updated: int = Field(
-        ..., description="Number of nodes with updated topology"
-    )
+    nodes_updated: int = Field(..., description="Number of nodes with updated topology")
     max_level: int = Field(..., description="Maximum topological level in the graph")
     message: str = Field(..., description="Success message")
-

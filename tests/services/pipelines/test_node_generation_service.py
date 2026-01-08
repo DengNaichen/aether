@@ -21,9 +21,7 @@ from app.services.pipeline.node_generation_pipeline import NodeGenerationService
 
 
 @pytest.mark.asyncio
-async def test_create_node_from_markdown_persists_nodes(
-    test_db, private_graph_in_db
-):
+async def test_create_node_from_markdown_persists_nodes(test_db, private_graph_in_db):
     """Test creating nodes from markdown with persistence."""
     service = NodeGenerationService(test_db)
 

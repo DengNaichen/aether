@@ -24,24 +24,6 @@ services:
       retries: 5
     restart: unless-stopped
 
-  # Test Redis
-  # Runs on different port (6380) to avoid conflicts with development Redis
-  test-redis:
-    image: redis:7-alpine
-    container_name: aether-test-redis
-    ports:
-      - "6380:6379"  # External: 6380, Internal: 6379
-    volumes:
-      - test_redis_data:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 3s
-      retries: 5
-    restart: unless-stopped
-
 volumes:
   test_postgres_data:
     name: aether_test_postgres_data
-  test_redis_data:
-    name: aether_test_redis_data

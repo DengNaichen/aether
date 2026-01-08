@@ -14,13 +14,16 @@ from app.services.enrollment import EnrollmentService
 def mock_check_enrollment(mocker):
     return mocker.patch("app.services.enrollment.check_existing_enrollment")
 
+
 @pytest.fixture
 def mock_create_enrollment(mocker):
     return mocker.patch("app.services.enrollment.create_enrollment")
 
+
 @pytest.fixture
 def enrollment_service():
     return EnrollmentService()
+
 
 @pytest.fixture
 def mock_db_session():
@@ -29,6 +32,7 @@ def mock_db_session():
     session.rollback = AsyncMock()
     session.refresh = AsyncMock()
     return session
+
 
 @pytest.mark.asyncio
 async def test_enroll_user_in_graph_success(
@@ -44,7 +48,9 @@ async def test_enroll_user_in_graph_success(
 
     mock_check_enrollment.return_value = None
 
-    expected_enrollment = GraphEnrollment(id=uuid4(), user_id=user_id, graph_id=graph_id)
+    expected_enrollment = GraphEnrollment(
+        id=uuid4(), user_id=user_id, graph_id=graph_id
+    )
     mock_create_enrollment.return_value = expected_enrollment
 
     # Execute
@@ -66,6 +72,7 @@ async def test_enroll_user_in_graph_success(
     mock_db_session.refresh.assert_called_once_with(expected_enrollment)
     mock_db_session.rollback.assert_not_called()
 
+
 @pytest.mark.asyncio
 async def test_enroll_user_in_graph_conflict(
     enrollment_service,
@@ -79,7 +86,9 @@ async def test_enroll_user_in_graph_conflict(
     graph = KnowledgeGraph(id=graph_id, enrollment_count=0)
 
     # Simulate existing enrollment
-    existing_enrollment = GraphEnrollment(id=uuid4(), user_id=user_id, graph_id=graph_id)
+    existing_enrollment = GraphEnrollment(
+        id=uuid4(), user_id=user_id, graph_id=graph_id
+    )
     mock_check_enrollment.return_value = existing_enrollment
 
     # Execute & Verify
@@ -94,6 +103,7 @@ async def test_enroll_user_in_graph_conflict(
     mock_check_enrollment.assert_called_once()
     mock_create_enrollment.assert_not_called()
     mock_db_session.commit.assert_not_called()
+
 
 @pytest.mark.asyncio
 async def test_enroll_user_in_graph_transaction_failure(
@@ -127,6 +137,7 @@ async def test_enroll_user_in_graph_transaction_failure(
     # So if create_enrollment fails, count is not incremented.
     assert graph.enrollment_count == 0
 
+
 @pytest.mark.asyncio
 async def test_enroll_user_in_graph_commit_failure(
     enrollment_service,
@@ -158,6 +169,7 @@ async def test_enroll_user_in_graph_commit_failure(
     mock_db_session.commit.assert_called_once()
     mock_db_session.rollback.assert_called_once()
 
+
 @pytest.mark.asyncio
 async def test_enroll_user_in_graph_refresh_failure(
     enrollment_service,
@@ -187,6 +199,7 @@ async def test_enroll_user_in_graph_refresh_failure(
     mock_db_session.commit.assert_called_once()
     mock_db_session.refresh.assert_called_once()
     mock_db_session.rollback.assert_called_once()
+
 
 @pytest.mark.asyncio
 async def test_enroll_user_in_graph_check_failure(

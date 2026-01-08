@@ -146,7 +146,8 @@ class EntityResolutionService:
 
         # 7. Filter out duplicates from the result
         filtered_nodes = [
-            node for i, node in enumerate(nodes_with_embeddings)
+            node
+            for i, node in enumerate(nodes_with_embeddings)
             if i not in duplicate_indices
         ]
 

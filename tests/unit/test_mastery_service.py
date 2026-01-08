@@ -18,19 +18,23 @@ def mock_mastery_crud(mocker):
     mock = mocker.patch("app.services.mastery.mastery_crud")
     return mock
 
+
 @pytest.fixture
 def mock_question_crud(mocker):
     mock = mocker.patch("app.services.mastery.question_crud")
     return mock
+
 
 @pytest.fixture
 def mock_mastery_logic(mocker):
     mock = mocker.patch("app.services.mastery.MasteryLogic")
     return mock
 
+
 @pytest.fixture
 def mastery_service():
     return MasteryService()
+
 
 @pytest.fixture
 def mock_db_session():
@@ -44,6 +48,7 @@ def mock_db_session():
     # Sync methods (add is sync in sqlalchemy)
     session.add = MagicMock()
     return session
+
 
 @pytest.mark.asyncio
 async def test_update_mastery_from_grading_success(
@@ -63,18 +68,15 @@ async def test_update_mastery_from_grading_success(
     grading_result = GradingResult(
         question_id=str(question_id),
         is_correct=True,
-        correct_answer="Paris", # Dummy answer
+        correct_answer="Paris",  # Dummy answer
         p_g=0.5,
-        p_s=0.2
+        p_s=0.2,
     )
 
     mock_question = Question(id=question_id, graph_id=graph_id, node_id=node_id)
     mock_node = KnowledgeNode(id=node_id, graph_id=graph_id)
     mock_mastery = UserMastery(
-        user_id=user.id,
-        graph_id=graph_id,
-        node_id=node_id,
-        cached_retrievability=0.5
+        user_id=user.id, graph_id=graph_id, node_id=node_id, cached_retrievability=0.5
     )
 
     # Configure AsyncMocks for awaitable calls
@@ -84,13 +86,17 @@ async def test_update_mastery_from_grading_success(
     mock_mastery_logic.get_initial_retrievability.return_value = 0.5
 
     # get_or_create_mastery is awaited
-    mock_mastery_crud.get_or_create_mastery = AsyncMock(return_value=(mock_mastery, False))
+    mock_mastery_crud.get_or_create_mastery = AsyncMock(
+        return_value=(mock_mastery, False)
+    )
 
     mock_updates = {"cached_retrievability": 0.8, "fsrs_stability": 2.0}
     mock_mastery_logic.calculate_next_state.return_value = mock_updates
 
     # Prerequisite mocking for propagation
-    mock_mastery_crud.get_prerequisite_roots_to_bonus = AsyncMock(return_value={}) # No propagation
+    mock_mastery_crud.get_prerequisite_roots_to_bonus = AsyncMock(
+        return_value={}
+    )  # No propagation
     mock_mastery_crud.get_masteries_by_nodes = AsyncMock(return_value={})
 
     # Execute
@@ -100,8 +106,12 @@ async def test_update_mastery_from_grading_success(
 
     # Verify
     assert result == mock_node
-    mock_question_crud.get_question_by_id.assert_called_once_with(db_session, question_id)
-    mock_question_crud.get_node_by_question.assert_called_once_with(db_session, mock_question)
+    mock_question_crud.get_question_by_id.assert_called_once_with(
+        db_session, question_id
+    )
+    mock_question_crud.get_node_by_question.assert_called_once_with(
+        db_session, mock_question
+    )
     mock_mastery_crud.get_or_create_mastery.assert_awaited_once()
     mock_mastery_logic.calculate_next_state.assert_called_once()
 
@@ -111,6 +121,7 @@ async def test_update_mastery_from_grading_success(
 
     # Verify flush
     db_session.flush.assert_called()
+
 
 @pytest.mark.asyncio
 async def test_update_mastery_from_grading_question_not_found(
@@ -136,7 +147,10 @@ async def test_update_mastery_from_grading_question_not_found(
     )
 
     assert result is None
-    mock_question_crud.get_question_by_id.assert_called_once_with(db_session, question_id)
+    mock_question_crud.get_question_by_id.assert_called_once_with(
+        db_session, question_id
+    )
+
 
 @pytest.mark.asyncio
 async def test_update_mastery_from_grading_node_not_found(
@@ -164,7 +178,9 @@ async def test_update_mastery_from_grading_node_not_found(
     )
 
     assert result is None
-    mock_question_crud.get_node_by_question.assert_called_once_with(db_session, mock_question)
+    mock_question_crud.get_node_by_question.assert_called_once_with(
+        db_session, mock_question
+    )
 
 
 @pytest.mark.asyncio
@@ -185,16 +201,17 @@ async def test_propagate_mastery_implicit_review(
 
     # Mock return values for implicit review
     # 1. Prereq roots found
-    mock_mastery_crud.get_prerequisite_roots_to_bonus = AsyncMock(return_value={prereq_id: 1})
+    mock_mastery_crud.get_prerequisite_roots_to_bonus = AsyncMock(
+        return_value={prereq_id: 1}
+    )
 
     # 2. Existing mastery for prereq found
     mock_prereq_mastery = UserMastery(
-        user_id=user.id,
-        graph_id=graph_id,
-        node_id=prereq_id,
-        cached_retrievability=0.4
+        user_id=user.id, graph_id=graph_id, node_id=prereq_id, cached_retrievability=0.4
     )
-    mock_mastery_crud.get_masteries_by_nodes = AsyncMock(return_value={prereq_id: mock_prereq_mastery})
+    mock_mastery_crud.get_masteries_by_nodes = AsyncMock(
+        return_value={prereq_id: mock_prereq_mastery}
+    )
 
     # 3. Logic: Should trigger implicit review
     mock_mastery_logic.should_trigger_implicit_review.return_value = True
@@ -237,12 +254,16 @@ async def test_propagate_mastery_creates_new_mastery_if_missing(
     node_answered = KnowledgeNode(id=node_id, graph_id=graph_id)
 
     # Prereq exists but no mastery record yet
-    mock_mastery_crud.get_prerequisite_roots_to_bonus = AsyncMock(return_value={prereq_id: 1})
+    mock_mastery_crud.get_prerequisite_roots_to_bonus = AsyncMock(
+        return_value={prereq_id: 1}
+    )
     mock_mastery_crud.get_masteries_by_nodes = AsyncMock(return_value={})  # Empty map
 
     mock_mastery_logic.should_trigger_implicit_review.return_value = True
     mock_mastery_logic.get_initial_retrievability.return_value = 0.5
-    mock_mastery_logic.calculate_implicit_review_update.return_value = {"cached_retrievability": 0.55}
+    mock_mastery_logic.calculate_implicit_review_update.return_value = {
+        "cached_retrievability": 0.55
+    }
 
     # Execute
     await mastery_service.propagate_mastery(
@@ -256,7 +277,7 @@ async def test_propagate_mastery_creates_new_mastery_if_missing(
     assert isinstance(added_obj, UserMastery)
     assert added_obj.user_id == user.id
     assert added_obj.node_id == prereq_id
-    assert added_obj.cached_retrievability == 0.55 # Updated value
+    assert added_obj.cached_retrievability == 0.55  # Updated value
 
 
 @pytest.mark.asyncio

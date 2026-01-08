@@ -3,7 +3,6 @@
 Tests the split_text_content() function.
 """
 
-
 from app.utils.split_text import split_text_content
 
 

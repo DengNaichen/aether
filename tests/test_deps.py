@@ -36,7 +36,9 @@ from app.models.user import User
 # ============================================================================
 
 
-def create_test_token(user_id: uuid.UUID, expires_delta: timedelta | None = None) -> str:
+def create_test_token(
+    user_id: uuid.UUID, expires_delta: timedelta | None = None
+) -> str:
     """Create a test JWT token for the given user ID."""
     if expires_delta:
         expire = datetime.now(UTC) + expires_delta
@@ -83,7 +85,9 @@ class TestDecodeJwtToken:
     def test_expired_token_returns_none(self, user_in_db: User):
         """Test that an expired token returns None."""
         # Create token that expired 1 hour ago
-        expired_token = create_test_token(user_in_db.id, expires_delta=timedelta(hours=-1))
+        expired_token = create_test_token(
+            user_in_db.id, expires_delta=timedelta(hours=-1)
+        )
         payload = _decode_jwt_token(expired_token)
         assert payload is None
 
@@ -218,7 +222,9 @@ class TestGetCurrentUser:
         self, test_db: AsyncSession, user_in_db: User
     ):
         """Test that expired token raises 401."""
-        expired_token = create_test_token(user_in_db.id, expires_delta=timedelta(hours=-1))
+        expired_token = create_test_token(
+            user_in_db.id, expires_delta=timedelta(hours=-1)
+        )
         credentials = HTTPAuthorizationCredentials(
             scheme="Bearer", credentials=expired_token
         )
@@ -355,7 +361,9 @@ class TestGetOptionalUser:
         self, test_db: AsyncSession, user_in_db: User
     ):
         """Test that expired token returns None instead of raising."""
-        expired_token = create_test_token(user_in_db.id, expires_delta=timedelta(hours=-1))
+        expired_token = create_test_token(
+            user_in_db.id, expires_delta=timedelta(hours=-1)
+        )
         credentials = HTTPAuthorizationCredentials(
             scheme="Bearer", credentials=expired_token
         )

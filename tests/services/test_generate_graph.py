@@ -1,4 +1,3 @@
-
 import pytest
 
 # from app.schemas.knowledge_node import (

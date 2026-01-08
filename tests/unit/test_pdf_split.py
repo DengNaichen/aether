@@ -79,7 +79,9 @@ class TestSplitPDF:
 
         # After context exit, verify temp files were cleaned up
         for temp_file in temp_files_to_check:
-            assert not os.path.exists(temp_file), f"Temp file {temp_file} was not cleaned up"
+            assert not os.path.exists(
+                temp_file
+            ), f"Temp file {temp_file} was not cleaned up"
 
     def test_exact_chunk_size(self, large_pdf):
         """PDF with 10 pages and chunk_size=10 should return original."""
