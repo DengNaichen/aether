@@ -219,24 +219,15 @@ class PDFExtractionService:
         exc_type = exc = tb = None
 
         try:
-            if len(chunks) > 1:
-                if concurrency > 1:
+            sem = asyncio.Semaphore(concurrency)
+
+            async def process_chunk(i: int, chunk_path: str) -> str:
+                async with sem:
                     logger.info(
-                        f"Processing {len(chunks)} {chunk_type}s with concurrency={concurrency}..."
+                        f"Processing {chunk_type} {i + 1}/{len(chunks)}: {chunk_path}"
                     )
-                else:
-                    logger.info(f"Processing {len(chunks)} {chunk_type}s...")
-
-            semaphore = asyncio.Semaphore(concurrency)
-
-            async def process_chunk(index: int, chunk_path: str) -> str:
-                async with semaphore:
-                    if len(chunks) > 1:
-                        logger.info(
-                            f"Processing {chunk_type} {index+1}/{len(chunks)}..."
-                        )
                     return await self._process_pdf_with_gemini(
-                        chunk_path, prompt, model_id
+                        chunk_path, prompt=prompt, model_id=model_id
                     )
 
             tasks = [
@@ -254,7 +245,6 @@ class PDFExtractionService:
             raise
         finally:
             await asyncio.to_thread(cm.__exit__, exc_type, exc, tb)
-
 
     async def extract_text_from_formatted_pdf(
         self,
@@ -332,3 +322,4 @@ class PDFExtractionService:
             max_concurrency=max_concurrency,
             chunk_type="handwritten chunk",
         )
+

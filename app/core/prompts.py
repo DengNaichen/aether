@@ -9,7 +9,6 @@ You are an expert Knowledge Graph Engineer specializing in extracting **Teachabl
 
 ### Core Definitions:
 - **KnowledgeNode**: A **teachable concept** that can be independently tested with quiz questions.
-- **IS_PREREQUISITE_FOR**: Dependency relation. Concept A must be learned before Concept B.
 
 ### CRITICAL: Node Granularity Rules
 
@@ -32,9 +31,9 @@ Before creating a node, ask: "Can I write a meaningful quiz question to test thi
 - If YES → Create the node
 - If NO → It's probably an example or detail that belongs in a parent node's description
 
-### Relationship Rules:
-1. **IS_PREREQUISITE_FOR**: Only use when understanding A is truly required before B
-2. **HIERARCHY**: Do NOT create hierarchy edges. Structure is flat. Use Prerequisities to show flow.
+### Output Rules:
+Return ONLY a JSON object with a "nodes" field that is a list of KnowledgeNode items.
+Do NOT include relationships or any other fields.
 
 {user_guidance}
 """
@@ -42,40 +41,32 @@ Before creating a node, ask: "Can I write a meaningful quiz question to test thi
 GRAPH_GEN_FEW_SHOT_EXAMPLES = """
 Example 1:
 Input Text: The three primary colors are Red, Blue, and Yellow. Secondary colors are made by mixing two primary colors.
-Output Graph:
+Output:
 {{
   "nodes": [
     {{"name": "Primary Colors", "description": "The three base colors (Red, Blue, Yellow) that cannot be created by mixing other colors."}},
     {{"name": "Secondary Colors", "description": "Colors created by mixing two primary colors together."}}
-  ],
-  "relationships": [
-    {{"source_name": "Primary Colors", "target_name": "Secondary Colors", "label": "IS_PREREQUISITE_FOR"}}
   ]
 }}
 
 Example 2:
 Input Text: Significant digits are the digits in a measurement that are known with certainty plus one estimated digit. Rules: All non-zero digits are significant. Zeros between non-zero digits are significant. Leading zeros are not significant.
-Output Graph:
+Output:
 {{
   "nodes": [
     {{"name": "Significant Digits", "description": "The digits in a measurement that are known with certainty plus one estimated digit. Rules include: all non-zero digits are significant, zeros between non-zero digits are significant, and leading zeros are not significant."}}
-  ],
-  "relationships": []
+  ]
 }}
 
 Example 3:
 Input Text: To understand Calculus, you must first learn Limits. Calculus includes Derivatives and Integrals. A derivative measures the rate of change of a function.
-Output Graph:
+Output:
 {{
   "nodes": [
     {{"name": "Calculus", "description": "Branch of mathematics studying continuous change, built upon the concept of limits."}},
     {{"name": "Limits", "description": "Foundational concept describing the behavior of a function as its input approaches a particular value."}},
     {{"name": "Derivatives", "description": "A measure of the rate of change of a function, representing instantaneous rate of change."}},
     {{"name": "Integrals", "description": "The accumulation of quantities, mathematically the reverse operation of derivatives."}}
-  ],
-  "relationships": [
-    {{"source_name": "Limits", "target_name": "Derivatives", "label": "IS_PREREQUISITE_FOR"}},
-    {{"source_name": "Limits", "target_name": "Integrals", "label": "IS_PREREQUISITE_FOR"}}
   ]
 }}
 """
@@ -256,3 +247,33 @@ Generate 2 questions (1 medium, 1 hard).
 }}""",
     ),
 ]
+
+# ==================== Relation Generation Prompts ====================
+
+RELATION_GEN_SYSTEM_PROMPT = """
+You are an expert Knowledge Graph Engineer specializing in identifying prerequisite relationships between educational concepts.
+
+### Your Task:
+Analyze the provided list of knowledge nodes and identify which concepts are prerequisites for others.
+
+### Definition of Prerequisite:
+A concept A is a PREREQUISITE for concept B if:
+- Understanding A is necessary before learning B
+- B builds upon or requires knowledge of A
+- You cannot properly understand B without first understanding A
+
+### Rules:
+1. Only create relationships where there is a CLEAR prerequisite dependency
+2. Do NOT create relationships for:
+   - Concepts that are merely related but not prerequisites
+   - Concepts at the same level of abstraction
+   - Obvious or trivial relationships
+3. Each relationship should represent a meaningful learning dependency
+4. Avoid creating cycles (if A → B, do not create B → A)
+5. Do NOT repeat any existing relationships provided
+
+### Output:
+Return a JSON object with a "prerequisites" field containing a list of new relationships.
+Each relationship has: source_name (prerequisite), target_name (dependent concept), weight (0.0-1.0, default 1.0).
+"""
+

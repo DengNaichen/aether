@@ -3,18 +3,12 @@ from __future__ import annotations
 import re
 from datetime import datetime
 from enum import Enum
-from typing import Any, Literal
+from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, computed_field
+from pydantic import BaseModel, ConfigDict, Field, computed_field, model_validator
 
 # ==================== Enums ====================
-
-
-class RelationType(str, Enum):
-    """Types of relationships between knowledge nodes (for API operations)."""
-
-    HAS_PREREQUISITES = "HAS_PREREQUISITES"
 
 
 class EdgeType(str, Enum):
@@ -29,14 +23,6 @@ class EdgeType(str, Enum):
 
 
 # ==================== Knowledge Node Schemas ====================
-
-
-class KnowledgeRelationCreate(BaseModel):
-    """Schema for creating a relationship between knowledge nodes."""
-
-    source_node_id: UUID = Field(..., description="Source node UUID")
-    target_node_id: UUID = Field(..., description="Target node UUID")
-    relation_type: RelationType = Field(..., description="Type of relationship")
 
 
 class KnowledgeNodeCreate(BaseModel):
@@ -55,9 +41,7 @@ class KnowledgeNodeCreateWithStrId(KnowledgeNodeCreate):
 
 
 class BulkNodeRequest(BaseModel):
-    nodes: list[
-        KnowledgeNodeCreateWithStrId
-    ]  # TODO: I need a new schema with node_str_id
+    nodes: list[KnowledgeNodeCreateWithStrId]
 
 
 class KnowledgeNodeUpdate(BaseModel):
@@ -181,7 +165,7 @@ class GraphEdge(BaseModel):
     target: UUID = Field(
         description="Target node UUID (to_node_id for prerequisites, child_node_id for subtopics)"
     )
-    type: EdgeType = Field(description="Relationship type")
+    # # type: EdgeType = Field(description="Relationship type")
 
 
 class KnowledgeGraphVisualization(BaseModel):
@@ -274,12 +258,6 @@ class GraphStructureImportResponse(BaseModel):
     prerequisites_skipped: int = Field(
         ..., description="Number of prerequisites skipped (invalid refs or duplicates)"
     )
-    # subtopics_created: int = Field(
-    #     default=0, description="Number of subtopic relationships created (deprecated)"
-    # )
-    # subtopics_skipped: int = Field(
-    #     default=0, description="Number of subtopics skipped (deprecated)"
-    # )
     message: str = Field(..., description="Summary message")
 
 
@@ -307,6 +285,9 @@ class KnowledgeNodeLLM(BaseModel):
     """
     Represents an 'Atomic Unit of Knowledge'.
     It should be indivisible and represent a single concept or fact.
+
+    This schema is used for LLM structured output - embedding is NOT included
+    because it's generated programmatically after LLM extraction.
     """
 
     name: str = Field(
@@ -329,56 +310,75 @@ class KnowledgeNodeLLM(BaseModel):
         return isinstance(other, KnowledgeNodeLLM) and self.id == other.id
 
 
-class RelationshipLLM(BaseModel):
-    """
-    Relationship model for LLM-generated knowledge graphs.
-    Currently only supports IS_PREREQUISITE_FOR relationships.
+class KnowledgeNodesLLM(BaseModel):
+    nodes: list[KnowledgeNodeLLM] = Field(default_factory=list)
 
-    HAS_SUBTOPIC has been removed - use tags for classification instead.
+
+class KnowledgeNodeWithEmbedding(BaseModel):
+    """
+    Knowledge node with embedding for database persistence.
+
+    This schema is used after embedding generation - ensures every node
+    written to DB has an embedding. Created from KnowledgeNodeLLM.
     """
 
-    label: Literal["IS_PREREQUISITE_FOR"] = Field(
-        description="Relationship type: 'IS_PREREQUISITE_FOR'"
-    )
-    # For IS_PREREQUISITE_FOR relationships
+    name: str
+    description: str
+    embedding: list[float] = Field(..., description="768-dimensional embedding vector")
+
+    @computed_field
+    @property
+    def id(self) -> str:
+        return generate_id(self.name)
+
+    @classmethod
+    def from_llm_node(
+        cls, node: KnowledgeNodeLLM, embedding: list[float]
+    ) -> KnowledgeNodeWithEmbedding:
+        """Create from LLM node with computed embedding."""
+        return cls(
+            name=node.name,
+            description=node.description,
+            embedding=embedding,
+        )
+
+
+class PrerequisiteLLM(BaseModel):
+    """
+    Prerequisite relationship for LLM-generated knowledge graphs.
+
+    Represents: source_name IS_PREREQUISITE_FOR target_name
+    (i.e., you must understand source before learning target)
+
+    Note: source_id and target_id are auto-computed from names by default,
+    but can be overridden for entity resolution (remapping to existing nodes).
+    """
+
     source_name: str = Field(
-        description="The prerequisite concept",
+        description="The prerequisite concept (must learn first)",
     )
     target_name: str = Field(
         description="The concept that depends on the source",
     )
+    weight: float = Field(default=1.0, ge=0.0, le=1.0)
 
-    weight: float = Field(default=1.0)
+    # IDs are auto-computed from names, but can be overridden for entity resolution
+    source_id: str | None = Field(default=None, exclude=True)
+    target_id: str | None = Field(default=None, exclude=True)
 
-    @computed_field
-    @property
-    def source_id(self) -> str:
-        return generate_id(self.source_name)
-
-    @computed_field
-    @property
-    def target_id(self) -> str:
-        return generate_id(self.target_name)
+    @model_validator(mode="after")
+    def set_ids_from_names(self) -> PrerequisiteLLM:
+        """Auto-compute IDs from names if not explicitly provided."""
+        if self.source_id is None:
+            object.__setattr__(self, "source_id", generate_id(self.source_name))
+        if self.target_id is None:
+            object.__setattr__(self, "target_id", generate_id(self.target_name))
+        return self
 
     def __hash__(self) -> int:
-        return hash((self.source_id, self.target_id, self.label))
+        return hash((self.source_id, self.target_id))
 
     def __eq__(self, other: object) -> bool:
-        if not isinstance(other, RelationshipLLM):
+        if not isinstance(other, PrerequisiteLLM):
             return False
-        return (
-            self.source_id == other.source_id
-            and self.target_id == other.target_id
-            and self.label == other.label
-        )
-
-
-# Keep old types for backward compatibility
-IsPrerequisiteForRelLLM = RelationshipLLM
-HasSubtopicRelLLM = RelationshipLLM
-RelationshipType = RelationshipLLM
-
-
-class GraphStructureLLM(BaseModel):
-    nodes: list[KnowledgeNodeLLM] = Field(default_factory=list)
-    relationships: list[RelationshipType] = Field(default_factory=list)
+        return self.source_id == other.source_id and self.target_id == other.target_id

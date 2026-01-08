@@ -8,7 +8,7 @@ All endpoints require the user to be the owner of the graph.
 import logging
 from uuid import UUID, uuid4
 
-from fastapi import APIRouter, Depends, HTTPException, Path, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, Path, UploadFile, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -24,9 +24,12 @@ from app.models.enrollment import GraphEnrollment
 from app.models.knowledge_node import KnowledgeNode
 from app.models.user import User
 from app.schemas.enrollment import GraphEnrollmentResponse
+from app.schemas.graph_generation import (
+    GraphGenerationResponse,
+    RelationGenerationResponse,
+)
 from app.schemas.knowledge_graph import (
     GraphContentResponse,
-    GraphGenerationResponse,
     GraphVisualization,
     KnowledgeGraphCreate,
     KnowledgeGraphResponse,
@@ -36,18 +39,9 @@ from app.schemas.knowledge_node import (
     GraphStructureImportResponse,
 )
 from app.schemas.questions import GenerateQuestionsRequest
-from app.services.ai_services.generate_questions import generate_questions_for_graph
-from app.services.graph_generation_service import GraphGenerationService
-from app.services.pdf_pipeline import (
-    PDFPipeline,
-    check_page_limit_stage,
-    detect_handwriting_stage,
-    extract_text_stage,
-    generate_graph_stage,
-    save_markdown_stage,
-    validate_and_extract_metadata_stage,
-    validate_file_type_stage,
-)
+from app.services.ai.question_generation import generate_questions_for_graph
+from app.services.pipeline.node_generation_pipeline import NodeGenerationService
+from app.services.pipeline.pdf_pipeline import PDFPipeline
 from app.utils.slug import slugify
 from app.utils.storage import save_upload_file
 
@@ -406,33 +400,33 @@ async def import_structure(
 @router.post(
     "/{graph_id}/upload-file",
     status_code=status.HTTP_201_CREATED,
-    summary="Upload file and generate knowledge graph",
+    summary="Upload file and generate nodes",
     description="""
-    Upload a file (PDF or Markdown) and automatically generate a knowledge graph.
+    Upload a file (PDF or Markdown) and automatically generate knowledge nodes.
 
     **Supported file types**:
     - `.pdf` - PDF files (handwritten or formatted)
     - `.md` - Markdown files
 
     **Processing flow**:
-    - **PDF files**: Extract text → Convert to markdown → Generate graph
-    - **Markdown files**: Read content → Generate graph directly
+    - **PDF files**: Extract text → Convert to markdown → Generate nodes
+    - **Markdown files**: Read content → Generate nodes directly
 
     The system will automatically detect the file type and use the appropriate pipeline.
     """,
 )
 async def upload_file(
-    file: UploadFile,
+    file: UploadFile = File(...),
     knowledge_graph=Depends(get_owned_graph),
     db_session: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ):
     """
-    Upload a file and generate knowledge graph.
+    Upload a file and generate knowledge nodes.
 
     Automatically detects file type and routes to appropriate processing:
-    - PDF → OCR extraction → Markdown → Graph generation
-    - Markdown → Direct graph generation
+    - PDF → OCR extraction → Markdown → Node generation
+    - Markdown → Direct node generation
 
     Args:
         file: The file to upload (.pdf or .md)
@@ -441,7 +435,7 @@ async def upload_file(
         current_user: Authenticated user (must be the graph owner)
 
     Returns:
-        GraphGenerationResponse: Generation statistics including nodes/relationships created
+        GraphGenerationResponse: Node generation stats (relationships not generated)
 
     Raises:
         HTTPException 400: If file type is not supported
@@ -482,11 +476,10 @@ async def upload_file(
     else:
         logger.info(f"Graph {knowledge_graph.id} is empty, creating initial graph")
 
-
     try:
         # Route to appropriate processing based on file type
         if filename_lower.endswith(".pdf"):
-            # PDF processing: Extract → Markdown → Graph
+            # PDF processing: Extract → Markdown → Node generation
             logger.info(
                 f"Processing PDF file for graph {knowledge_graph.id}: {file.filename}"
             )
@@ -496,47 +489,27 @@ async def upload_file(
             content = await file.read()
             file_path = save_upload_file(task_id, file.filename, content)
 
-            # Create and configure the pipeline
-            pipeline = PDFPipeline(task_id=task_id, file_path=file_path)
-
-            # Inject context
-            pipeline.context["graph_id"] = str(knowledge_graph.id)
-            pipeline.context["db_session"] = db_session
-            pipeline.context["incremental"] = incremental  # Phase 1: New graph only
-
-            # Add all stages including graph generation
-            pipeline.add_stage(validate_file_type_stage)
-            pipeline.add_stage(validate_and_extract_metadata_stage)
-            pipeline.add_stage(check_page_limit_stage)
-            pipeline.add_stage(detect_handwriting_stage)
-            pipeline.add_stage(extract_text_stage)
-            pipeline.add_stage(save_markdown_stage)
-            pipeline.add_stage(generate_graph_stage)
-
-            # Execute pipeline
-            result_context = await pipeline.execute(cleanup=True)
-
-            # Extract stats
-            graph_stats = result_context.get("graph_stats", {})
-            logger.info(
-                f"PDF processing completed for {knowledge_graph.id}: "
-                f"{graph_stats.get('nodes_created')} nodes created"
-            )
-
-            return GraphGenerationResponse(
+            pipeline = PDFPipeline()
+            result_context = await pipeline.run(
+                file_path=file_path,
+                task_id=task_id,
                 graph_id=str(knowledge_graph.id),
-                nodes_created=graph_stats.get("nodes_created", 0),
-                prerequisites_created=graph_stats.get("prerequisites_created", 0),
-                total_nodes=graph_stats.get("total_nodes", 0),
-                max_level=graph_stats.get("max_level", 0),
-                message=(
-                    f"Knowledge graph {'updated' if has_existing_data else 'generated'} "
-                    f"from PDF: {file.filename}"
-                ),
+                enforce_page_limit=True,
+                save_markdown=True,
+                cleanup=True,
             )
+
+            markdown_content = result_context.get("markdown_content", "")
+            logger.info(
+                f"PDF extraction completed for {knowledge_graph.id}: "
+                f"content_length={len(markdown_content)}"
+            )
+
+            if not markdown_content:
+                raise ValueError("PDF extraction produced no markdown content.")
 
         else:  # .md file
-            # Markdown processing: Direct graph generation
+            # Markdown processing: Direct node generation
             logger.info(
                 f"Processing Markdown file for graph {knowledge_graph.id}: {file.filename}"
             )
@@ -545,30 +518,30 @@ async def upload_file(
             content = await file.read()
             markdown_content = content.decode("utf-8")
 
-            # Generate graph directly
-            service = GraphGenerationService(db_session)
-            stats = await service.create_graph_from_markdown(
-                graph_id=knowledge_graph.id,
-                markdown_content=markdown_content,
-                incremental=incremental,  # Phase 1: New graph only
-            )
+        service = NodeGenerationService(db_session)
+        stats = await service.create_node_from_markdown(
+            graph_id=knowledge_graph.id,
+            markdown_content=markdown_content,
+            incremental=incremental,
+        )
 
-            logger.info(
-                f"Markdown processing completed for {knowledge_graph.id}: "
-                f"{stats['nodes_created']} nodes created"
-            )
+        logger.info(
+            f"Node generation completed for {knowledge_graph.id}: "
+            f"{stats['nodes_created']} nodes created"
+        )
 
-            return GraphGenerationResponse(
-                graph_id=str(knowledge_graph.id),
-                nodes_created=stats["nodes_created"],
-                prerequisites_created=stats["prerequisites_created"],
-                total_nodes=stats["total_nodes"],
-                max_level=stats["max_level"],
-                message=(
-                    f"Knowledge graph {'updated' if has_existing_data else 'generated'} "
-                    f"from Markdown: {file.filename}"
-                ),
-            )
+        source_label = "PDF" if filename_lower.endswith(".pdf") else "Markdown"
+        return GraphGenerationResponse(
+            graph_id=str(knowledge_graph.id),
+            nodes_created=stats["nodes_created"],
+            prerequisites_created=0,
+            total_nodes=stats["total_nodes"],
+            max_level=0,
+            message=(
+                f"Nodes {'updated' if has_existing_data else 'generated'} "
+                f"from {source_label}: {file.filename}"
+            ),
+        )
 
     except UnicodeDecodeError as e:
         logger.error(f"Failed to decode file {file.filename}: {e}")
@@ -644,4 +617,88 @@ async def generate_questions(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Question generation failed: {str(e)}",
+        ) from e
+
+
+@router.post(
+    "/{graph_id}/generate-relations",
+    status_code=status.HTTP_200_OK,
+    response_model=RelationGenerationResponse,
+    summary="Generate prerequisite relationships for a knowledge graph",
+    description="""
+    Generate prerequisite relationships between nodes using AI.
+
+    This endpoint:
+    1. Analyzes all nodes in the graph
+    2. Uses AI to determine prerequisite relationships
+    3. Validates relationships (no cycles, bad edges, duplicates)
+    4. Creates valid prerequisite edges
+    5. Updates graph topology (levels, dependent counts)
+
+    The process may take a few minutes depending on graph size.
+    """,
+)
+async def generate_relations(
+    knowledge_graph=Depends(get_owned_graph),
+    db_session: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+) -> RelationGenerationResponse:
+    """
+    Generate prerequisite relationships for a knowledge graph.
+
+    Args:
+        knowledge_graph: Owned knowledge graph (injected by get_owned_graph dependency)
+        db_session: Database session
+        current_user: Authenticated user (must be the graph owner)
+
+    Returns:
+        RelationGenerationResponse: Detailed statistics about relation generation
+
+    Raises:
+        HTTPException 404: If the knowledge graph doesn't exist
+        HTTPException 403: If the user is not the owner
+        HTTPException 500: If generation fails
+    """
+    from app.services.pipeline.relation_generation_pipeline import (
+        RelationGenerationPipeline,
+    )
+
+    try:
+        logger.info(f"Starting relation generation for graph {knowledge_graph.id}")
+
+        # Initialize pipeline and generate relations
+        pipeline = RelationGenerationPipeline(db_session)
+        result = await pipeline.generate_relations_for_graph(
+            graph_id=knowledge_graph.id
+        )
+
+        logger.info(
+            f"Relation generation completed for {knowledge_graph.id}: "
+            f"{result.edges_created} edges created"
+        )
+
+        return RelationGenerationResponse(
+            graph_id=str(knowledge_graph.id),
+            edges_created=result.edges_created,
+            edges_generated=result.edges_generated,
+            bad_edges=result.bad_edges,
+            duplicate_edges=result.duplicate_edges,
+            cycle_edges=result.cycle_edges,
+            nodes_updated=result.nodes_updated,
+            max_level=result.max_level,
+            message=(
+                f"Generated {result.edges_created} prerequisite relationships. "
+                f"Skipped: {result.bad_edges} bad, {result.duplicate_edges} duplicates, "
+                f"{result.cycle_edges} cycles."
+            ),
+        )
+
+    except Exception as e:
+        logger.error(
+            f"Relation generation failed for graph {knowledge_graph.id}: {e}",
+            exc_info=True,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Relation generation failed: {str(e)}",
         ) from e

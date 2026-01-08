@@ -14,19 +14,15 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.crud.knowledge_node import (
-    bulk_create_nodes,
+    # bulk_create_nodes,
     create_knowledge_node,
-    # get_leaf_nodes_by_graph,  # Removed - no longer using leaf concept
-    # get_leaf_nodes_without_questions,
     get_node_by_id,
     get_node_by_str_id,
     get_nodes_by_graph,
-    # is_leaf_node,
 )
 from app.models.knowledge_graph import KnowledgeGraph
 from app.models.knowledge_node import KnowledgeNode  # Subtopic removed
 from app.models.user import User
-from app.schemas.knowledge_node import KnowledgeNodeCreateWithStrId
 
 
 # ==================== Node Query Tests ====================
@@ -212,114 +208,3 @@ class TestCreateKnowledgeNode:
         result = await get_node_by_id(db_session=test_db, node_id=node.id)
         assert result is not None
         assert result.id == node.id
-
-
-class TestBulkCreateNodes:
-    """Test cases for bulk_create_nodes function."""
-
-    @pytest.mark.asyncio
-    async def test_creates_multiple_nodes(
-        self, test_db: AsyncSession, private_graph_in_db: KnowledgeGraph
-    ):
-        """Should create multiple nodes in one operation."""
-        nodes_data = [
-            KnowledgeNodeCreateWithStrId(
-                node_str_id="node-1",
-                node_name="Node 1",
-                description="First node",
-            ),
-            KnowledgeNodeCreateWithStrId(
-                node_str_id="node-2",
-                node_name="Node 2",
-                description="Second node",
-            ),
-            KnowledgeNodeCreateWithStrId(
-                node_str_id="node-3",
-                node_name="Node 3",
-                description="Third node",
-            ),
-        ]
-
-        response = await bulk_create_nodes(
-            db_session=test_db,
-            graph_id=private_graph_in_db.id,
-            nodes_data=nodes_data,
-        )
-
-        assert response["count"] == 3
-        assert "created" in response["message"].lower()
-
-        # Verify nodes were created
-        all_nodes = await get_nodes_by_graph(
-            db_session=test_db, graph_id=private_graph_in_db.id
-        )
-        assert len(all_nodes) == 3
-
-    @pytest.mark.asyncio
-    async def test_skips_duplicate_nodes(
-        self, test_db: AsyncSession, private_graph_in_db: KnowledgeGraph
-    ):
-        """Should skip duplicate nodes with same graph_id + node_id_str."""
-        # Create initial node
-        nodes_data = [
-            KnowledgeNodeCreateWithStrId(
-                node_str_id="duplicate",
-                node_name="Original",
-                description="First",
-            ),
-        ]
-        await bulk_create_nodes(test_db, private_graph_in_db.id, nodes_data)
-
-        # Try to create duplicate
-        duplicate_data = [
-            KnowledgeNodeCreateWithStrId(
-                node_str_id="duplicate",  # Same str_id
-                node_name="Duplicate Attempt",
-                description="Should be skipped",
-            ),
-        ]
-        response = await bulk_create_nodes(
-            test_db, private_graph_in_db.id, duplicate_data
-        )
-
-        # Should report 0 created (conflict)
-        assert response["count"] == 0
-
-        # Original node should remain unchanged
-        node = await get_node_by_str_id(test_db, private_graph_in_db.id, "duplicate")
-        assert node.node_name == "Original"
-
-    @pytest.mark.asyncio
-    async def test_empty_list_returns_zero(
-        self, test_db: AsyncSession, private_graph_in_db: KnowledgeGraph
-    ):
-        """Should handle empty list gracefully."""
-        response = await bulk_create_nodes(
-            db_session=test_db,
-            graph_id=private_graph_in_db.id,
-            nodes_data=[],
-        )
-
-        assert response["count"] == 0
-        assert "no nodes" in response["message"].lower()
-
-    @pytest.mark.asyncio
-    async def test_creates_nodes_with_minimal_data(
-        self, test_db: AsyncSession, private_graph_in_db: KnowledgeGraph
-    ):
-        """Should create nodes with only required fields."""
-        nodes_data = [
-            KnowledgeNodeCreateWithStrId(
-                node_str_id="minimal-1",
-                node_name="Minimal Node",
-            ),
-        ]
-
-        response = await bulk_create_nodes(test_db, private_graph_in_db.id, nodes_data)
-
-        assert response["count"] == 1
-
-        node = await get_node_by_str_id(test_db, private_graph_in_db.id, "minimal-1")
-        assert node is not None
-        assert node.node_name == "Minimal Node"
-        assert node.description is None

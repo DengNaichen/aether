@@ -87,15 +87,14 @@ class GraphTopologyLogic:
 
         graph = GraphTopologyLogic._build_graph(adj_list, nodes)
 
+        levels: dict[UUID, int] = {}
         try:
             generations = nx.topological_generations(graph)
+            for level, generation in enumerate(generations):
+                for node in generation:
+                    levels[node] = level
         except nx.NetworkXUnfeasible as exc:
             raise ValueError("Graph contains a cycle") from exc
-
-        levels: dict[UUID, int] = {}
-        for level, generation in enumerate(generations):
-            for node in generation:
-                levels[node] = level
 
         # Safety check: all nodes should be covered
         if len(levels) != len(nodes):

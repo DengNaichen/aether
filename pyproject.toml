@@ -118,4 +118,3 @@ ignore = [
     "E501",  # line too long (handled by black)
     "B008",  # FastAPI dependency injection pattern (Depends() in defaults)
 ]
-

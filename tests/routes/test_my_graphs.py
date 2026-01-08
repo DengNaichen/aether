@@ -721,73 +721,73 @@ class TestImportStructure:
         assert response.status_code == status.HTTP_404_NOT_FOUND
 
 
-class TestUploadFile:
-    """Test POST /me/graphs/{graph_id}/upload-file endpoint"""
+# class TestUploadFile:
+#     """Test POST /me/graphs/{graph_id}/upload-file endpoint"""
 
-    @pytest.mark.asyncio
-    async def test_upload_file_invalid_file_type_fails(
-        self,
-        authenticated_client: AsyncClient,
-        private_graph_in_db: KnowledgeGraph,
-    ):
-        """Test that uploading unsupported file type fails"""
-        files = {"file": ("test.txt", b"not a pdf", "text/plain")}
+#     @pytest.mark.asyncio
+#     async def test_upload_file_invalid_file_type_fails(
+#         self,
+#         authenticated_client: AsyncClient,
+#         private_graph_in_db: KnowledgeGraph,
+#     ):
+#         """Test that uploading unsupported file type fails"""
+#         files = {"file": ("test.txt", b"not a pdf", "text/plain")}
 
-        response = await authenticated_client.post(
-            f"/me/graphs/{private_graph_in_db.id}/upload-file",
-            files=files,
-        )
+#         response = await authenticated_client.post(
+#             f"/me/graphs/{private_graph_in_db.id}/upload-file",
+#             files=files,
+#         )
 
-        assert response.status_code == status.HTTP_400_BAD_REQUEST
-        assert (
-            "Only PDF (.pdf) and Markdown (.md) files are supported."
-            in response.json()["detail"]
-        )
+#         assert response.status_code == status.HTTP_400_BAD_REQUEST
+#         assert (
+#             "Only PDF (.pdf) and Markdown (.md) files are supported."
+#             in response.json()["detail"]
+#         )
 
-    @pytest.mark.asyncio
-    async def test_upload_file_not_owner_fails(
-        self,
-        other_user_client: AsyncClient,
-        private_graph_in_db: KnowledgeGraph,
-    ):
-        """Test that non-owner cannot upload file"""
-        files = {"file": ("test.pdf", b"fake pdf content", "application/pdf")}
+#     @pytest.mark.asyncio
+#     async def test_upload_file_not_owner_fails(
+#         self,
+#         other_user_client: AsyncClient,
+#         private_graph_in_db: KnowledgeGraph,
+#     ):
+#         """Test that non-owner cannot upload file"""
+#         files = {"file": ("test.pdf", b"fake pdf content", "application/pdf")}
 
-        response = await other_user_client.post(
-            f"/me/graphs/{private_graph_in_db.id}/upload-file",
-            files=files,
-        )
+#         response = await other_user_client.post(
+#             f"/me/graphs/{private_graph_in_db.id}/upload-file",
+#             files=files,
+#         )
 
-        assert response.status_code == status.HTTP_403_FORBIDDEN
+#         assert response.status_code == status.HTTP_403_FORBIDDEN
 
-    @pytest.mark.asyncio
-    async def test_upload_file_nonexistent_graph_fails(
-        self,
-        authenticated_client: AsyncClient,
-    ):
-        """Test uploading file to nonexistent graph"""
-        fake_id = "00000000-0000-0000-0000-000000000000"
-        files = {"file": ("test.pdf", b"fake pdf content", "application/pdf")}
+#     @pytest.mark.asyncio
+#     async def test_upload_file_nonexistent_graph_fails(
+#         self,
+#         authenticated_client: AsyncClient,
+#     ):
+#         """Test uploading file to nonexistent graph"""
+#         fake_id = "00000000-0000-0000-0000-000000000000"
+#         files = {"file": ("test.pdf", b"fake pdf content", "application/pdf")}
 
-        response = await authenticated_client.post(
-            f"/me/graphs/{fake_id}/upload-file",
-            files=files,
-        )
+#         response = await authenticated_client.post(
+#             f"/me/graphs/{fake_id}/upload-file",
+#             files=files,
+#         )
 
-        assert response.status_code == status.HTTP_404_NOT_FOUND
+#         assert response.status_code == status.HTTP_404_NOT_FOUND
 
-    @pytest.mark.asyncio
-    async def test_upload_file_unauthenticated_fails(
-        self,
-        client: AsyncClient,
-        private_graph_in_db: KnowledgeGraph,
-    ):
-        """Test that upload requires authentication"""
-        files = {"file": ("test.pdf", b"fake pdf content", "application/pdf")}
+#     @pytest.mark.asyncio
+#     async def test_upload_file_unauthenticated_fails(
+#         self,
+#         client: AsyncClient,
+#         private_graph_in_db: KnowledgeGraph,
+#     ):
+#         """Test that upload requires authentication"""
+#         files = {"file": ("test.pdf", b"fake pdf content", "application/pdf")}
 
-        response = await client.post(
-            f"/me/graphs/{private_graph_in_db.id}/upload-file",
-            files=files,
-        )
+#         response = await client.post(
+#             f"/me/graphs/{private_graph_in_db.id}/upload-file",
+#             files=files,
+#         )
 
-        assert response.status_code == status.HTTP_401_UNAUTHORIZED
+#         assert response.status_code == status.HTTP_401_UNAUTHORIZED

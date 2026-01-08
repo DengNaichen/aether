@@ -11,68 +11,6 @@ import pytest
 from app.domain.graph_topology_logic import GraphTopologyLogic
 
 
-class TestHasPathDFS:
-    """Test DFS path finding algorithm."""
-
-    def test_direct_path(self):
-        """Test finding a direct edge."""
-        adj = {
-            uuid4(): [uuid4()],
-        }
-        source = list(adj.keys())[0]
-        target = adj[source][0]
-
-        assert GraphTopologyLogic.has_path_dfs(adj, source, target) is True
-
-    def test_multi_hop_path(self):
-        """Test finding a path through multiple nodes."""
-        node1, node2, node3, node4 = uuid4(), uuid4(), uuid4(), uuid4()
-        adj = {
-            node1: [node2, node3],
-            node2: [node4],
-            node3: [node4],
-            node4: [],
-        }
-
-        # Path exists: node1 -> node2 -> node4
-        assert GraphTopologyLogic.has_path_dfs(adj, node1, node4) is True
-        # No backward path
-        assert GraphTopologyLogic.has_path_dfs(adj, node4, node1) is False
-
-    def test_no_path(self):
-        """Test when no path exists."""
-        node1, node2, node3 = uuid4(), uuid4(), uuid4()
-        adj = {
-            node1: [node2],
-            node2: [],
-            node3: [],  # Isolated node
-        }
-
-        assert GraphTopologyLogic.has_path_dfs(adj, node1, node3) is False
-        assert GraphTopologyLogic.has_path_dfs(adj, node3, node1) is False
-
-    def test_self_path(self):
-        """Test that a node always has a path to itself."""
-        node1 = uuid4()
-        adj = {node1: []}
-
-        assert GraphTopologyLogic.has_path_dfs(adj, node1, node1) is True
-
-    def test_cycle_detection(self):
-        """Test path finding in a graph with cycles."""
-        node1, node2, node3 = uuid4(), uuid4(), uuid4()
-        adj = {
-            node1: [node2],
-            node2: [node3],
-            node3: [node1],  # Creates cycle
-        }
-
-        # All nodes can reach each other due to cycle
-        assert GraphTopologyLogic.has_path_dfs(adj, node1, node2) is True
-        assert GraphTopologyLogic.has_path_dfs(adj, node2, node3) is True
-        assert GraphTopologyLogic.has_path_dfs(adj, node3, node1) is True
-
-
 class TestDetectCycleWithNewEdge:
     """Test cycle detection when adding a new edge."""
 

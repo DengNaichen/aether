@@ -3,8 +3,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from app.core.prompts import PDF_ACADEMIC_OCR_PROMPT, PDF_HANDWRITING_PROMPT
-from app.services.ai_services import pdf_extraction
-from app.services.ai_services.pdf_extraction import PDFExtractionService
+from app.services.ai import pdf_extraction
+from app.services.ai.pdf_extraction import PDFExtractionService
 
 
 class TestPDFExtractionServiceInit:
@@ -12,7 +12,7 @@ class TestPDFExtractionServiceInit:
 
     def test_init_success(self):
         with patch(
-            "app.services.ai_services.pdf_extraction.settings"
+            "app.services.ai.pdf_extraction.settings"
         ) as mock_settings:
             mock_settings.GOOGLE_API_KEY = "valid_key"
             service = PDFExtractionService(api_key="valid_key")
@@ -21,7 +21,7 @@ class TestPDFExtractionServiceInit:
 
     def test_init_missing_key(self):
         with patch(
-            "app.services.ai_services.pdf_extraction.settings"
+            "app.services.ai.pdf_extraction.settings"
         ) as mock_settings:
             mock_settings.GOOGLE_API_KEY = None
             with pytest.raises(ValueError, match="GOOGLE_API_KEY is not set"):
@@ -33,7 +33,7 @@ class TestPDFExtractionServiceProcess:
 
     @pytest.fixture
     def mock_service(self):
-        with patch("app.services.ai_services.pdf_extraction.genai.Client"):
+        with patch("app.services.ai.pdf_extraction.genai.Client"):
             service = PDFExtractionService(api_key="fake_key")
             # Mock sync helpers to avoid retry delay issues in tests
             service._upload_file_sync = MagicMock()
@@ -140,7 +140,7 @@ class TestPDFExtractionServiceChunking:
 
     @pytest.fixture
     def mock_service(self):
-        with patch("app.services.ai_services.pdf_extraction.genai.Client"):
+        with patch("app.services.ai.pdf_extraction.genai.Client"):
             service = PDFExtractionService(api_key="key")
             service._process_pdf_with_gemini = AsyncMock(return_value="Content")
             return service
@@ -157,7 +157,7 @@ class TestPDFExtractionServiceChunking:
             yield [path]
 
         with patch(
-            "app.services.ai_services.pdf_extraction.split_pdf",
+            "app.services.ai.pdf_extraction.split_pdf",
             side_effect=mock_split_pdf,
         ):
             result = await mock_service._extract_text_with_chunking(
@@ -166,7 +166,7 @@ class TestPDFExtractionServiceChunking:
 
             assert result == "Content"
             mock_service._process_pdf_with_gemini.assert_called_once_with(
-                path, "Prompt", "model"
+                path, prompt="Prompt", model_id="model"
             )
 
     @pytest.mark.asyncio
@@ -182,7 +182,7 @@ class TestPDFExtractionServiceChunking:
             yield chunks
 
         with patch(
-            "app.services.ai_services.pdf_extraction.split_pdf",
+            "app.services.ai.pdf_extraction.split_pdf",
             side_effect=mock_split_pdf,
         ):
             result = await mock_service._extract_text_with_chunking(

@@ -17,7 +17,7 @@ from app.core.config import settings
 from app.models.knowledge_graph import KnowledgeGraph
 from app.models.knowledge_node import KnowledgeNode
 from app.schemas.knowledge_node import KnowledgeNodeLLM
-from app.services.ai_services.entity_resolution import EntityResolutionService
+from app.services.ai.entity_resolution import EntityResolutionService
 
 
 def _vec(val: float = 0.5) -> list[float]:
@@ -81,11 +81,7 @@ async def test_resolve_entities_exact_duplicate(test_db, user_in_db):
 
     # Should detect as duplicate
     assert result.duplicates_found == 1
-    assert result.new_nodes_count == 0
-    # Use the computed ID from the node
-    node_id = new_nodes[0].id
-    assert result.node_mapping[node_id] == existing_node.id
-    assert result.similarity_scores[node_id] >= 0.99  # Very high similarity
+    assert len(result.new_nodes) == 0
 
 
 @pytest.mark.asyncio
@@ -127,9 +123,7 @@ async def test_resolve_entities_high_similarity(test_db, user_in_db):
 
     # Should detect as duplicate (similarity will be high due to similar vectors)
     assert result.duplicates_found == 1
-    assert result.new_nodes_count == 0
-    node_id = new_nodes[0].id
-    assert result.node_mapping[node_id] == existing_node.id
+    assert len(result.new_nodes) == 0
 
 
 @pytest.mark.asyncio
@@ -171,9 +165,8 @@ async def test_resolve_entities_low_similarity(test_db, user_in_db):
 
     # Should NOT detect as duplicate
     assert result.duplicates_found == 0
-    assert result.new_nodes_count == 1
-    node_id = new_nodes[0].id
-    assert result.node_mapping[node_id] is None  # Truly new node
+    assert len(result.new_nodes) == 1
+    assert result.new_nodes[0].name == "Photosynthesis"
 
 
 @pytest.mark.asyncio
@@ -191,13 +184,19 @@ async def test_resolve_entities_empty_graph(test_db, user_in_db):
     ]
 
     service = EntityResolutionService(test_db)
-    result = await service.resolve_entities(graph.id, new_nodes)
+
+    async def mock_embed_text(text: str):
+        if "Node 1" in text:
+            return _vec(0.2)
+        return _vec(0.9)
+
+    with patch.object(service.embedding_service, "_embed_text", new=mock_embed_text):
+        result = await service.resolve_entities(graph.id, new_nodes)
 
     # All nodes should be new
     assert result.duplicates_found == 0
-    assert result.new_nodes_count == 2
-    assert result.node_mapping[new_nodes[0].id] is None
-    assert result.node_mapping[new_nodes[1].id] is None
+    assert len(result.new_nodes) == 2
+    assert {node.name for node in result.new_nodes} == {"Node 1", "Node 2"}
 
 
 @pytest.mark.asyncio
@@ -225,13 +224,17 @@ async def test_resolve_entities_no_embeddings(test_db, user_in_db):
     ]
 
     service = EntityResolutionService(test_db)
-    result = await service.resolve_entities(graph.id, new_nodes)
+
+    async def mock_embed_text(text: str):
+        return _vec(0.4)
+
+    with patch.object(service.embedding_service, "_embed_text", new=mock_embed_text):
+        result = await service.resolve_entities(graph.id, new_nodes)
 
     # Should treat as all new (no embeddings to compare against)
     assert result.duplicates_found == 0
-    assert result.new_nodes_count == 1
-    node_id = new_nodes[0].id
-    assert result.node_mapping[node_id] is None
+    assert len(result.new_nodes) == 1
+    assert result.new_nodes[0].name == "New Node"
 
 
 @pytest.mark.asyncio
@@ -276,8 +279,7 @@ async def test_resolve_entities_multiple_candidates(test_db, user_in_db):
 
     # Should match to node_2 (higher similarity)
     assert result.duplicates_found == 1
-    node_id = new_nodes[0].id
-    assert result.node_mapping[node_id] == node_2.id
+    assert len(result.new_nodes) == 0
 
 
 @pytest.mark.asyncio
@@ -299,12 +301,18 @@ async def test_resolve_entities_disabled(test_db, user_in_db):
 
     try:
         service = EntityResolutionService(test_db)
-        result = await service.resolve_entities(graph.id, new_nodes)
+
+        async def mock_embed_text(text: str):
+            return _vec(0.6)
+
+        with patch.object(
+            service.embedding_service, "_embed_text", new=mock_embed_text
+        ):
+            result = await service.resolve_entities(graph.id, new_nodes)
 
         # Should treat all as new without checking
         assert result.duplicates_found == 0
-        assert result.new_nodes_count == 1
-        node_id = new_nodes[0].id
-        assert result.node_mapping[node_id] is None
+        assert len(result.new_nodes) == 1
+        assert result.new_nodes[0].name == "Node 1"
     finally:
         settings.ENTITY_RESOLUTION_ENABLED = original_setting
