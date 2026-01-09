@@ -1,21 +1,13 @@
 import pytest
 
-# from app.schemas.knowledge_node import (
-#     GraphStructureLLM,
-#     KnowledgeNodeLLM,
-#     RelationshipLLM,
-# )
-from app.services.ai import node_generation
-from app.services.ai.node_generation import MissingAPIKeyError
-
-# def _make_graph(nodes, relationships):
-#     return GraphStructureLLM(nodes=nodes, relationships=relationships)
+from app.services.ai import common as common_module
+from app.services.ai.common import MissingAPIKeyError
 
 
 def test_get_client_missing_key(monkeypatch):
-    monkeypatch.setattr(node_generation.settings, "GOOGLE_API_KEY", "", raising=False)
+    monkeypatch.setattr(common_module.settings, "GOOGLE_API_KEY", "", raising=False)
     with pytest.raises(MissingAPIKeyError, match="GOOGLE_API_KEY"):
-        node_generation._get_client()
+        common_module.get_genai_client()
 
 
 # def test_merge_graphs_dedupes_and_prefers_longer_description():

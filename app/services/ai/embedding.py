@@ -21,14 +21,9 @@ from app.core.config import settings
 from app.crud import knowledge_node
 from app.models.knowledge_node import KnowledgeNode
 from app.schemas.knowledge_node import KnowledgeNodeLLM, KnowledgeNodeWithEmbedding
+from app.services.ai.common import MissingAPIKeyError
 
 logger = logging.getLogger(__name__)
-
-
-class MissingAPIKeyError(Exception):
-    """Raised when the Google API key is not configured."""
-
-    pass
 
 
 class EmbeddingService:

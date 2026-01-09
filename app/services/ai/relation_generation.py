@@ -16,6 +16,7 @@ from tenacity import retry, stop_after_attempt, wait_exponential
 from app.core.config import settings
 from app.core.prompts import RELATION_GEN_SYSTEM_PROMPT
 from app.schemas.knowledge_node import KnowledgeNodeLLM, PrerequisiteLLM
+from app.services.ai.common import get_genai_client
 
 # Configuration defaults
 DEFAULT_MODEL_NAME = settings.GEMINI_GRAPH_MODEL
@@ -38,23 +39,6 @@ class PrerequisitesLLM(BaseModel):
     """Container for LLM-generated prerequisites."""
 
     prerequisites: list[PrerequisiteLLM] = Field(default_factory=list)
-
-
-class MissingAPIKeyError(Exception):
-    """Raised when the Google API key is not configured."""
-
-    pass
-
-
-def _get_client(api_key: str | None = None) -> genai.Client:
-    """Initialize Google GenAI Client."""
-    api_key = api_key or settings.GOOGLE_API_KEY
-    if not api_key:
-        raise MissingAPIKeyError(
-            "GOOGLE_API_KEY is not set in settings. "
-            "Please configure it before running the pipeline."
-        )
-    return genai.Client(api_key=api_key)
 
 
 def _format_nodes_for_prompt(nodes: list[KnowledgeNodeLLM]) -> str:
@@ -161,7 +145,7 @@ def generate_relations(
         f"(existing edges: {len(existing_edges) if existing_edges else 0})"
     )
 
-    client = _get_client()
+    client = get_genai_client()
     generate = _create_generate_with_retry(
         config.max_retry_attempts, config.model_name, config.temperature
     )
