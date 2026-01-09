@@ -156,7 +156,6 @@ async def get_my_graph_content(
         - graph: Basic graph information
         - nodes: All knowledge nodes in the graph
         - prerequisites: All prerequisite relationships
-        - subtopics: All subtopic relationships
 
     Args:
         knowledge_graph: Owned knowledge graph (injected by get_owned_graph dependency)

@@ -109,7 +109,7 @@ class TestGetGraphVisualization:
         result = await get_graph_visualization(test_db, graph.id, user_in_db.id)
 
         # Check edges
-        prereq_edges = [e for e in result.edges if e.type == "IS_PREREQUISITE_FOR"]
+        prereq_edges = result.edges
         assert len(prereq_edges) == 1
         assert prereq_edges[0].source_id == node1.id
         assert prereq_edges[0].target_id == node2.id
@@ -132,7 +132,7 @@ class TestGetGraphVisualization:
         assert len(result.nodes) == len(nodes)
 
         # Check edges count
-        prereq_edges = [e for e in result.edges if e.type == "IS_PREREQUISITE_FOR"]
+        prereq_edges = result.edges
 
         assert len(prereq_edges) == len(prereqs)
 

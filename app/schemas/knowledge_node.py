@@ -67,38 +67,6 @@ class PrerequisiteResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-class GraphNode(BaseModel):
-    """Node representation for knowledge graph visualization."""
-
-    id: UUID
-    name: str
-    description: str
-    mastery_score: float = Field(
-        ge=0.0,
-        le=1.0,
-        description="User's mastery score (0.0-1.0, default 0.2 if no mastery record exists)",
-    )
-
-
-class GraphEdge(BaseModel):
-    """Edge representation for knowledge graph visualization."""
-
-    source: UUID = Field(
-        description="Source node UUID (from_node_id for prerequisites, parent_node_id for subtopics)"
-    )
-    target: UUID = Field(
-        description="Target node UUID (to_node_id for prerequisites, child_node_id for subtopics)"
-    )
-    # # type: EdgeType = Field(description="Relationship type")
-
-
-class KnowledgeGraphVisualization(BaseModel):
-    """Complete knowledge graph for visualization."""
-
-    nodes: list[GraphNode]
-    edges: list[GraphEdge]
-
-
 # ==================== LLM Graph Structure Schemas ====================
 
 

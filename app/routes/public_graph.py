@@ -332,7 +332,7 @@ async def get_graph_visualization_endpoint(
     """
     Get visualization data for a knowledge graph.
 
-    Returns all nodes with user mastery scores and all edges (prerequisites and subtopics)
+    Returns all nodes with user mastery scores and prerequisite edges
     for rendering a knowledge graph visualization.
 
     Args:
@@ -402,7 +402,6 @@ async def get_public_graph_content(
         - graph: Basic graph information
         - nodes: All knowledge nodes in the graph
         - prerequisites: All prerequisite relationships
-        - subtopics: All subtopic relationships
 
     Raises:
         HTTPException 404: If the knowledge graph doesn't exist
