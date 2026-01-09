@@ -12,6 +12,7 @@ from app.core.prompts import (
     GRAPH_GEN_SYSTEM_PROMPT,
 )
 from app.schemas.knowledge_node import KnowledgeNodeLLM, KnowledgeNodesLLM
+from app.services.ai.common import MissingAPIKeyError, get_genai_client
 from app.utils.split_text import split_text_content
 
 # Configuration defaults (centralized in settings)
@@ -40,21 +41,8 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-class MissingAPIKeyError(Exception):
-    """Raised when the Google API key is not configured."""
-
-    pass
-
-
-def _get_client(api_key: str | None = None):
-    """Initialize Google GenAI Client."""
-    api_key = api_key or settings.GOOGLE_API_KEY
-    if not api_key:
-        raise MissingAPIKeyError(
-            "GOOGLE_API_KEY is not set in settings. "
-            "Please configure it before running the pipeline."
-        )
-    return genai.Client(api_key=api_key)
+# Re-export for backward compatibility
+__all__ = ["MissingAPIKeyError", "PipelineConfig", "generate_nodes_from_markdown"]
 
 
 def _create_extract_with_retry(max_attempts: int, model_name: str, temperature: float):
@@ -133,7 +121,7 @@ def generate_nodes_from_markdown(
         logger.warning(f"Markdown is empty: {path}")
         return KnowledgeNodesLLM(nodes=[])
 
-    client = _get_client()
+    client = get_genai_client()
     extract = _create_extract_with_retry(
         config.max_retry_attempts, config.model_name, config.temperature
     )

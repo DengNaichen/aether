@@ -15,9 +15,9 @@ from uuid import uuid4
 
 import pytest
 
+from app.services.ai.common import MissingAPIKeyError
 from app.services.ai.question_generation import (
     GeneratedQuestionLLM,
-    MissingAPIKeyError,
     MultiNodeQuestionBatchLLM,
     NodeQuestionBatchLLM,
     PipelineConfig,
@@ -106,12 +106,12 @@ class TestLLMInitialization:
 
     def test_get_client_missing_api_key(self, monkeypatch):
         """Test that MissingAPIKeyError is raised when API key is not set."""
-        from app.services.ai import question_generation as gq_module
+        from app.services.ai import common as common_module
 
-        monkeypatch.setattr(gq_module.settings, "GOOGLE_API_KEY", "", raising=False)
+        monkeypatch.setattr(common_module.settings, "GOOGLE_API_KEY", "", raising=False)
 
         with pytest.raises(MissingAPIKeyError, match="GOOGLE_API_KEY"):
-            gq_module._get_client()
+            common_module.get_genai_client()
 
 
 # ==================== convert_to_question_create Tests ====================
@@ -224,7 +224,9 @@ class TestGenerateQuestionsForNode:
     def test_generate_questions_success(self, sample_question_batch):
         """Test successful question generation."""
         with (
-            patch("app.services.ai.question_generation._get_client") as mock_get_client,
+            patch(
+                "app.services.ai.question_generation.get_genai_client"
+            ) as mock_get_client,
             patch(
                 "app.services.ai.question_generation._create_generate_with_retry"
             ) as mock_create_retry,
@@ -247,7 +249,7 @@ class TestGenerateQuestionsForNode:
     ):
         """Test question generation with custom difficulty distribution."""
         with (
-            patch("app.services.ai.question_generation._get_client"),
+            patch("app.services.ai.question_generation.get_genai_client"),
             patch(
                 "app.services.ai.question_generation._create_generate_with_retry"
             ) as mock_create_retry,
@@ -269,7 +271,7 @@ class TestGenerateQuestionsForNode:
     def test_generate_questions_with_question_types(self, sample_question_batch):
         """Test question generation with specific question types."""
         with (
-            patch("app.services.ai.question_generation._get_client"),
+            patch("app.services.ai.question_generation.get_genai_client"),
             patch(
                 "app.services.ai.question_generation._create_generate_with_retry"
             ) as mock_create_retry,
@@ -290,7 +292,7 @@ class TestGenerateQuestionsForNode:
     def test_generate_questions_llm_failure_returns_none(self):
         """Test that LLM failure returns None."""
         with (
-            patch("app.services.ai.question_generation._get_client"),
+            patch("app.services.ai.question_generation.get_genai_client"),
             patch(
                 "app.services.ai.question_generation._create_generate_with_retry"
             ) as mock_create_retry,
@@ -339,7 +341,9 @@ class TestGenerateQuestionsForNodesBatch:
         )
 
         with (
-            patch("app.services.ai.question_generation._get_client") as mock_get_client,
+            patch(
+                "app.services.ai.question_generation.get_genai_client"
+            ) as mock_get_client,
             patch(
                 "app.services.ai.question_generation._generate_with_schema"
             ) as mock_generate,
@@ -377,7 +381,9 @@ class TestGenerateQuestionsForNodesBatch:
         )
 
         with (
-            patch("app.services.ai.question_generation._get_client") as mock_get_client,
+            patch(
+                "app.services.ai.question_generation.get_genai_client"
+            ) as mock_get_client,
             patch(
                 "app.services.ai.question_generation._generate_with_schema"
             ) as mock_generate,
@@ -422,7 +428,7 @@ class TestGenerateQuestionsForNodesBatch:
         ]
 
         with (
-            patch("app.services.ai.question_generation._get_client"),
+            patch("app.services.ai.question_generation.get_genai_client"),
             patch(
                 "app.services.ai.question_generation._generate_with_schema"
             ) as mock_generate,

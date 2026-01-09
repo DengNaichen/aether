@@ -22,6 +22,7 @@ from app.core.prompts import (
     QUESTION_GEN_FEW_SHOT_EXAMPLES,
     QUESTION_GEN_SYSTEM_PROMPT,
 )
+from app.services.ai.common import get_genai_client
 
 # Configuration defaults (centralized in settings)
 DEFAULT_MODEL_NAME = settings.GEMINI_QUESTION_MODEL
@@ -109,24 +110,7 @@ class PipelineConfig:
     max_retry_attempts: int = DEFAULT_MAX_RETRY_ATTEMPTS
 
 
-class MissingAPIKeyError(Exception):
-    """Raised when the Google API key is not configured."""
-
-    pass
-
-
 # ==================== LLM Initialization ====================
-
-
-def _get_client(api_key: str | None = None) -> genai.Client:
-    """Initialize Google GenAI Client."""
-    api_key = api_key or settings.GOOGLE_API_KEY
-    if not api_key:
-        raise MissingAPIKeyError(
-            "GOOGLE_API_KEY is not set in settings. "
-            "Please configure it before running the pipeline."
-        )
-    return genai.Client(api_key=api_key)
 
 
 def _build_prompt_contents(
@@ -330,7 +314,7 @@ def generate_questions_for_node(
         logger.warning("Node name and description are required")
         return None
 
-    client = _get_client()
+    client = get_genai_client()
     generate = _create_generate_with_retry(
         config.max_retry_attempts, config.model_name, config.temperature
     )
@@ -416,7 +400,7 @@ def generate_questions_for_nodes_batch(
     )
 
     try:
-        client = _get_client()
+        client = get_genai_client()
 
         result = _generate_with_schema(
             client,
