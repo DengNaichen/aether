@@ -1,0 +1,124 @@
+### AI Endpoints Smoke Tests
+### Test AI-powered features: file upload, node generation, question generation, relation generation
+
+@baseUrl = http://localhost:8000
+
+# User: PDF Test User (e2888952-ed60-43c2-9f0a-f8520f4647a4)
+# Token expires: 2026-04-09 (3 months)
+@accessToken = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJlMjg4ODk1Mi1lZDYwLTQzYzItOWYwYS1mODUyMGY0NjQ3YTQiLCJleHAiOjE3NzU3MTQwNDksImF1ZCI6ImF1dGhlbnRpY2F0ZWQiLCJyb2xlIjoiYXV0aGVudGljYXRlZCJ9.pLI0bgFDIfMknLYzbqFPdlBGHehMc4KZNlM2taMKwyc
+
+### ==================== Graph Setup ====================
+
+### 1. List my graphs
+# @name listGraphs
+GET {{baseUrl}}/me/graphs
+Authorization: Bearer {{accessToken}}
+
+###
+# IMPORTANT: After running step 1, manually copy a graph ID and paste it below
+# Or create a new graph in step 2 and use that ID
+@graphId = 7f36f8e1-61ba-4125-85ac-04a479d7c40d
+
+### 2. Create a test graph
+# @name createGraph
+POST {{baseUrl}}/me/graphs
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "name": "AI Smoke Test Graph",
+  "description": "Graph for testing AI endpoints",
+  "is_public": false
+}
+
+###
+# Uncomment to use newly created graph
+# @graphId = {{createGraph.response.body.id}}
+
+### ==================== AI Endpoints ====================
+
+### 3a. Upload a real PDF file (recommended)
+POST {{baseUrl}}/me/graphs/{{graphId}}/upload-file
+Authorization: Bearer {{accessToken}}
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary
+
+------WebKitFormBoundary
+Content-Disposition: form-data; name="file"; filename="Chapter_1.pdf"
+Content-Type: application/pdf
+
+< /Users/nd/Developer/aether/Resource/split_chapters/Chapter_1.pdf
+------WebKitFormBoundary--
+
+### 3b. Upload Markdown with embedded content (alternative)
+POST {{baseUrl}}/me/graphs/{{graphId}}/upload-file
+Authorization: Bearer {{accessToken}}
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary
+
+------WebKitFormBoundary
+Content-Disposition: form-data; name="file"; filename="test.md"
+Content-Type: text/markdown
+
+# Variables and Data Types
+
+## What are Variables?
+Variables are containers that store data values. In programming, we use variables to keep track of information.
+
+## Primitive Types
+- **Integer**: Whole numbers like 1, 42, -7
+- **Float**: Decimal numbers like 3.14, -0.5
+- **String**: Text enclosed in quotes like "Hello"
+- **Boolean**: True or false values
+
+## Variable Declaration
+In Python, you declare variables by simply assigning a value:
+```python
+age = 25
+name = "Alice"
+is_student = True
+```
+
+------WebKitFormBoundary--
+
+### 4. Generate questions for the graph
+# @name generateQuestions
+POST {{baseUrl}}/me/graphs/{{graphId}}/generate-questions
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "questions_per_node": 3,
+  "question_types": ["multiple_choice"],
+  "only_nodes_without_questions": true
+}
+
+### 5. Generate questions with custom difficulty distribution
+POST {{baseUrl}}/me/graphs/{{graphId}}/generate-questions
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "questions_per_node": 5,
+  "difficulty_distribution": {
+    "easy": 2,
+    "medium": 2,
+    "hard": 1
+  },
+  "question_types": ["multiple_choice"],
+  "only_nodes_without_questions": false,
+  "user_guidance": "Focus on practical coding examples"
+}
+
+### 6. Generate prerequisite relations between nodes
+# @name generateRelations
+POST {{baseUrl}}/me/graphs/{{graphId}}/generate-relations
+Authorization: Bearer {{accessToken}}
+
+### ==================== Verification ====================
+
+### 7. Get graph visualization (verify nodes and edges were created)
+GET {{baseUrl}}/me/graphs/{{graphId}}/visualization
+Authorization: Bearer {{accessToken}}
+
+### 8. Get graph content (verify all data)
+GET {{baseUrl}}/me/graphs/{{graphId}}/content
+Authorization: Bearer {{accessToken}}
