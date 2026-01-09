@@ -18,12 +18,14 @@ import pytest
 from app.services.ai.question_generation import (
     GeneratedQuestionLLM,
     MissingAPIKeyError,
+    MultiNodeQuestionBatchLLM,
+    NodeQuestionBatchLLM,
     PipelineConfig,
     QuestionBatchLLM,
     QuestionOptionLLM,
     convert_to_question_create,
     generate_questions_for_node,
-    generate_questions_for_nodes,
+    generate_questions_for_nodes_batch,
 )
 
 # ==================== Test Fixtures ====================
@@ -102,14 +104,14 @@ class TestPipelineConfig:
 class TestLLMInitialization:
     """Test LLM initialization and error handling."""
 
-    def test_get_llm_missing_api_key(self, monkeypatch):
+    def test_get_client_missing_api_key(self, monkeypatch):
         """Test that MissingAPIKeyError is raised when API key is not set."""
         from app.services.ai import question_generation as gq_module
 
         monkeypatch.setattr(gq_module.settings, "GOOGLE_API_KEY", "", raising=False)
 
         with pytest.raises(MissingAPIKeyError, match="GOOGLE_API_KEY"):
-            gq_module._get_llm(PipelineConfig())
+            gq_module._get_client()
 
 
 # ==================== convert_to_question_create Tests ====================
@@ -222,7 +224,7 @@ class TestGenerateQuestionsForNode:
     def test_generate_questions_success(self, sample_question_batch):
         """Test successful question generation."""
         with (
-            patch("app.services.ai.question_generation._get_llm") as mock_get_llm,
+            patch("app.services.ai.question_generation._get_client") as mock_get_client,
             patch(
                 "app.services.ai.question_generation._create_generate_with_retry"
             ) as mock_create_retry,
@@ -238,14 +240,14 @@ class TestGenerateQuestionsForNode:
 
             assert result is not None
             assert len(result.questions) == 2
-            mock_get_llm.assert_called_once()
+            mock_get_client.assert_called_once()
 
     def test_generate_questions_with_difficulty_distribution(
         self, sample_question_batch
     ):
         """Test question generation with custom difficulty distribution."""
         with (
-            patch("app.services.ai.question_generation._get_llm"),
+            patch("app.services.ai.question_generation._get_client"),
             patch(
                 "app.services.ai.question_generation._create_generate_with_retry"
             ) as mock_create_retry,
@@ -267,7 +269,7 @@ class TestGenerateQuestionsForNode:
     def test_generate_questions_with_question_types(self, sample_question_batch):
         """Test question generation with specific question types."""
         with (
-            patch("app.services.ai.question_generation._get_llm"),
+            patch("app.services.ai.question_generation._get_client"),
             patch(
                 "app.services.ai.question_generation._create_generate_with_retry"
             ) as mock_create_retry,
@@ -288,7 +290,7 @@ class TestGenerateQuestionsForNode:
     def test_generate_questions_llm_failure_returns_none(self):
         """Test that LLM failure returns None."""
         with (
-            patch("app.services.ai.question_generation._get_llm"),
+            patch("app.services.ai.question_generation._get_client"),
             patch(
                 "app.services.ai.question_generation._create_generate_with_retry"
             ) as mock_create_retry,
@@ -304,14 +306,14 @@ class TestGenerateQuestionsForNode:
             assert result is None
 
 
-# ==================== generate_questions_for_nodes Tests ====================
+# ==================== generate_questions_for_nodes_batch Tests ====================
 
 
-class TestGenerateQuestionsForNodes:
-    """Test multi-node question generation."""
+class TestGenerateQuestionsForNodesBatch:
+    """Test multi-node batch question generation."""
 
     def test_generate_questions_for_multiple_nodes(self, sample_question_batch):
-        """Test generating questions for multiple nodes."""
+        """Test generating questions for multiple nodes in batch."""
         nodes = [
             {
                 "name": "Photosynthesis",
@@ -323,20 +325,35 @@ class TestGenerateQuestionsForNodes:
             },
         ]
 
+        batch_result = MultiNodeQuestionBatchLLM(
+            node_batches=[
+                NodeQuestionBatchLLM(
+                    node_name="Photosynthesis",
+                    questions=sample_question_batch.questions,
+                ),
+                NodeQuestionBatchLLM(
+                    node_name="Cellular Respiration",
+                    questions=sample_question_batch.questions,
+                ),
+            ]
+        )
+
         with (
-            patch("app.services.ai.question_generation._get_llm"),
+            patch("app.services.ai.question_generation._get_client") as mock_get_client,
             patch(
-                "app.services.ai.question_generation._create_generate_with_retry"
-            ) as mock_create_retry,
+                "app.services.ai.question_generation._generate_with_schema"
+            ) as mock_generate,
         ):
-            mock_generate = MagicMock(return_value=sample_question_batch)
-            mock_create_retry.return_value = mock_generate
+            mock_generate.return_value = batch_result
 
-            results = generate_questions_for_nodes(nodes, questions_per_node=3)
+            result = generate_questions_for_nodes_batch(nodes, questions_per_node=3)
 
-            assert len(results) == 2
-            assert "Photosynthesis" in results
-            assert "Cellular Respiration" in results
+            assert result is not None
+            assert len(result.node_batches) == 2
+            assert result.node_batches[0].node_name == "Photosynthesis"
+            assert result.node_batches[1].node_name == "Cellular Respiration"
+            mock_get_client.assert_called_once()
+            mock_generate.assert_called_once()
 
     def test_generate_questions_skips_invalid_nodes(self, sample_question_batch):
         """Test that nodes without name or description are skipped."""
@@ -347,56 +364,74 @@ class TestGenerateQuestionsForNodes:
             {"name": "Another Valid", "description": "Also has description."},
         ]
 
+        batch_result = MultiNodeQuestionBatchLLM(
+            node_batches=[
+                NodeQuestionBatchLLM(
+                    node_name="Valid Node", questions=sample_question_batch.questions
+                ),
+                NodeQuestionBatchLLM(
+                    node_name="Another Valid",
+                    questions=sample_question_batch.questions,
+                ),
+            ]
+        )
+
         with (
-            patch("app.services.ai.question_generation._get_llm"),
+            patch("app.services.ai.question_generation._get_client") as mock_get_client,
             patch(
-                "app.services.ai.question_generation._create_generate_with_retry"
-            ) as mock_create_retry,
+                "app.services.ai.question_generation._generate_with_schema"
+            ) as mock_generate,
         ):
-            mock_generate = MagicMock(return_value=sample_question_batch)
-            mock_create_retry.return_value = mock_generate
+            mock_generate.return_value = batch_result
 
-            results = generate_questions_for_nodes(nodes)
+            result = generate_questions_for_nodes_batch(nodes)
 
-            # Only valid nodes should have results
-            assert len(results) == 2
-            assert "Valid Node" in results
-            assert "Another Valid" in results
+            assert result is not None
+            assert len(result.node_batches) == 2
+            call_args = mock_generate.call_args
+            user_message = call_args.args[5]
+            assert "Missing Desc" not in user_message
+            assert "Missing name" not in user_message
+            mock_get_client.assert_called_once()
 
     def test_generate_questions_empty_nodes_list(self):
         """Test with empty nodes list."""
-        results = generate_questions_for_nodes([])
+        result = generate_questions_for_nodes_batch([])
 
-        assert results == {}
+        assert result is None
 
-    def test_generate_questions_continues_on_failure(self, sample_question_batch):
-        """Test that generation continues even if one node fails."""
+    def test_generate_questions_all_invalid_nodes(self):
+        """Test with all invalid nodes."""
         nodes = [
-            {"name": "Fails", "description": "This will fail."},
-            {"name": "Succeeds", "description": "This will succeed."},
+            {"name": "", "description": "Missing name."},
+            {"name": "Missing Desc", "description": ""},
         ]
 
-        call_count = {"count": 0}
+        with patch(
+            "app.services.ai.question_generation._generate_with_schema"
+        ) as mock_generate:
+            result = generate_questions_for_nodes_batch(nodes)
 
-        def mock_generate_func(*args, **kwargs):
-            call_count["count"] += 1
-            if call_count["count"] == 1:
-                raise Exception("Simulated failure")
-            return sample_question_batch
+            assert result is None
+            mock_generate.assert_not_called()
+
+    def test_generate_questions_batch_failure_returns_none(self):
+        """Test that batch generation failure returns None."""
+        nodes = [
+            {"name": "Fails", "description": "This will fail."},
+        ]
 
         with (
-            patch("app.services.ai.question_generation._get_llm"),
+            patch("app.services.ai.question_generation._get_client"),
             patch(
-                "app.services.ai.question_generation._create_generate_with_retry"
-            ) as mock_create_retry,
+                "app.services.ai.question_generation._generate_with_schema"
+            ) as mock_generate,
         ):
-            mock_create_retry.return_value = mock_generate_func
+            mock_generate.side_effect = Exception("LLM Error")
 
-            results = generate_questions_for_nodes(nodes)
+            result = generate_questions_for_nodes_batch(nodes)
 
-            # Only the successful node should have results
-            assert len(results) == 1
-            assert "Succeeds" in results
+            assert result is None
 
 
 # ==================== generate_questions_for_graph Tests ====================

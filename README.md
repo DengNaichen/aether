@@ -7,7 +7,7 @@ Aether pairs AI-generated knowledge graphs with a FSRS-first learning engine to 
 ## Highlights
 
 - FSRS-first mastery engine with cached retrievability, implicit prerequisite boosts, and topology-aware question selection (no Neo4j/BKT dependency).
-- Gemini-first ETL: Gemini 2.5 Flash (Files API) extracts PDFs to Markdown → Gemini 3 Pro builds/refines graphs → LangChain + Gemini generates questions for leaf nodes.
+- Gemini-first ETL: Gemini 2.5 Flash (Files API) extracts PDFs to Markdown → Gemini 3 Pro builds/refines graphs → Gemini SDK generates questions for leaf nodes.
 - Supabase/PostgreSQL data layer with Supabase JWT auth (provide `Authorization: Bearer <token>`; no local login endpoints).
 - Graph APIs for creation, enrollment, visualization, imports, and an upload endpoint that turns PDFs/Markdown into graphs automatically.
 - Cloud Run-ready Docker image and Makefile targets for build/deploy, plus CLI scripts for offline ingestion.
@@ -16,7 +16,7 @@ Aether pairs AI-generated knowledge graphs with a FSRS-first learning engine to 
 
 - **API:** FastAPI + SQLAlchemy on Python 3.12, packaged with `uv`.
 - **Data:** Supabase/PostgreSQL (tables auto-created on startup); optional Redis for queues/tests.
-- **AI:** google-genai (Gemini 2.5 Flash, Gemini 3 Pro), LangChain structured outputs, FSRS library.
+- **AI:** google-genai (Gemini 2.5 Flash, Gemini 3 Pro), structured outputs, FSRS library.
 - **Docs:** `docs/architecture.md`, `docs/fsrs_logic_design.md` outline data flow and mastery logic.
 
 ## Getting Started

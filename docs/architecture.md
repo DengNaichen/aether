@@ -19,14 +19,13 @@ graph TD
     %% Service Layer
     subgraph Services ["Business Logic Services"]
         FSRS["FSRS Scheduler<br/>(Spaced Repetition)"]
-        GraphGen["Graph Generator<br/>(LangChain + Agent)"]
+        GraphGen["Graph Generator<br/>(Gemini SDK + Agent)"]
         RecEngine["Recommendation Engine<br/>(FSRS + Topology)"]
     end
 
     %% AI Layer
     subgraph AI ["AI / LLM Layer"]
         Gemini["Google Gemini Pro"]
-        LangChain["LangChain Orchestrator"]
     end
 
     %% Data Layer
@@ -41,8 +40,7 @@ graph TD
     WebApp -->|REST| MasteryAPI
 
     GraphAPI --> GraphGen
-    GraphGen -->|Prompt Engineering| LangChain
-    LangChain -->|API Call| Gemini
+    GraphGen -->|API Call| Gemini
 
     QuestionAPI --> RecEngine
     RecEngine -->|Get Schedule + Mastery| FSRS
@@ -65,7 +63,7 @@ graph TD
     class WebApp,Mobile client;
     class Auth,GraphAPI,QuestionAPI,MasteryAPI api;
     class BKT,FSRS,GraphGen,RecEngine service;
-    class Gemini,LangChain ai;
+    class Gemini ai;
     class Postgres data;
 ```
 
