@@ -10,17 +10,21 @@ This pipeline follows the same pattern as generate_graph.py:
 
 import logging
 from dataclasses import dataclass
-from typing import Literal
 
 from google import genai
 from google.genai import types
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 from tenacity import retry, stop_after_attempt, wait_exponential
 
 from app.core.config import settings
 from app.core.prompts import (
     QUESTION_GEN_FEW_SHOT_EXAMPLES,
     QUESTION_GEN_SYSTEM_PROMPT,
+)
+from app.schemas.questions import (
+    GeneratedQuestionLLM,
+    MultiNodeQuestionBatchLLM,
+    QuestionBatchLLM,
 )
 from app.services.ai.common import get_genai_client
 
@@ -38,64 +42,6 @@ logging.basicConfig(
 
 
 logger = logging.getLogger(__name__)
-
-
-# ==================== Pydantic Schemas for LLM Output ====================
-
-
-class QuestionOptionLLM(BaseModel):
-    """A single option for multiple choice questions."""
-
-    text: str = Field(description="The option text")
-    is_correct: bool = Field(description="Whether this is the correct answer")
-
-
-class GeneratedQuestionLLM(BaseModel):
-    """A single generated question from the LLM."""
-
-    question_type: Literal["multiple_choice", "fill_blank", "short_answer"] = Field(
-        description="Type of question"
-    )
-    text: str = Field(description="The question text/prompt")
-    difficulty: Literal["easy", "medium", "hard"] = Field(
-        description="Question difficulty level"
-    )
-    # For multiple choice
-    options: list[QuestionOptionLLM] | None = Field(
-        default=None, description="Options for multiple choice (4 options required)"
-    )
-    # For fill_blank and short_answer
-    expected_answers: list[str] | None = Field(
-        default=None, description="Acceptable answers for fill_blank/short_answer"
-    )
-    explanation: str = Field(
-        description="Brief explanation of why the answer is correct"
-    )
-
-
-class QuestionBatchLLM(BaseModel):
-    """Batch of generated questions for a single knowledge node."""
-
-    questions: list[GeneratedQuestionLLM] = Field(
-        description="List of generated questions"
-    )
-
-
-class NodeQuestionBatchLLM(BaseModel):
-    """Questions generated for a specific node."""
-
-    node_name: str = Field(description="Name of the knowledge node")
-    questions: list[GeneratedQuestionLLM] = Field(
-        description="List of generated questions for this node"
-    )
-
-
-class MultiNodeQuestionBatchLLM(BaseModel):
-    """Batch of questions generated for multiple nodes in one call."""
-
-    node_batches: list[NodeQuestionBatchLLM] = Field(
-        description="List of question batches, one per node"
-    )
 
 
 # ==================== Pipeline Configuration ====================

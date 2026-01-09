@@ -15,14 +15,16 @@ from uuid import uuid4
 
 import pytest
 
-from app.services.ai.common import MissingAPIKeyError
-from app.services.ai.question_generation import (
+from app.schemas.questions import (
     GeneratedQuestionLLM,
     MultiNodeQuestionBatchLLM,
     NodeQuestionBatchLLM,
-    PipelineConfig,
     QuestionBatchLLM,
     QuestionOptionLLM,
+)
+from app.services.ai.common import MissingAPIKeyError
+from app.services.ai.question_generation import (
+    PipelineConfig,
     convert_to_question_create,
     generate_questions_for_node,
     generate_questions_for_nodes_batch,
@@ -477,9 +479,11 @@ class TestGenerateQuestionsForGraph:
     @pytest.mark.asyncio
     async def test_generate_questions_for_graph_success(self, sample_question_batch):
         """Test successful question generation for a graph."""
-        from app.services.ai.question_generation import (
+        from app.schemas.questions import (
             MultiNodeQuestionBatchLLM,
             NodeQuestionBatchLLM,
+        )
+        from app.services.ai.question_generation import (
             generate_questions_for_graph,
         )
 
@@ -532,9 +536,11 @@ class TestGenerateQuestionsForGraph:
         self, sample_question_batch
     ):
         """Test that nodes with existing questions are skipped."""
-        from app.services.ai.question_generation import (
+        from app.schemas.questions import (
             MultiNodeQuestionBatchLLM,
             NodeQuestionBatchLLM,
+        )
+        from app.services.ai.question_generation import (
             generate_questions_for_graph,
         )
 

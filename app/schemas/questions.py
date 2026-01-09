@@ -184,3 +184,61 @@ class GenerateQuestionsRequest(BaseModel):
     question_types: list[str] = Field(default=["multiple_choice"])
     only_nodes_without_questions: bool = Field(default=True)
     user_guidance: str = Field(default="")
+
+
+# ==================== LLM Output Schemas ====================
+
+
+class QuestionOptionLLM(BaseModel):
+    """A single option for multiple choice questions (from LLM)."""
+
+    text: str = Field(description="The option text")
+    is_correct: bool = Field(description="Whether this is the correct answer")
+
+
+class GeneratedQuestionLLM(BaseModel):
+    """A single generated question from the LLM."""
+
+    question_type: Literal["multiple_choice", "fill_blank", "short_answer"] = Field(
+        description="Type of question"
+    )
+    text: str = Field(description="The question text/prompt")
+    difficulty: Literal["easy", "medium", "hard"] = Field(
+        description="Question difficulty level"
+    )
+    # For multiple choice
+    options: list[QuestionOptionLLM] | None = Field(
+        default=None, description="Options for multiple choice (4 options required)"
+    )
+    # For fill_blank and short_answer
+    expected_answers: list[str] | None = Field(
+        default=None, description="Acceptable answers for fill_blank/short_answer"
+    )
+    explanation: str = Field(
+        description="Brief explanation of why the answer is correct"
+    )
+
+
+class QuestionBatchLLM(BaseModel):
+    """Batch of generated questions for a single knowledge node."""
+
+    questions: list[GeneratedQuestionLLM] = Field(
+        description="List of generated questions"
+    )
+
+
+class NodeQuestionBatchLLM(BaseModel):
+    """Questions generated for a specific node."""
+
+    node_name: str = Field(description="Name of the knowledge node")
+    questions: list[GeneratedQuestionLLM] = Field(
+        description="List of generated questions for this node"
+    )
+
+
+class MultiNodeQuestionBatchLLM(BaseModel):
+    """Batch of questions generated for multiple nodes in one call."""
+
+    node_batches: list[NodeQuestionBatchLLM] = Field(
+        description="List of question batches, one per node"
+    )
