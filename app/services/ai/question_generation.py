@@ -1,8 +1,8 @@
 """
-LangChain pipeline for generating quiz questions from knowledge graph nodes.
+Gemini SDK pipeline for generating quiz questions from knowledge graph nodes.
 
 This pipeline follows the same pattern as generate_graph.py:
-- Uses Google Gemini LLM with structured output
+- Uses Google Gemini with structured output
 - Few-shot examples for consistent formatting
 - Retry logic with exponential backoff
 - Configurable via PipelineConfig
@@ -12,8 +12,8 @@ import logging
 from dataclasses import dataclass
 from typing import Literal
 
-from langchain_core.prompts import ChatPromptTemplate
-from langchain_google_genai import ChatGoogleGenerativeAI
+from google import genai
+from google.genai import types
 from pydantic import BaseModel, Field
 from tenacity import retry, stop_after_attempt, wait_exponential
 
@@ -118,27 +118,146 @@ class MissingAPIKeyError(Exception):
 # ==================== LLM Initialization ====================
 
 
-def _get_llm(config: PipelineConfig):
-    """Initialize LLM with structured output capability."""
-    api_key = settings.GOOGLE_API_KEY
+def _get_client(api_key: str | None = None) -> genai.Client:
+    """Initialize Google GenAI Client."""
+    api_key = api_key or settings.GOOGLE_API_KEY
     if not api_key:
         raise MissingAPIKeyError(
             "GOOGLE_API_KEY is not set in settings. "
             "Please configure it before running the pipeline."
         )
+    return genai.Client(api_key=api_key)
 
-    llm = ChatGoogleGenerativeAI(
-        model=config.model_name,
-        temperature=config.temperature,
-        google_api_key=api_key,
+
+def _build_prompt_contents(
+    formatted_system_prompt: str,
+    user_message: str,
+) -> list[types.Content]:
+    """Build GenAI contents with few-shot examples and user input."""
+    contents = [
+        types.Content(role="user", parts=[types.Part(text=formatted_system_prompt)])
+    ]
+
+    for role, text in QUESTION_GEN_FEW_SHOT_EXAMPLES:
+        role_key = role.lower()
+        genai_role = "user" if role_key in {"human", "user"} else "model"
+        normalized_text = text.strip().replace("{{", "{").replace("}}", "}")
+        contents.append(
+            types.Content(role=genai_role, parts=[types.Part(text=normalized_text)])
+        )
+
+    contents.append(types.Content(role="user", parts=[types.Part(text=user_message)]))
+    return contents
+
+
+def _format_difficulty_distribution(
+    num_questions: int, difficulty_distribution: dict | None
+) -> str:
+    """Format difficulty distribution instruction string."""
+    if difficulty_distribution:
+        return ", ".join(
+            f"{count} {level}" for level, count in difficulty_distribution.items()
+        )
+
+    easy = num_questions // 3
+    hard = num_questions // 3
+    medium = num_questions - easy - hard
+    return f"{easy} easy, {medium} medium, {hard} hard"
+
+
+def _format_question_type_preference(question_types: list[str] | None) -> str:
+    """Format question type preference instruction string."""
+    if not question_types:
+        return ""
+    return f"\nPreferred question types: {', '.join(question_types)}"
+
+
+def _format_system_prompt(user_guidance: str) -> str:
+    """Format the system prompt with optional guidance."""
+    extra_guidance = (
+        f"### Extra Instructions:\n{user_guidance}" if user_guidance else ""
     )
-    return llm.with_structured_output(QuestionBatchLLM)
+    return QUESTION_GEN_SYSTEM_PROMPT.format(user_guidance=extra_guidance)
+
+
+def _build_single_node_message(
+    node_name: str,
+    node_description: str,
+    num_questions: int,
+    diff_str: str,
+    type_str: str,
+) -> str:
+    """Build the user message for single-node generation."""
+    return f"""
+Node Name: {node_name}
+Node Description: {node_description}
+
+Generate {num_questions} questions ({diff_str}).{type_str}
+"""
+
+
+def _build_batch_message(
+    valid_nodes: list[dict],
+    questions_per_node: int,
+    diff_str: str,
+    type_str: str,
+) -> str:
+    """Build the user message for batch generation."""
+    nodes_description = "\n\n".join(
+        [
+            f"Node {i + 1}: {node['name']}\nDescription: {node['description']}"
+            for i, node in enumerate(valid_nodes)
+        ]
+    )
+
+    return f"""
+I have {len(valid_nodes)} knowledge nodes. For EACH node, generate {questions_per_node} questions ({diff_str}).{type_str}
+
+{nodes_description}
+
+IMPORTANT: Return a JSON object with a "node_batches" array. Each element should have:
+- "node_name": exact name of the node
+- "questions": array of {questions_per_node} questions for that node
+
+Generate questions for ALL {len(valid_nodes)} nodes.
+"""
+
+
+def _generate_with_schema(
+    client: genai.Client,
+    model_name: str,
+    temperature: float,
+    response_schema: type[BaseModel],
+    formatted_system_prompt: str,
+    user_message: str,
+):
+    """Generate content with a structured output schema."""
+    response = client.models.generate_content(
+        model=model_name,
+        contents=_build_prompt_contents(formatted_system_prompt, user_message),
+        config=types.GenerateContentConfig(
+            response_mime_type="application/json",
+            response_schema=response_schema,
+            temperature=temperature,
+        ),
+    )
+
+    if not response.parsed:
+        raise ValueError(
+            f"Failed to parse LLM response into {response_schema.__name__}"
+        )
+
+    return response.parsed
 
 
 # ==================== Question Generation ====================
 
 
-def _create_generate_with_retry(max_attempts: int):
+def _create_generate_with_retry(
+    max_attempts: int,
+    model_name: str,
+    temperature: float,
+):
     """Factory function to create generate function with configurable retry."""
 
     @retry(
@@ -147,7 +266,7 @@ def _create_generate_with_retry(max_attempts: int):
         reraise=True,
     )
     def _generate(
-        llm_struct,
+        client: genai.Client,
         node_name: str,
         node_description: str,
         num_questions: int = 3,
@@ -157,43 +276,23 @@ def _create_generate_with_retry(max_attempts: int):
     ) -> QuestionBatchLLM:
         """Generate questions for a single knowledge node."""
 
-        # Build difficulty instruction
-        if difficulty_distribution:
-            diff_str = ", ".join(
-                f"{count} {level}" for level, count in difficulty_distribution.items()
-            )
-        else:
-            # Default: balanced distribution
-            easy = num_questions // 3
-            hard = num_questions // 3
-            medium = num_questions - easy - hard
-            diff_str = f"{easy} easy, {medium} medium, {hard} hard"
-
-        # Build question type instruction
-        type_str = ""
-        if question_types:
-            type_str = f"\nPreferred question types: {', '.join(question_types)}"
-
-        formatted_system_prompt = QUESTION_GEN_SYSTEM_PROMPT.format(
-            user_guidance=(
-                f"### Extra Instructions:\n{user_guidance}" if user_guidance else ""
-            )
+        diff_str = _format_difficulty_distribution(
+            num_questions, difficulty_distribution
+        )
+        type_str = _format_question_type_preference(question_types)
+        formatted_system_prompt = _format_system_prompt(user_guidance)
+        user_message = _build_single_node_message(
+            node_name, node_description, num_questions, diff_str, type_str
         )
 
-        user_message = f"""
-Node Name: {node_name}
-Node Description: {node_description}
-
-Generate {num_questions} questions ({diff_str}).{type_str}
-"""
-
-        prompt_messages = [("system", formatted_system_prompt)]
-        prompt_messages.extend(QUESTION_GEN_FEW_SHOT_EXAMPLES)
-        prompt_messages.append(("human", "{user_input}"))
-
-        prompt = ChatPromptTemplate.from_messages(prompt_messages)
-        chain = prompt | llm_struct
-        return chain.invoke({"user_input": user_message})
+        return _generate_with_schema(
+            client,
+            model_name,
+            temperature,
+            QuestionBatchLLM,
+            formatted_system_prompt,
+            user_message,
+        )
 
     return _generate
 
@@ -231,14 +330,16 @@ def generate_questions_for_node(
         logger.warning("Node name and description are required")
         return None
 
-    llm_struct = _get_llm(config)
-    generate = _create_generate_with_retry(config.max_retry_attempts)
+    client = _get_client()
+    generate = _create_generate_with_retry(
+        config.max_retry_attempts, config.model_name, config.temperature
+    )
 
     logger.info(f"Generating {num_questions} questions for node: {node_name}")
 
     try:
         result = generate(
-            llm_struct,
+            client,
             node_name,
             node_description,
             num_questions,
@@ -253,67 +354,6 @@ def generate_questions_for_node(
         return None
 
 
-def generate_questions_for_nodes(
-    nodes: list[dict],
-    questions_per_node: int = 3,
-    difficulty_distribution: dict | None = None,
-    question_types: list[str] | None = None,
-    user_guidance: str = "",
-    config: PipelineConfig | None = None,
-) -> dict[str, QuestionBatchLLM]:
-    """
-    Generate questions for multiple knowledge nodes.
-
-    Args:
-        nodes: List of dicts with 'name' and 'description' keys
-        questions_per_node: Number of questions per node
-        difficulty_distribution: Dict like {"easy": 1, "medium": 1, "hard": 1}
-        question_types: List of preferred types
-        user_guidance: Additional instructions
-        config: Pipeline configuration
-
-    Returns:
-        Dict mapping node names to their generated questions
-
-    Example:
-        nodes = [
-            {"name": "Photosynthesis", "description": "Process by which..."},
-            {"name": "Cellular Respiration", "description": "Process of..."}
-        ]
-        results = generate_questions_for_nodes(nodes, questions_per_node=5)
-    """
-    config = config or PipelineConfig()
-    results = {}
-
-    for i, node in enumerate(nodes, 1):
-        name = node.get("name", "")
-        description = node.get("description", "")
-
-        if not name or not description:
-            logger.warning(f"Skipping node {i}: missing name or description")
-            continue
-
-        logger.info(f"Processing node {i}/{len(nodes)}: {name}")
-
-        questions = generate_questions_for_node(
-            node_name=name,
-            node_description=description,
-            num_questions=questions_per_node,
-            difficulty_distribution=difficulty_distribution,
-            question_types=question_types,
-            user_guidance=user_guidance,
-            config=config,
-        )
-
-        if questions:
-            results[name] = questions
-        else:
-            logger.warning(f"Failed to generate questions for: {name}")
-
-    logger.info(f"Completed: Generated questions for {len(results)}/{len(nodes)} nodes")
-    return results
-
-
 def generate_questions_for_nodes_batch(
     nodes: list[dict],
     questions_per_node: int = 3,
@@ -325,9 +365,8 @@ def generate_questions_for_nodes_batch(
     """
     Generate questions for multiple nodes in a SINGLE LLM call (batch mode).
 
-    This is much more efficient than generate_questions_for_nodes() which makes
-    one LLM call per node. Use this when you have many nodes and want to save
-    on API quota.
+    This is much more efficient than calling generate_questions_for_node()
+    per node. Use this when you have many nodes and want to save on API quota.
 
     Args:
         nodes: List of dicts with 'name' and 'description' keys
@@ -367,75 +406,26 @@ def generate_questions_for_nodes_batch(
         f"Batch generating questions for {len(valid_nodes)} nodes in ONE LLM call"
     )
 
-    # Build difficulty instruction
-    if difficulty_distribution:
-        diff_str = ", ".join(
-            f"{count} {level}" for level, count in difficulty_distribution.items()
-        )
-    else:
-        # Default: balanced distribution
-        easy = questions_per_node // 3
-        hard = questions_per_node // 3
-        medium = questions_per_node - easy - hard
-        diff_str = f"{easy} easy, {medium} medium, {hard} hard"
-
-    # Build question type instruction
-    type_str = ""
-    if question_types:
-        type_str = f"\nPreferred question types: {', '.join(question_types)}"
-
-    # Build the batch prompt with all nodes
-    nodes_description = "\n\n".join(
-        [
-            f"Node {i + 1}: {node['name']}\nDescription: {node['description']}"
-            for i, node in enumerate(valid_nodes)
-        ]
+    diff_str = _format_difficulty_distribution(
+        questions_per_node, difficulty_distribution
     )
-
-    formatted_system_prompt = QUESTION_GEN_SYSTEM_PROMPT.format(
-        user_guidance=(
-            f"### Extra Instructions:\n{user_guidance}" if user_guidance else ""
-        )
+    type_str = _format_question_type_preference(question_types)
+    formatted_system_prompt = _format_system_prompt(user_guidance)
+    user_message = _build_batch_message(
+        valid_nodes, questions_per_node, diff_str, type_str
     )
-
-    user_message = f"""
-I have {len(valid_nodes)} knowledge nodes. For EACH node, generate {questions_per_node} questions ({diff_str}).{type_str}
-
-{nodes_description}
-
-IMPORTANT: Return a JSON object with a "node_batches" array. Each element should have:
-- "node_name": exact name of the node
-- "questions": array of {questions_per_node} questions for that node
-
-Generate questions for ALL {len(valid_nodes)} nodes.
-"""
 
     try:
-        # Initialize base LLM (not using _get_llm because it applies QuestionBatchLLM schema)
-        api_key = settings.GOOGLE_API_KEY
-        if not api_key:
-            raise MissingAPIKeyError(
-                "GOOGLE_API_KEY is not set in settings. "
-                "Please configure it before running the pipeline."
-            )
+        client = _get_client()
 
-        llm = ChatGoogleGenerativeAI(
-            model=config.model_name,
-            temperature=config.temperature,
-            google_api_key=api_key,
+        result = _generate_with_schema(
+            client,
+            config.model_name,
+            config.temperature,
+            MultiNodeQuestionBatchLLM,
+            formatted_system_prompt,
+            user_message,
         )
-        # Apply MultiNodeQuestionBatchLLM schema for batch generation
-        llm_struct = llm.with_structured_output(MultiNodeQuestionBatchLLM)
-
-        prompt_messages = [("system", formatted_system_prompt)]
-        prompt_messages.extend(QUESTION_GEN_FEW_SHOT_EXAMPLES)
-        prompt_messages.append(("human", "{user_input}"))
-
-        prompt = ChatPromptTemplate.from_messages(prompt_messages)
-        chain = prompt | llm_struct
-
-        result = chain.invoke({"user_input": user_message})
-
         logger.info(
             f"Batch generation successful: {len(result.node_batches)} node batches returned"
         )
