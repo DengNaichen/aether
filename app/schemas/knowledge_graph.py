@@ -62,7 +62,6 @@ class GraphNodeVisualization(BaseModel):
 class GraphEdgeVisualization(BaseModel):
     source_id: UUID
     target_id: UUID
-    type: str
 
 
 class GraphVisualization(BaseModel):

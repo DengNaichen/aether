@@ -80,7 +80,6 @@ async def get_graph_visualization(
             GraphEdgeVisualization(
                 source_id=row.from_node_id,
                 target_id=row.to_node_id,
-                type="IS_PREREQUISITE_FOR",
             )
         )
 
