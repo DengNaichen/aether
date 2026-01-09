@@ -167,9 +167,9 @@ class TestTemplateFormatting:
                 p for p in placeholders if len(p) > 1 and p.isalpha()
             ]
 
-            assert (
-                len(suspicious_placeholders) == 0
-            ), f"Found unformatted placeholders: {suspicious_placeholders}"
+            assert len(suspicious_placeholders) == 0, (
+                f"Found unformatted placeholders: {suspicious_placeholders}"
+            )
 
 
 class TestPromptContentQuality:
@@ -236,9 +236,9 @@ class TestPromptContentQuality:
 
         # Academic OCR should mention LaTeX and References exclusion
         assert "LaTeX" in academic_prompt or "latex" in academic_prompt.lower()
-        assert (
-            "References" in academic_prompt or "Bibliography" in academic_prompt
-        ), "Should instruct to exclude references"
+        assert "References" in academic_prompt or "Bibliography" in academic_prompt, (
+            "Should instruct to exclude references"
+        )
 
         # Handwriting prompt should mention illegible text handling
         assert "[illegible]" in handwriting_prompt or "illegible" in handwriting_prompt
