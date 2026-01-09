@@ -114,3 +114,6 @@ ignore = [
     "E501",  # line too long (handled by black)
     "B008",  # FastAPI dependency injection pattern (Depends() in defaults)
 ]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/conftest.py" = ["E402"]

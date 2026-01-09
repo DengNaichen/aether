@@ -9,46 +9,34 @@ from pathlib import Path
 from dotenv import load_dotenv
 from jose import jwt
 
-# Set ENVIRONMENT to 'test' BEFORE loading .env file
-# This ensures Settings will load .env.test
+# Set ENVIRONMENT before loading .env so settings pick up .env.test.
 os.environ["ENVIRONMENT"] = "test"
 
-# Load test environment variables at the very beginning
-# Use override=True to ensure test settings override any existing env vars
+# Load test env vars early so app import uses the right config.
 load_dotenv(dotenv_path=Path(__file__).parent.parent / ".env.test", override=True)
 
 
 ROOT_DIR = Path(__file__).parent.parent
 sys.path.insert(0, str(ROOT_DIR))
 
-from collections.abc import AsyncGenerator  # noqa: E402
-from typing import Any  # noqa: E402
+from collections.abc import AsyncGenerator
+from typing import Any
 
 # ============================================
 # 2. import the dependency and app
 # ============================================
-import pytest_asyncio  # noqa: E402
-from httpx import ASGITransport, AsyncClient  # noqa: E402
-from sqlalchemy.ext.asyncio import AsyncSession  # noqa: E402
+import pytest_asyncio
+from httpx import ASGITransport, AsyncClient
+from sqlalchemy.ext.asyncio import AsyncSession
 
-# from neo4j import AsyncGraphDatabase, AsyncDriver
-from app.core.config import settings  # noqa: E402
-from app.core.database import DatabaseManager  # noqa: E402
-from app.core.deps import get_db  # noqa: E402
-
-# from app.core.security import create_access_token, get_password_hash
-# Configure neomodel BEFORE importing app.main (which triggers lifespan)
-# This ensures neomodel uses test database URL
-# from neomodel import config as neomodel_config
-# neomodel_config.DATABASE_URL = settings.NEOMODEL_NEO4J_URI
-# print(f"🧪 Test neomodel configured with URI: {settings.NEO4J_URI}")
-from app.main import app  # noqa: E402
-from app.models.base import Base  # noqa: E402
-from app.models.enrollment import GraphEnrollment  # noqa: E402
-from app.models.knowledge_graph import KnowledgeGraph  # noqa: E402
-from app.models.user import User  # noqa: E402
-
-# from app.schemas.knowledge_node import RelationType  # noqa: E402
+from app.core.config import settings
+from app.core.database import DatabaseManager
+from app.core.deps import get_db
+from app.main import app
+from app.models.base import Base
+from app.models.enrollment import GraphEnrollment
+from app.models.knowledge_graph import KnowledgeGraph
+from app.models.user import User
 
 # --- test constant ---
 TEST_USER_NAME = "test user conf"
@@ -67,7 +55,6 @@ TARGET_KNOWLEDGE_NODE_DESCRIPTION = "target test node description"
 SOURCE_KNOWLEDGE_NODE_ID = "source_test_node"
 SOURCE_KNOWLEDGE_NODE_NAME = "source test node"
 SOURCE_KNOWLEDGE_NODE_DESCRIPTION = "source test node description"
-# TEST_RELATION = RelationType.HAS_PREREQUISITES  # Changed from HAS_SUBTOPIC
 
 
 def create_access_token(subject: Any, expires_delta: timedelta | None = None) -> str:
@@ -119,38 +106,22 @@ async def test_db(
             await session.close()
 
 
-# @pytest_asyncio.fixture(scope="function")
-# async def test_redis(
-#     test_db_manager: DatabaseManager,
-# ) -> AsyncGenerator[Redis, None]:
-#     """
-#     provide a redis client for each test function, and clean after
-#     """
-#     redis_client = test_db_manager.redis_client
-#     await redis_client.flushall()
-#     yield redis_client
-#     await redis_client.flushall()
-
-
 @pytest_asyncio.fixture(scope="function")
 async def client(
     test_db: AsyncSession, test_db_manager: DatabaseManager
 ) -> AsyncGenerator[AsyncClient, None]:
-    def override_get_db() -> AsyncGenerator[AsyncSession, None]:
+    def override_get_db() -> AsyncGenerator[AsyncSession, None]:  # pyright: ignore[reportInvalidTypeForm]
         yield test_db
 
-    # async def override_get_redis_client() -> AsyncGenerator[Redis, None]:
-    #     yield test_db_manager.redis_client
-
+    # Swap the real DB dependency for the test session during requests.
     app.dependency_overrides[get_db] = override_get_db
-    # app.dependency_overrides[get_redis_client] = override_get_redis_client
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
         yield ac
 
+    # Restore the app to avoid cross-test leakage.
     del app.dependency_overrides[get_db]
-    # del app.dependency_overrides[get_redis_client]
 
 
 @pytest_asyncio.fixture(scope="function")

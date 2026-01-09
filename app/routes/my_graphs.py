@@ -6,17 +6,16 @@ All endpoints require the user to be the owner of the graph.
 """
 
 import logging
-from uuid import UUID, uuid4
+from uuid import uuid4
 
-from fastapi import APIRouter, Depends, File, HTTPException, Path, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.deps import get_current_active_user, get_db, get_owned_graph
-from app.crud.graph_structure import get_graph_visualization, import_graph_structure
+from app.crud.graph_structure import get_graph_visualization
 from app.crud.knowledge_graph import (
     create_knowledge_graph,
-    get_graph_by_id,
     get_graph_by_owner_and_slug,
     get_graphs_by_owner,
 )
@@ -33,10 +32,6 @@ from app.schemas.knowledge_graph import (
     GraphVisualization,
     KnowledgeGraphCreate,
     KnowledgeGraphResponse,
-)
-from app.schemas.knowledge_node import (
-    GraphStructureImport,
-    GraphStructureImportResponse,
 )
 from app.schemas.questions import GenerateQuestionsRequest
 from app.services.ai.question_generation import generate_questions_for_graph
@@ -293,108 +288,6 @@ async def enroll_in_graph(
     )
 
     return enrollment
-
-
-@router.post(
-    "/{graph_id}/import-structure",
-    status_code=status.HTTP_201_CREATED,
-    response_model=GraphStructureImportResponse,
-    summary="Import complete graph structure from AI extraction",
-    description="""
-    Import a complete knowledge graph structure including nodes and relationships
-    from AI extraction (e.g., LangChain pipeline).
-
-    This endpoint accepts:
-    - nodes: List of knowledge nodes with string IDs
-    - prerequisites: List of prerequisite relationships between nodes
-    - subtopics: List of hierarchical subtopic relationships
-
-    All data is imported in a single atomic transaction. Duplicate nodes
-    (same node_id_str) are silently skipped. Invalid relationships (referencing
-    non-existent nodes) are also skipped.
-
-    Example request body:
-    ```json
-    {
-        "nodes": [
-            {"node_id_str": "vector", "node_name": "Vector", "description": "A quantity with magnitude and direction"},
-            {"node_id_str": "linear_algebra", "node_name": "Linear Algebra", "description": "Branch of mathematics"}
-        ],
-        "prerequisites": [
-            {"from_node_id_str": "vector", "to_node_id_str": "linear_algebra", "weight": 0.8}
-        ],
-        "subtopics": [
-            {"parent_node_id_str": "linear_algebra", "child_node_id_str": "vector", "weight": 1.0}
-        ]
-    }
-    ```
-    """,
-)
-async def import_structure(
-    graph_id: str = Path(..., description="Knowledge graph UUID"),
-    payload: GraphStructureImport = ...,
-    db_session: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_active_user),
-) -> GraphStructureImportResponse:
-    """
-    Import a complete graph structure from AI extraction.
-
-    This is the primary endpoint for integrating LangChain pipelines with the database.
-    Only the graph owner can import structure to their graph.
-
-    Args:
-        graph_id: Knowledge graph UUID (as string from URL path)
-        payload: The structure data to import (nodes, prerequisites, subtopics)
-        db_session: Database session
-        current_user: Authenticated user (must be the graph owner)
-
-    Returns:
-        GraphStructureImportResponse: Summary of imported items
-
-    Raises:
-        HTTPException 400: If graph_id is not a valid UUID
-        HTTPException 404: If the knowledge graph doesn't exist
-        HTTPException 403: If the user is not the owner
-    """
-    try:
-        graph_uuid = UUID(graph_id)
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid graph ID format"
-        ) from e
-
-    # Check graph exists and user owns it
-
-    graph = await get_graph_by_id(db_session, graph_uuid)
-    if not graph:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Knowledge graph not found"
-        )
-
-    if graph.owner_id != current_user.id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="You don't have permission to modify this graph",
-        )
-
-    # Import the structure
-    result = await import_graph_structure(
-        db_session=db_session,
-        graph_id=graph_uuid,
-        import_data=payload,
-    )
-
-    logger.info(
-        f"Graph structure imported: graph_id={graph_id}, "
-        f"nodes={result.nodes_created}, prerequisites={result.prerequisites_created}"
-    )
-
-    result.message = (
-        f"Import complete: nodes={result.nodes_created}, "
-        f"prerequisites={result.prerequisites_created}"
-    )
-
-    return result
 
 
 @router.post(

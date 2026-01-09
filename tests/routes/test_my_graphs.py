@@ -12,56 +12,14 @@ Tests cover:
     - Uploading files
 """
 
-import uuid
+from unittest.mock import AsyncMock, patch
 
 import pytest
-import pytest_asyncio
 from fastapi import status
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.knowledge_graph import KnowledgeGraph
-from app.models.user import User
-
-
-@pytest_asyncio.fixture(scope="function")
-async def user_in_db(test_db: AsyncSession) -> User:
-    new_user = User(
-        email=f"test.{uuid.uuid4().hex}@example.com",
-        name="test user conf",
-        is_active=True,
-    )
-    test_db.add(new_user)
-    await test_db.commit()
-    await test_db.refresh(new_user)
-    return new_user
-
-
-@pytest_asyncio.fixture(scope="function")
-async def admin_in_db(test_db: AsyncSession) -> User:
-    new_admin = User(
-        email=f"admin.{uuid.uuid4().hex}@example.com",
-        name="test admin conf",
-        is_active=True,
-        is_admin=True,
-    )
-    test_db.add(new_admin)
-    await test_db.commit()
-    await test_db.refresh(new_admin)
-    return new_admin
-
-
-@pytest_asyncio.fixture(scope="function")
-async def other_user_in_db(test_db: AsyncSession) -> User:
-    other_user = User(
-        email=f"other.{uuid.uuid4().hex}@example.com",
-        name="other test user",
-        is_active=True,
-    )
-    test_db.add(other_user)
-    await test_db.commit()
-    await test_db.refresh(other_user)
-    return other_user
 
 
 class TestCreateKnowledgeGraph:
@@ -145,6 +103,26 @@ class TestCreateKnowledgeGraph:
 
         assert response.status_code == status.HTTP_409_CONFLICT
         assert "already have a graph" in response.json()["detail"]
+
+    @pytest.mark.asyncio
+    async def test_create_graph_db_error_returns_500(
+        self,
+        authenticated_client: AsyncClient,
+    ):
+        """Test unexpected database error returns 500"""
+        with patch(
+            "app.routes.my_graphs.create_knowledge_graph",
+            new_callable=AsyncMock,
+        ) as mock_create:
+            mock_create.side_effect = Exception("boom")
+
+            response = await authenticated_client.post(
+                "/me/graphs/",
+                json={"name": "Boom Graph"},
+            )
+
+        assert response.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR
+        assert "Failed to create knowledge graph" in response.json()["detail"]
 
     @pytest.mark.asyncio
     async def test_create_graph_without_authentication_fails(
@@ -621,173 +599,3 @@ class TestEnrollInMyGraph:
         response = await authenticated_client.post(f"/me/graphs/{fake_id}/enrollments")
 
         assert response.status_code == status.HTTP_404_NOT_FOUND
-
-
-class TestImportStructure:
-    """Test POST /me/graphs/{graph_id}/import-structure endpoint"""
-
-    @pytest.mark.asyncio
-    async def test_import_structure_success(
-        self,
-        authenticated_client: AsyncClient,
-        private_graph_in_db: KnowledgeGraph,
-    ):
-        """Test successfully importing graph structure"""
-        import_data = {
-            "nodes": [
-                {
-                    "node_id_str": "node1",
-                    "node_name": "Node 1",
-                    "description": "First node",
-                },
-                {
-                    "node_id_str": "node2",
-                    "node_name": "Node 2",
-                    "description": "Second node",
-                },
-            ],
-            "prerequisites": [
-                {
-                    "from_node_id_str": "node1",
-                    "to_node_id_str": "node2",
-                    "weight": 1.0,
-                }
-            ],
-        }
-
-        response = await authenticated_client.post(
-            f"/me/graphs/{private_graph_in_db.id}/import-structure",
-            json=import_data,
-        )
-
-        assert response.status_code == status.HTTP_201_CREATED
-        data = response.json()
-        assert data["nodes_created"] == 2
-        assert data["prerequisites_created"] == 1
-
-    @pytest.mark.asyncio
-    async def test_import_structure_not_owner_fails(
-        self,
-        other_user_client: AsyncClient,
-        private_graph_in_db: KnowledgeGraph,
-    ):
-        """Test that non-owner cannot import structure"""
-        import_data = {
-            "nodes": [],
-            "prerequisites": [],
-        }
-
-        response = await other_user_client.post(
-            f"/me/graphs/{private_graph_in_db.id}/import-structure",
-            json=import_data,
-        )
-
-        assert response.status_code == status.HTTP_403_FORBIDDEN
-
-    @pytest.mark.asyncio
-    async def test_import_structure_invalid_graph_id_fails(
-        self,
-        authenticated_client: AsyncClient,
-    ):
-        """Test importing with invalid graph ID"""
-        import_data = {
-            "nodes": [],
-            "prerequisites": [],
-        }
-
-        response = await authenticated_client.post(
-            "/me/graphs/invalid-uuid/import-structure",
-            json=import_data,
-        )
-
-        assert response.status_code == status.HTTP_400_BAD_REQUEST
-
-    @pytest.mark.asyncio
-    async def test_import_structure_graph_not_found(
-        self,
-        authenticated_client: AsyncClient,
-    ):
-        """Test importing structure into missing graph"""
-        import_data = {
-            "nodes": [],
-            "prerequisites": [],
-        }
-
-        response = await authenticated_client.post(
-            "/me/graphs/00000000-0000-0000-0000-000000000000/import-structure",
-            json=import_data,
-        )
-
-        assert response.status_code == status.HTTP_404_NOT_FOUND
-
-
-# class TestUploadFile:
-#     """Test POST /me/graphs/{graph_id}/upload-file endpoint"""
-
-#     @pytest.mark.asyncio
-#     async def test_upload_file_invalid_file_type_fails(
-#         self,
-#         authenticated_client: AsyncClient,
-#         private_graph_in_db: KnowledgeGraph,
-#     ):
-#         """Test that uploading unsupported file type fails"""
-#         files = {"file": ("test.txt", b"not a pdf", "text/plain")}
-
-#         response = await authenticated_client.post(
-#             f"/me/graphs/{private_graph_in_db.id}/upload-file",
-#             files=files,
-#         )
-
-#         assert response.status_code == status.HTTP_400_BAD_REQUEST
-#         assert (
-#             "Only PDF (.pdf) and Markdown (.md) files are supported."
-#             in response.json()["detail"]
-#         )
-
-#     @pytest.mark.asyncio
-#     async def test_upload_file_not_owner_fails(
-#         self,
-#         other_user_client: AsyncClient,
-#         private_graph_in_db: KnowledgeGraph,
-#     ):
-#         """Test that non-owner cannot upload file"""
-#         files = {"file": ("test.pdf", b"fake pdf content", "application/pdf")}
-
-#         response = await other_user_client.post(
-#             f"/me/graphs/{private_graph_in_db.id}/upload-file",
-#             files=files,
-#         )
-
-#         assert response.status_code == status.HTTP_403_FORBIDDEN
-
-#     @pytest.mark.asyncio
-#     async def test_upload_file_nonexistent_graph_fails(
-#         self,
-#         authenticated_client: AsyncClient,
-#     ):
-#         """Test uploading file to nonexistent graph"""
-#         fake_id = "00000000-0000-0000-0000-000000000000"
-#         files = {"file": ("test.pdf", b"fake pdf content", "application/pdf")}
-
-#         response = await authenticated_client.post(
-#             f"/me/graphs/{fake_id}/upload-file",
-#             files=files,
-#         )
-
-#         assert response.status_code == status.HTTP_404_NOT_FOUND
-
-#     @pytest.mark.asyncio
-#     async def test_upload_file_unauthenticated_fails(
-#         self,
-#         client: AsyncClient,
-#         private_graph_in_db: KnowledgeGraph,
-#     ):
-#         """Test that upload requires authentication"""
-#         files = {"file": ("test.pdf", b"fake pdf content", "application/pdf")}
-
-#         response = await client.post(
-#             f"/me/graphs/{private_graph_in_db.id}/upload-file",
-#             files=files,
-#         )
-
-#         assert response.status_code == status.HTTP_401_UNAUTHORIZED

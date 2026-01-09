@@ -27,37 +27,6 @@ class GraphValidationService:
     def __init__(self, db_session: AsyncSession):
         self.db = db_session
 
-    # ==================== Cycle Detection ====================
-
-    async def detect_prerequisite_cycle(
-        self,
-        graph_id: UUID,
-        from_node_id: UUID,
-        to_node_id: UUID,
-    ) -> bool:
-        """
-        Detect if adding a prerequisite relationship would create a cycle.
-
-        Note:
-            For bulk edge insertion, GraphGenerationService._filter_cyclic_edges_str
-            uses NetworkX for in-memory cycle detection before DB writes.
-            This method is intended for single-edge validation in API routes.
-
-        Args:
-            graph_id: The knowledge graph ID
-            from_node_id: The prerequisite node (source)
-            to_node_id: The dependent node (target)
-
-        Returns:
-            True if adding this edge would create a cycle, False otherwise
-        """
-        _, adj_list = await graph_structure.get_prerequisite_adjacency_list(
-            self.db, graph_id
-        )
-        return GraphTopologyLogic.detect_cycle_with_new_edge(
-            adj_list, from_node_id, to_node_id
-        )
-
     # ==================== Topology Computation ====================
 
     async def compute_topological_levels(self, graph_id: UUID) -> dict[UUID, int]:
