@@ -2,25 +2,9 @@ from __future__ import annotations
 
 import re
 from datetime import datetime
-from enum import Enum
-from typing import Any
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, computed_field, model_validator
-
-# ==================== Enums ====================
-
-
-class EdgeType(str, Enum):
-    """
-    Types of edges in knowledge graph visualization.
-
-    Matches the relationship semantics in PostgreSQL models:
-    - IS_PREREQUISITE_FOR: Prerequisite relationship (from_node -> to_node)
-    """
-
-    IS_PREREQUISITE_FOR = "IS_PREREQUISITE_FOR"
-
 
 # ==================== Knowledge Node Schemas ====================
 
@@ -30,25 +14,6 @@ class KnowledgeNodeCreate(BaseModel):
 
     node_name: str = Field(..., description="Display name (e.g., 'Derivative')")
     description: str | None = Field(None, description="Detailed explanation")
-
-
-class KnowledgeNodeCreateWithStrId(KnowledgeNodeCreate):
-    """
-    Schema for creating a new knowledge node with string id.
-    """
-
-    node_str_id: str
-
-
-class BulkNodeRequest(BaseModel):
-    nodes: list[KnowledgeNodeCreateWithStrId]
-
-
-class KnowledgeNodeUpdate(BaseModel):
-    """Schema for updating an existing knowledge node."""
-
-    node_name: str | None = None
-    description: str | None = None
 
 
 class KnowledgeNodeResponse(BaseModel):
@@ -102,47 +67,6 @@ class PrerequisiteResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-# ==================== Question Schemas ====================
-
-
-class QuestionCreate(BaseModel):
-    """Schema for creating a new question.
-
-    The details field should contain question-specific data:
-    - Multiple Choice: {"options": [...], "correct_answer": int, "p_g": float, "p_s": float}
-    - Fill in Blank: {"expected_answers": [...], "p_g": float, "p_s": float}
-    - Calculation: {"expected_answers": [...], "precision": int, "p_g": float, "p_s": float}
-
-    Note: p_g (guess probability) and p_s (slip probability) are now stored in the details field.
-    """
-
-    node_id: UUID = Field(..., description="Which node UUID this question tests")
-    question_type: str = Field(
-        ..., description="Type: multiple_choice, fill_blank, calculation"
-    )
-    text: str = Field(..., description="Question prompt/text")
-    details: dict[str, Any] = Field(
-        ..., description="Question-specific data as JSON (includes p_g and p_s)"
-    )
-    difficulty: str = Field(..., description="Difficulty: easy, medium, hard")
-
-
-class QuestionResponse(BaseModel):
-    """Schema for question response."""
-
-    id: UUID
-    graph_id: UUID
-    node_id: UUID
-    question_type: str
-    text: str
-    details: dict[str, Any]  # Includes p_g and p_s
-    difficulty: str
-    created_by: UUID | None = None
-    created_at: datetime
-
-    model_config = ConfigDict(from_attributes=True)
-
-
 class GraphNode(BaseModel):
     """Node representation for knowledge graph visualization."""
 
@@ -173,92 +97,6 @@ class KnowledgeGraphVisualization(BaseModel):
 
     nodes: list[GraphNode]
     edges: list[GraphEdge]
-
-
-# ==================== Graph Structure Import Schemas ====================
-# These schemas are designed to match the output from LangChain AI extraction
-
-
-class NodeImport(BaseModel):
-    """Schema for importing a node from AI extraction.
-
-    The node_id_str is generated from the node name (e.g., "Vector" -> "vector").
-    This allows the AI to reference nodes by name in relationships.
-    """
-
-    node_id_str: str = Field(
-        ...,
-        description="String identifier for the node (e.g., 'vector', 'linear_algebra')",
-    )
-    node_name: str = Field(
-        ..., description="Display name (e.g., 'Vector', 'Linear Algebra')"
-    )
-    description: str | None = Field(
-        None, description="Detailed explanation of the concept"
-    )
-
-
-class PrerequisiteImport(BaseModel):
-    """Schema for importing a prerequisite relationship from AI extraction.
-
-    Uses string IDs to reference nodes, which will be resolved to UUIDs during import.
-    """
-
-    from_node_id_str: str = Field(..., description="String ID of the prerequisite node")
-    to_node_id_str: str = Field(..., description="String ID of the dependent node")
-    weight: float = Field(
-        1.0, ge=0.0, le=1.0, description="Importance weight (0.0-1.0)"
-    )
-
-
-class GraphStructureImport(BaseModel):
-    """Schema for importing a complete graph structure from AI extraction.
-
-    This schema is designed to accept the output from LangChain pipelines
-    that extract knowledge graphs from documents. All nodes and relationships
-    are imported in a single atomic transaction.
-
-    Example usage with LangChain output:
-    ```python
-    # LangChain extracts GraphStructure with nodes and relationships
-    ai_result = chain.invoke({"text": document_text})
-
-    # Convert to import format
-    import_data = GraphStructureImport(
-        nodes=[NodeImport(node_id_str=n.id, node_name=n.name, description=n.description)
-               for n in ai_result.nodes],
-        prerequisites=[PrerequisiteImport(
-            from_node_id_str=r.source_id,
-            to_node_id_str=r.target_id,
-            weight=r.weight
-        ) for r in ai_result.relationships if r.label == "IS_PREREQUISITE_FOR"],
-        subtopics=[SubtopicImport(
-            parent_node_id_str=r.parent_id,
-            child_node_id_str=r.child_id,
-            weight=r.weight
-        ) for r in ai_result.relationships if r.label == "HAS_SUBTOPIC"]
-    )
-    ```
-    """
-
-    nodes: list[NodeImport] = Field(..., description="List of nodes to import")
-    prerequisites: list[PrerequisiteImport] = Field(
-        default_factory=list, description="Prerequisite relationships"
-    )
-
-
-class GraphStructureImportResponse(BaseModel):
-    """Response schema for graph structure import."""
-
-    nodes_created: int = Field(..., description="Number of nodes successfully created")
-    nodes_skipped: int = Field(..., description="Number of nodes skipped (duplicates)")
-    prerequisites_created: int = Field(
-        ..., description="Number of prerequisite relationships created"
-    )
-    prerequisites_skipped: int = Field(
-        ..., description="Number of prerequisites skipped (invalid refs or duplicates)"
-    )
-    message: str = Field(..., description="Summary message")
 
 
 # ==================== LLM Graph Structure Schemas ====================

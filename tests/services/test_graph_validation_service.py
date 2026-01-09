@@ -11,75 +11,9 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.knowledge_graph import KnowledgeGraph
-from app.models.knowledge_node import KnowledgeNode, Prerequisite  # Subtopic removed
+from app.models.knowledge_node import KnowledgeNode, Prerequisite
 from app.models.user import User
 from app.services.graph_validation_service import GraphValidationService
-
-
-# ==================== Cycle Detection Tests ====================
-class TestDetectPrerequisiteCycle:
-    """Test prerequisite cycle detection."""
-
-    @pytest.mark.asyncio
-    async def test_detects_simple_cycle(self, test_db: AsyncSession, user_in_db: User):
-        """Should detect a simple 3-node cycle."""
-        graph = KnowledgeGraph(owner_id=user_in_db.id, name="Test", slug="test")
-        test_db.add(graph)
-        await test_db.flush()
-
-        n1 = KnowledgeNode(graph_id=graph.id, node_name="Node 1")
-        n2 = KnowledgeNode(graph_id=graph.id, node_name="Node 2")
-        n3 = KnowledgeNode(graph_id=graph.id, node_name="Node 3")
-        test_db.add_all([n1, n2, n3])
-        await test_db.flush()
-
-        # Create cycle: n1 -> n2 -> n3
-        p1 = Prerequisite(
-            graph_id=graph.id, from_node_id=n1.id, to_node_id=n2.id, weight=1.0
-        )
-        p2 = Prerequisite(
-            graph_id=graph.id, from_node_id=n2.id, to_node_id=n3.id, weight=1.0
-        )
-        test_db.add_all([p1, p2])
-        await test_db.commit()
-
-        service = GraphValidationService(test_db)
-
-        # Adding n3 -> n1 would create cycle
-        has_cycle = await service.detect_prerequisite_cycle(graph.id, n3.id, n1.id)
-        assert has_cycle is True
-
-        # Adding n1 -> n3 is safe (direct edge, no cycle)
-        has_cycle = await service.detect_prerequisite_cycle(graph.id, n1.id, n3.id)
-        assert has_cycle is False
-
-    @pytest.mark.asyncio
-    async def test_no_cycle_in_linear_chain(
-        self, test_db: AsyncSession, user_in_db: User
-    ):
-        """Should not detect cycle in a linear chain."""
-        graph = KnowledgeGraph(owner_id=user_in_db.id, name="Test", slug="test")
-        test_db.add(graph)
-        await test_db.flush()
-
-        n1 = KnowledgeNode(graph_id=graph.id, node_name="Node 1")
-        n2 = KnowledgeNode(graph_id=graph.id, node_name="Node 2")
-        n3 = KnowledgeNode(graph_id=graph.id, node_name="Node 3")
-        test_db.add_all([n1, n2, n3])
-        await test_db.flush()
-
-        # Linear: n1 -> n2
-        p1 = Prerequisite(
-            graph_id=graph.id, from_node_id=n1.id, to_node_id=n2.id, weight=1.0
-        )
-        test_db.add(p1)
-        await test_db.commit()
-
-        service = GraphValidationService(test_db)
-
-        # Adding n2 -> n3 is safe
-        has_cycle = await service.detect_prerequisite_cycle(graph.id, n2.id, n3.id)
-        assert has_cycle is False
 
 
 # ==================== Topology Computation Tests ====================

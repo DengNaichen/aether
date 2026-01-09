@@ -1,7 +1,6 @@
 from uuid import UUID
 
 from sqlalchemy import func, select, update
-from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.knowledge_node import KnowledgeNode, Prerequisite
@@ -10,10 +9,6 @@ from app.schemas.knowledge_graph import (
     GraphEdgeVisualization,
     GraphNodeVisualization,
     GraphVisualization,
-)
-from app.schemas.knowledge_node import (
-    GraphStructureImport,
-    GraphStructureImportResponse,
 )
 
 
@@ -92,110 +87,6 @@ async def get_graph_visualization(
     return GraphVisualization(nodes=nodes, edges=edges)
 
 
-async def import_graph_structure(
-    db_session: AsyncSession,
-    graph_id: UUID,
-    import_data: GraphStructureImport,
-) -> GraphStructureImportResponse:
-    """
-    Import a complete graph structure from AI extraction in a single transaction.
-
-    This function handles:
-    1. Bulk insert of all nodes (with conflict handling for duplicates)
-    2. Resolution of string IDs to UUIDs
-    3. Bulk insert of prerequisite relationships
-
-    All operations are performed in a single transaction for atomicity.
-
-    Args:
-        db_session: Database session
-        graph_id: Target knowledge graph UUID
-        import_data: GraphStructureImport containing nodes and prerequisites
-
-    Returns:
-        GraphStructureImportResponse with counts of created/skipped items
-    """
-    nodes_created = 0
-    nodes_skipped = 0
-    prerequisites_created = 0
-    prerequisites_skipped = 0
-
-    # Step 1: Bulk insert nodes
-    if import_data.nodes:
-        # Prepare node values for bulk insert
-        node_values = [
-            {
-                "graph_id": graph_id,
-                "node_id_str": node.node_id_str,
-                "node_name": node.node_name,
-                "description": node.description,
-            }
-            for node in import_data.nodes
-        ]
-
-        # Use INSERT ... ON CONFLICT DO NOTHING for idempotency
-        stmt = insert(KnowledgeNode).values(node_values)
-        stmt = stmt.on_conflict_do_nothing(index_elements=["graph_id", "node_id_str"])
-        result = await db_session.execute(stmt)
-        nodes_created = result.rowcount if result.rowcount else 0
-        nodes_skipped = len(import_data.nodes) - nodes_created
-
-    # Step 2: Build node_id_str -> UUID mapping
-    # Query all nodes in this graph to get their UUIDs
-    nodes_stmt = select(KnowledgeNode.node_id_str, KnowledgeNode.id).where(
-        KnowledgeNode.graph_id == graph_id, KnowledgeNode.node_id_str.isnot(None)
-    )
-    nodes_result = await db_session.execute(nodes_stmt)
-    node_id_map: dict[str, UUID] = {
-        row.node_id_str: row.id for row in nodes_result.all()
-    }
-
-    # Step 3: Bulk insert prerequisites
-    if import_data.prerequisites:
-        prereq_values = []
-        for prereq in import_data.prerequisites:
-            from_uuid = node_id_map.get(prereq.from_node_id_str)
-            to_uuid = node_id_map.get(prereq.to_node_id_str)
-
-            if from_uuid and to_uuid and from_uuid != to_uuid:
-                prereq_values.append(
-                    {
-                        "graph_id": graph_id,
-                        "from_node_id": from_uuid,
-                        "to_node_id": to_uuid,
-                        "weight": prereq.weight,
-                    }
-                )
-            else:
-                prerequisites_skipped += 1
-
-        if prereq_values:
-            stmt = insert(Prerequisite).values(prereq_values)
-            stmt = stmt.on_conflict_do_nothing(
-                index_elements=["graph_id", "from_node_id", "to_node_id"]
-            )
-            result = await db_session.execute(stmt)
-            prerequisites_created = result.rowcount if result.rowcount else 0
-            prerequisites_skipped += len(prereq_values) - prerequisites_created
-
-    # Commit the transaction
-    await db_session.commit()
-
-    # Build response message
-    message = (
-        f"Import completed: {nodes_created} nodes, "
-        f"{prerequisites_created} prerequisites created."
-    )
-
-    return GraphStructureImportResponse(
-        nodes_created=nodes_created,
-        nodes_skipped=nodes_skipped,
-        prerequisites_created=prerequisites_created,
-        prerequisites_skipped=prerequisites_skipped,
-        message=message,
-    )
-
-
 # ==================== Topology Analysis Support ====================
 
 
@@ -269,7 +160,7 @@ async def batch_update_node_topology(
         result = await db_session.execute(update_stmt)
         nodes_updated += result.rowcount
 
-    await db_session.commit()
+    await db_session.commit()  # FIXME: shouldn't commit here
     return nodes_updated
 
 
@@ -293,7 +184,7 @@ async def reset_node_topology(db_session: AsyncSession, graph_id: UUID) -> int:
     )
 
     result = await db_session.execute(update_stmt)
-    await db_session.commit()
+    await db_session.commit()  # FIXME: shouldn't commit here
 
     return result.rowcount
 

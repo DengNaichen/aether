@@ -34,7 +34,7 @@ class SingleAnswerSubmitResponse(BaseModel):
         answer_id: UUID of the saved answer record
         is_correct: Whether the answer was correct
         mastery_updated: Whether mastery level was updated successfully
-        next_question_id: Optional UUID of recommended next question
+        correct_answer:
     """
 
     answer_id: UUID
