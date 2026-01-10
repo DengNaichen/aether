@@ -34,6 +34,7 @@ dependencies = [
     "jupyter-client>=8.6.3",
     "llama-index-core>=0.12.42",
     "llama-index-embeddings-google-genai>=0.2.1",
+    "mcp>=1.25.0",
     "notebook>=7.4.7",
     "numpy>=1.24.0",
     "pandas>=2.0.0",
