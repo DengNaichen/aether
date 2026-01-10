@@ -18,7 +18,10 @@ class Settings(BaseSettings):
     # sql config
     DATABASE_URL: str
     SUPABASE_JWT_SECRET: str
+    SUPABASE_URL: str | None = None
+    SUPABASE_JWKS_URL: str | None = None
     ALGORITHM: ClassVar[str] = "HS256"
+    JWKS_CACHE_TTL_SECONDS: int = 300
 
     # redis config
     REDIS_URL: str = Field(default="redis://redis:6379/0")
@@ -59,6 +62,14 @@ class Settings(BaseSettings):
     @property
     def is_testing(self) -> bool:
         return self.ENVIRONMENT == "test"
+
+    @property
+    def supabase_jwks_url(self) -> str | None:
+        if self.SUPABASE_JWKS_URL:
+            return self.SUPABASE_JWKS_URL.rstrip("/")
+        if self.SUPABASE_URL:
+            return f"{self.SUPABASE_URL.rstrip('/')}/auth/v1/.well-known/jwks.json"
+        return None
 
 
 settings = Settings()  # type: ignore

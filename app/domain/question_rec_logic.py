@@ -104,7 +104,9 @@ class QuestionRecLogic:
             stabilities = []
 
             for pid in prereq_ids:
-                stability = stability_map.get(pid, 0.0)  # Default to 0 if not found
+                stability = stability_map.get(pid)
+                if stability is None:
+                    stability = 0.0  # Treat missing/unknown stability as not learned
                 if stability < threshold:
                     all_learned = False
                     break

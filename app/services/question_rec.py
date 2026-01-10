@@ -267,7 +267,7 @@ class QuestionService:
                 UserMastery.node_id.in_(list(all_relevant_prereq_ids)),
             )
             result_mastery = await db_session.execute(stmt_all_mastery)
-            stability_map = dict(result_mastery)
+            stability_map = dict(result_mastery.all())
             # stability_map = {
             #     node_id: stability for node_id, stability in result_mastery
             # }
@@ -315,7 +315,11 @@ class QuestionService:
         # Subquery: Nodes already mastered by user
         mastered_nodes_subq = (
             select(UserMastery.node_id)
-            .where(UserMastery.user_id == user_id, UserMastery.graph_id == graph_id)
+            .where(
+                UserMastery.user_id == user_id,
+                UserMastery.graph_id == graph_id,
+                UserMastery.fsrs_stability >= self.STABILITY_THRESHOLD,
+            )
             .scalar_subquery()
         )
 
